@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#168654">
+  <meta name="description" content="Kagome City — жимсний хотоор аялж, сорил давж, ширэнгээр гүйх 3D тоглоом">
+  <title>Kagome City • Жимсний хот</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='36' r='24' fill='%23f0464f'/%3E%3Cpath d='M32 12v8' stroke='%237a5230' stroke-width='4' stroke-linecap='round'/%3E%3Cellipse cx='40' cy='16' rx='8' ry='4' fill='%233c9e4a' transform='rotate(-25 40 16)'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+  <canvas id="world" aria-label="Kagome City 3D ертөнц"></canvas>
+
+  <!-- Ачааллах дэлгэц -->
+  <div id="loading">
+    <div class="load-card">
+      <div class="logo"><strong>KAGOME</strong><span>CITY</span></div>
+      <div class="load-track"><i id="loadBar"></i></div>
+      <small id="loadLabel">Ертөнцийг бэлдэж байна…</small>
+    </div>
+  </div>
+
+  <!-- Хотын HUD -->
+  <div id="townHud" class="hud hidden">
+    <header>
+      <div class="brand"><strong>KAGOME</strong><span>ЖИМСНИЙ ХОТ</span></div>
+      <div class="stats">
+        <span id="fruitCount" class="stat">🍎 0</span>
+        <span id="starCount" class="stat">⭐ 0</span>
+        <button id="mapButton" class="icon" title="Газрын зураг (M)">🗺</button>
+        <button id="collectionButton" class="icon" title="Цуглуулга">🧃</button>
+        <button id="pauseButton" class="icon" title="Түр зогсоох (Esc)">⏸</button>
+      </div>
+    </header>
+    <aside id="quest">
+      <small id="chapter">АЯЛАЛ 1 / 6</small>
+      <h2 id="questTitle">—</h2>
+      <p id="questText">—</p>
+      <div class="track"><i id="questBar"></i></div>
+      <div class="quest-foot"><span id="questHint"></span><span id="questProgress">0 / 6</span></div>
+    </aside>
+    <div id="location"><span id="locName">Хотын төв</span></div>
+    <div id="compass"><i id="compassNeedle"></i><b id="compassDist"></b></div>
+    <canvas id="minimap" width="220" height="220" aria-label="Жижиг газрын зураг"></canvas>
+    <div id="prompt"><kbd>E</kbd><span id="promptText"></span></div>
+    <div id="speedo" class="hidden"><b id="speedVal">0</b><small>км/ц</small></div>
+    <footer class="keys">
+      <span><kbd>W A S D</kbd> Алхах</span><span><kbd>Shift</kbd> Гүйх</span><span><kbd>Space</kbd> Үсрэх</span><span><kbd>E</kbd> Харилцах</span><span><kbd>Хулгана</kbd> Камер</span>
+    </footer>
+    <div id="touch">
+      <div id="stick"><div id="knob"></div></div>
+      <div class="actions">
+        <button id="runBtn" class="act">🏃<small>Гүйх</small></button>
+        <button id="jumpBtn" class="act big">↑<small>Үсрэх</small></button>
+        <button id="actionBtn" class="act big">E<small>Үйлдэл</small></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Runner HUD -->
+  <div id="runnerHud" class="hud hidden">
+    <header>
+      <div class="brand dark"><strong>KAGOME</strong><span>JUNGLE RUNNER</span></div>
+      <div class="stats">
+        <button id="rPause" class="icon dark" title="Түр зогсоох">⏸</button>
+      </div>
+    </header>
+    <div id="rLevel"><small id="rStage">01 / 05</small><strong id="rWorld"></strong><div class="track dark"><i id="rProgress"></i></div></div>
+    <div id="rStats">
+      <span><small>ОНОО</small><b id="rScore">0</b></span>
+      <span><small>ЦУГЛУУЛСАН</small><b id="rCount">0</b></span>
+      <span><small>АМЬ</small><b id="rLives">♥♥♥</b></span>
+    </div>
+    <div id="rZone"></div>
+    <div id="rPowers"></div>
+    <div id="rCombo"></div>
+    <div id="ropePrompt" class="hidden">УЯА ОЙРТЛОО · <kbd>E</kbd> ЗҮҮГДЭХ</div>
+    <div id="rControls">
+      <button data-action="left">←</button>
+      <button data-action="jump">↑<small>ҮСЭР</small></button>
+      <button data-action="slide">↓<small>ГУЛС</small></button>
+      <button data-action="rope">E<small>ЗҮҮГД</small></button>
+      <button data-action="right">→</button>
+    </div>
+    <footer class="keys dark"><span><kbd>← →</kbd> Эгнээ</span><span><kbd>↑</kbd> Үсрэх</span><span><kbd>↓</kbd> Гулсах</span><span><kbd>E</kbd> Уяа</span><span><kbd>Esc</kbd> Зогсоох</span></footer>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="vignette"></div>
+  <div id="fade"></div>
+
+  <!-- Тавтай морил -->
+  <dialog id="welcome">
+    <div class="welcome-art"><span>🍊</span><span>🥕</span><span>🍇</span><span>🥭</span><span>🍎</span></div>
+    <div class="eyebrow">ТАВТАЙ МОРИЛ!</div>
+    <h1>Жимсний хотод<br>аялах уу?</h1>
+    <p>Жимс түүж, найзуудтай танилцан, сорилуудыг давж, ширэнгээр гүйж хотын одтой аялагч болоорой.</p>
+    <div class="welcome-actions">
+      <button class="primary" id="start">Аяллаа эхлэх →</button>
+      <button id="startRunner" class="ghost">🌴 Шууд Jungle Runner</button>
+    </div>
+    <small id="welcomeSave"></small>
+  </dialog>
+
+  <dialog id="panel"><button class="close" aria-label="Хаах">×</button><div id="panelBody"></div></dialog>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
