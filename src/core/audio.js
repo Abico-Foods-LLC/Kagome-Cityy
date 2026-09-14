@@ -1,0 +1,186 @@
+// Procedural дуу: файл ашиглахгүй, WebAudio-оор бүх SFX, ambient, хөгжмийг үүсгэнэ.
+
+export class AudioSystem {
+  constructor(state) {
+    this.state = state;
+    this.ctx = null;
+    this.master = null;
+    this.sfxBus = null;
+    this.musicBus = null;
+    this.ambBus = null;
+    this.engineNode = null;
+    this.music = null;
+    this.unlocked = false;
+  }
+
+  get enabled() { return this.state.settings.sound; }
+
+  /** Хэрэглэгчийн анхны товшилтоор дуудна — browser autoplay бодлого. */
+  unlock() {
+    if (this.unlocked) { this.ctx?.resume(); return; }
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.9;
+      this.master.connect(this.ctx.destination);
+      this.sfxBus = this.mkBus(0.8);
+      this.musicBus = this.mkBus(this.state.settings.music ? 0.32 : 0);
+      this.ambBus = this.mkBus(0.5);
+      this.unlocked = true;
+      this.ctx.resume();
+    } catch (e) { this.ctx = null; }
+  }
+
+  mkBus(v) { const g = this.ctx.createGain(); g.gain.value = v; g.connect(this.master); return g; }
+
+  applySettings() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(this.enabled ? 0.9 : 0, t, 0.05);
+    this.musicBus.gain.setTargetAtTime(this.state.settings.music ? 0.32 : 0, t, 0.2);
+  }
+
+  // ---------- Энгийн синтез туслахууд ----------
+  tone({ f = 440, f2 = null, type = 'sine', dur = 0.2, vol = 0.2, attack = 0.005, bus = this.sfxBus, delay = 0 }) {
+    if (!this.ctx || !this.enabled) return;
+    const t = this.ctx.currentTime + delay;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(bus);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+
+  noise({ dur = 0.15, vol = 0.15, hp = 800, lp = 6000, bus = this.sfxBus, delay = 0, pitchDecay = false }) {
+    if (!this.ctx || !this.enabled) return;
+    const t = this.ctx.currentTime + delay;
+    const n = Math.floor(this.ctx.sampleRate * dur);
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const h = this.ctx.createBiquadFilter(); h.type = 'highpass'; h.frequency.value = hp;
+    const l = this.ctx.createBiquadFilter(); l.type = 'lowpass'; l.frequency.setValueAtTime(lp, t);
+    if (pitchDecay) l.frequency.exponentialRampToValueAtTime(200, t + dur);
+    const g = this.ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(h); h.connect(l); l.connect(g); g.connect(bus);
+    src.start(t);
+  }
+
+  // ---------- Тоглоомын дуунууд ----------
+  ui() { this.tone({ f: 880, f2: 1200, type: 'triangle', dur: 0.08, vol: 0.12 }); }
+  pickup(i = 0) {
+    this.tone({ f: 660 + i * 40, f2: 1320 + i * 40, type: 'sine', dur: 0.14, vol: 0.18 });
+    this.tone({ f: 990 + i * 40, f2: 1980, type: 'sine', dur: 0.18, vol: 0.12, delay: 0.06 });
+  }
+  jump() { this.tone({ f: 300, f2: 620, type: 'square', dur: 0.14, vol: 0.06 }); this.noise({ dur: 0.08, vol: 0.05, hp: 2000 }); }
+  land() { this.noise({ dur: 0.1, vol: 0.12, hp: 100, lp: 900, pitchDecay: true }); }
+  step(i = 0) { this.noise({ dur: 0.06, vol: 0.035 + (i % 2) * 0.01, hp: 200, lp: 1600 + (i % 2) * 400 }); }
+  correct() { [523, 659, 784, 1047].forEach((f, i) => this.tone({ f, type: 'triangle', dur: 0.25, vol: 0.14, delay: i * 0.08 })); }
+  wrong() { this.tone({ f: 220, f2: 160, type: 'sawtooth', dur: 0.28, vol: 0.08 }); }
+  fanfare() { [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone({ f, type: 'triangle', dur: 0.3, vol: 0.15, delay: i * 0.1 })); }
+  hurt() { this.tone({ f: 180, f2: 60, type: 'sawtooth', dur: 0.3, vol: 0.14 }); this.noise({ dur: 0.2, vol: 0.14, hp: 100, lp: 3000, pitchDecay: true }); }
+  whoosh() { this.noise({ dur: 0.22, vol: 0.1, hp: 500, lp: 4000 }); }
+  shield() { this.tone({ f: 500, f2: 1500, type: 'sine', dur: 0.3, vol: 0.12 }); this.tone({ f: 750, f2: 2250, type: 'sine', dur: 0.3, vol: 0.08, delay: 0.05 }); }
+  gate() { [784, 988, 1175].forEach((f, i) => this.tone({ f, type: 'square', dur: 0.18, vol: 0.07, delay: i * 0.07 })); }
+  carIn() { this.tone({ f: 120, f2: 260, type: 'sawtooth', dur: 0.4, vol: 0.08 }); }
+  splash() { this.noise({ dur: 0.3, vol: 0.12, hp: 300, lp: 5000, pitchDecay: true }); }
+  spin() { for (let i = 0; i < 14; i++) this.tone({ f: 800, type: 'square', dur: 0.03, vol: 0.05, delay: i * i * 0.012 }); }
+
+  /** Машины хөдөлгүүрийн дуу: тасралтгүй, хурднаас хамаарна. */
+  engine(on, speed = 0) {
+    if (!this.ctx) return;
+    if (on && !this.engineNode) {
+      const o = this.ctx.createOscillator(), o2 = this.ctx.createOscillator(), g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
+      o.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.frequency.value = 600;
+      o.frequency.value = 60; o2.frequency.value = 90; g.gain.value = 0;
+      o.connect(f); o2.connect(f); f.connect(g); g.connect(this.sfxBus);
+      o.start(); o2.start();
+      this.engineNode = { o, o2, g, f };
+      g.gain.setTargetAtTime(0.05, this.ctx.currentTime, 0.2);
+    }
+    if (this.engineNode) {
+      const t = this.ctx.currentTime;
+      const base = 55 + Math.abs(speed) * 6;
+      this.engineNode.o.frequency.setTargetAtTime(base, t, 0.1);
+      this.engineNode.o2.frequency.setTargetAtTime(base * 1.5, t, 0.1);
+      this.engineNode.f.frequency.setTargetAtTime(400 + Math.abs(speed) * 60, t, 0.1);
+      if (!on) {
+        this.engineNode.g.gain.setTargetAtTime(0, t, 0.15);
+        const n = this.engineNode; this.engineNode = null;
+        setTimeout(() => { try { n.o.stop(); n.o2.stop(); } catch (e) { /* */ } }, 600);
+      }
+    }
+  }
+
+  /** Ambient: салхи + үе үе шувууны жиргээ. */
+  startAmbient() {
+    if (!this.ctx || this.ambient) return;
+    const n = this.ctx.sampleRate * 2, buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate), d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < n; i++) { last = (last + (Math.random() * 2 - 1) * 0.02); last *= 0.98; d[i] = last * 6; }
+    const src = this.ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500;
+    const g = this.ctx.createGain(); g.gain.value = 0.18;
+    src.connect(f); f.connect(g); g.connect(this.ambBus); src.start();
+    this.ambient = { src, g };
+    const bird = () => {
+      if (!this.ambient) return;
+      if (Math.random() < 0.7) {
+        const base = 1800 + Math.random() * 1500;
+        for (let i = 0; i < 2 + Math.floor(Math.random() * 3); i++) this.tone({ f: base, f2: base * (1.2 + Math.random() * 0.3), type: 'sine', dur: 0.09, vol: 0.05, bus: this.ambBus, delay: i * 0.13 });
+      }
+      this.birdTimer = setTimeout(bird, 3000 + Math.random() * 6000);
+    };
+    bird();
+  }
+
+  stopAmbient() {
+    if (!this.ambient) return;
+    try { this.ambient.src.stop(); } catch (e) { /* */ }
+    clearTimeout(this.birdTimer);
+    this.ambient = null;
+  }
+
+  /** Хөгжим: энгийн арпеджио + бас, 4 хөвчний давталт. mood: 'town' | 'runner' */
+  startMusic(mood = 'town') {
+    if (!this.ctx) return;
+    this.stopMusic();
+    const chords = mood === 'town'
+      ? [[0, 4, 7, 11], [5, 9, 12, 16], [7, 11, 14, 17], [2, 5, 9, 12]]
+      : [[0, 3, 7, 10], [-2, 2, 5, 9], [3, 7, 10, 14], [5, 8, 12, 15]];
+    const root = mood === 'town' ? 261.63 : 196;
+    const bpm = mood === 'town' ? 96 : 138;
+    const beat = 60 / bpm;
+    let bar = 0, step = 0;
+    const g = this.ctx.createGain(); g.gain.value = 1; g.connect(this.musicBus);
+    const self = this;
+    function schedule() {
+      if (!self.music) return;
+      const chord = chords[bar % chords.length];
+      const t = self.ctx.currentTime;
+      const note = chord[step % chord.length] + (step % 8 >= 4 ? 12 : 0);
+      const f = root * Math.pow(2, note / 12);
+      self.tone({ f, type: mood === 'town' ? 'triangle' : 'square', dur: beat * 0.9, vol: mood === 'town' ? 0.09 : 0.06, bus: g });
+      if (step % 4 === 0) self.tone({ f: root / 2 * Math.pow(2, chord[0] / 12), type: 'sine', dur: beat * 1.8, vol: 0.14, bus: g });
+      if (mood === 'runner' && step % 2 === 1) self.noise({ dur: 0.05, vol: 0.05, hp: 3000, bus: g });
+      step++;
+      if (step % 8 === 0) bar++;
+      self.music.timer = setTimeout(schedule, beat * 500);
+    }
+    this.music = { g, timer: null };
+    schedule();
+  }
+
+  stopMusic() {
+    if (!this.music) return;
+    clearTimeout(this.music.timer);
+    const m = this.music; this.music = null;
+    m.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4);
+    setTimeout(() => m.g.disconnect(), 1500);
+  }
+}
