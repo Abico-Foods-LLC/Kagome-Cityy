@@ -77,7 +77,7 @@ export function waterMaterial(color = 0x3fb8d4, opts = {}) {
         float r1 = sin(vWPos.x * 1.7 + uTime * 1.1 + sin(vWPos.z * 1.3 + uTime * 0.7) * 1.2);
         float r2 = sin(vWPos.z * 2.3 - uTime * 0.9 + sin(vWPos.x * 1.1 - uTime * 0.6) * 1.4);
         float ripple = smoothstep(0.72, 0.98, r1 * r2);
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), ripple * 0.55);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), ripple * 0.35);
         float depthFade = smoothstep(0.2, 0.9, r1 * 0.5 + 0.5);
         diffuseColor.rgb *= 0.9 + depthFade * 0.18;`);
   };

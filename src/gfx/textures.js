@@ -40,7 +40,7 @@ export function grassTexture() {
     const px = r() * 512, py = r() * 512;
     x.beginPath(); x.moveTo(px, py); x.lineTo(px + (r() - 0.5) * 6, py - 5 - r() * 8); x.stroke();
   }
-  cache.grass = finish(c, { repeat: 24 });
+  cache.grass = finish(c, { repeat: 1 });
   return cache.grass;
 }
 

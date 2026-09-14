@@ -23,33 +23,31 @@ export function buildTown(scene, { textures }) {
 
   const addCollider = (g) => { if (g.userData.collider) colliders.push({ x: g.position.x, z: g.position.z, r: g.userData.collider.r }); };
 
-  // ---------- Газар ----------
+  // ---------- Газар (суваг хоёр хэсэгт хуваана) ----------
   const grassTex = grassTexture();
-  const groundMat = new T.MeshToonMaterial({ color: 0xffffff, map: grassTex, gradientMap: toon(0xffffff).gradientMap });
-  const groundGeo = new T.PlaneGeometry(ISLAND.maxX - ISLAND.minX + 8, ISLAND.maxZ - ISLAND.minZ + 8, 64, 64);
-  // Ирмэг рүүгээ бага зэрэг долгиолсон өндөр
-  const pa = groundGeo.attributes.position;
-  const col = new Float32Array(pa.count * 3);
+  const groundMat = new T.MeshToonMaterial({ color: 0xffffff, map: grassTex, gradientMap: toon(0xffffff).gradientMap, vertexColors: true });
+  const cliffMat = toon(0x8a6a48, { key: 'cliff' });
   const r0 = seeded(4);
-  for (let i = 0; i < pa.count; i++) {
-    const x = pa.getX(i), y = pa.getY(i);
-    const n = Math.sin(x * 0.12) * Math.cos(y * 0.1) * 0.5 + Math.sin(x * 0.31 + y * 0.2) * 0.25;
-    const shade = 0.9 + n * 0.12 + r0() * 0.04;
-    col[i * 3] = shade; col[i * 3 + 1] = shade + 0.03; col[i * 3 + 2] = shade * 0.95;
-  }
-  groundGeo.setAttribute('color', new T.BufferAttribute(col, 3));
-  groundMat.vertexColors = true;
-  const ground = new T.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.set(ISLAND.cx, 0, ISLAND.cz);
-  ground.receiveShadow = true;
-  ground.name = 'Ground';
-  world.add(ground);
-
-  // Арлын хажуу (шороон ирмэг) ба нуур
-  const cliff = new T.Mesh(new T.BoxGeometry(ISLAND.maxX - ISLAND.minX + 8, 3, ISLAND.maxZ - ISLAND.minZ + 8), toon(0x8a6a48, { key: 'cliff' }));
-  cliff.position.set(ISLAND.cx, -1.55, ISLAND.cz);
-  world.add(cliff);
+  const groundPiece = (x0, x1) => {
+    const w = x1 - x0, h = ISLAND.maxZ - ISLAND.minZ + 8, cx = (x0 + x1) / 2;
+    const geo = new T.PlaneGeometry(w, h, Math.max(8, Math.round(w / 2)), 60);
+    const pa = geo.attributes.position, uv = geo.attributes.uv, col = new Float32Array(pa.count * 3);
+    for (let i = 0; i < pa.count; i++) {
+      const x = pa.getX(i) + cx, y = pa.getY(i);
+      const n = Math.sin(x * 0.12) * Math.cos(y * 0.1) * 0.5 + Math.sin(x * 0.31 + y * 0.2) * 0.25;
+      const shade = 0.9 + n * 0.12 + r0() * 0.04;
+      col[i * 3] = shade; col[i * 3 + 1] = shade + 0.03; col[i * 3 + 2] = shade * 0.95;
+      uv.setXY(i, (x + 70) / 140 * 24, uv.getY(i) * 24);   // texture давталт ертөнцийн координатаар
+    }
+    geo.setAttribute('color', new T.BufferAttribute(col, 3));
+    const g = new T.Mesh(geo, groundMat);
+    g.rotation.x = -Math.PI / 2; g.position.set(cx, 0, ISLAND.cz); g.receiveShadow = true; g.name = 'Ground';
+    world.add(g);
+    const cliff = new T.Mesh(new T.BoxGeometry(w, 3, h), cliffMat);
+    cliff.position.set(cx, -1.55, ISLAND.cz); world.add(cliff);
+  };
+  groundPiece(ISLAND.minX - 4, CANAL.x - CANAL.halfW - 0.6);
+  groundPiece(CANAL.x + CANAL.halfW + 0.6, ISLAND.maxX + 4);
   const lakeMat = waterMaterial(PALETTE.water);
   out.waterMats.push(lakeMat);
   const lake = new T.Mesh(new T.PlaneGeometry(700, 700, 48, 48), lakeMat);
@@ -88,13 +86,13 @@ export function buildTown(scene, { textures }) {
   // ---------- Суваг ба гүүр ----------
   const canalMat = waterMaterial(0x5cd3e8);
   out.waterMats.push(canalMat);
-  const canal = new T.Mesh(new T.PlaneGeometry(CANAL.halfW * 2, 120, 4, 60), canalMat);
-  canal.rotation.x = -Math.PI / 2; canal.position.set(CANAL.x, -0.35, -12); world.add(canal);
+  const canal = new T.Mesh(new T.PlaneGeometry(CANAL.halfW * 2 + 1.2, ISLAND.maxZ - ISLAND.minZ + 8, 4, 60), canalMat);
+  canal.rotation.x = -Math.PI / 2; canal.position.set(CANAL.x, -0.35, ISLAND.cz); world.add(canal);
   const bank = toon(0xd9c8a3, { key: 'bank' });
-  for (const s of [-1, 1]) P.box(bank, world, CANAL.x + s * (CANAL.halfW + 0.3), -0.2, -12, 0.6, 0.55, 120);
+  for (const s of [-1, 1]) P.box(bank, world, CANAL.x + s * (CANAL.halfW + 0.3), -0.1, ISLAND.cz, 0.6, 0.5, ISLAND.maxZ - ISLAND.minZ + 8);
   // Сувгийн ёроол
-  const bed = new T.Mesh(new T.PlaneGeometry(CANAL.halfW * 2, 120), toon(0x8fb9c4, { key: 'bed' }));
-  bed.rotation.x = -Math.PI / 2; bed.position.set(CANAL.x, -0.8, -12); world.add(bed);
+  const bed = new T.Mesh(new T.BoxGeometry(CANAL.halfW * 2 + 1.2, 2.4, ISLAND.maxZ - ISLAND.minZ + 8), toon(0x8fb9c4, { key: 'bed' }));
+  bed.position.set(CANAL.x, -2.0, ISLAND.cz); world.add(bed);
   for (const z of BRIDGES_Z) P.bridge(world, CANAL.x, z, 12, z === 1 ? 10 : 9);
   // Хөвөгч лянхуа
   const lotus = toon(0x62c26b, { key: 'lotus' }), lotusF = toon(0xffa1c9, { key: 'lotusF' });
@@ -256,7 +254,7 @@ export function buildTown(scene, { textures }) {
   }
 
   // ---------- Хүргэлтийн хаалга ----------
-  [[0, 0, 31, 0], [1, -20, -34, 0], [2, 38, 1, 0]].forEach(([i, x, z, rot]) => {
+  [[0, 0, 31, Math.PI / 2], [1, -20, -34, Math.PI / 2], [2, 38, 1, Math.PI / 2]].forEach(([i, x, z, rot]) => {
     const g = P.deliveryGate(world, x, z, i, rot);
     out.gates.push({ obj: g, x, z, index: i });
   });
@@ -277,11 +275,13 @@ export function buildTown(scene, { textures }) {
 }
 
 /** Хөдөлгөөн зөвшөөрөгдөх эсэх. */
-export function makeBlocked(town, { radius = 0.45 } = {}) {
+export function makeBlocked(town, { radius = 0.45, terrain = true } = {}) {
   return function blocked(x, z, r = radius) {
-    if (x < ISLAND.minX + 1 || x > ISLAND.maxX - 1 || z < ISLAND.minZ + 1 || z > ISLAND.maxZ - 1) return true;
-    // Суваг: гүүрнээс бусад газар
-    if (Math.abs(x - CANAL.x) < CANAL.halfW + 0.6 + r && !BRIDGES_Z.some((b) => Math.abs(z - b) < 4.2)) return true;
+    if (terrain) {
+      if (x < ISLAND.minX + 1 || x > ISLAND.maxX - 1 || z < ISLAND.minZ + 1 || z > ISLAND.maxZ - 1) return true;
+      // Суваг: гүүрнээс бусад газар
+      if (Math.abs(x - CANAL.x) < CANAL.halfW + 0.6 + r && !BRIDGES_Z.some((b) => Math.abs(z - b) < 4.2)) return true;
+    }
     for (const c of town.colliders) if (Math.hypot(x - c.x, z - c.z) < c.r + r) return true;
     for (const b of town.boxColliders) if (x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r) return true;
     return false;

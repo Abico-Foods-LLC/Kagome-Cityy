@@ -56,6 +56,7 @@ export class TownScene {
 
     this.town = buildTown(scene, { textures: this.app.productTextures });
     this.blocked = makeBlocked(this.town);
+    this.blockedCam = makeBlocked(this.town, { terrain: false });   // камер ус, арлын ирмэг дээгүүр гарч болно
 
     this.character = new Character();
     this.character.root.position.copy(this.player.pos);
@@ -150,6 +151,11 @@ export class TownScene {
     show('townHud', true);
     this.app.post.setScene(this.scene); this.app.post.setCamera(this.camera);
     this.resize();
+    // Runner-ээс буцахад аялал ахисан байж болно
+    const prevChapter = this.hudChapter;
+    this.updateHUD(); this.setGoalForChapter();
+    if (prevChapter !== undefined && prevChapter !== this.state.chapter) { toast(this.state.done ? 'Бүх аяллаа дуусгалаа!' : 'Шинэ аялал нээгдлээ! +50 од', 4000, '✨'); this.audio.fanfare(); }
+    this.hudChapter = this.state.chapter;
     if (this.started) { this.audio.startMusic('town'); this.audio.startAmbient(); }
   }
   exit() {
@@ -185,6 +191,7 @@ export class TownScene {
 
   updateHUD() {
     const s = this.state, c = s.currentChapter;
+    this.hudChapter = s.chapter;
     $('fruitCount').textContent = '🍎 ' + s.counts.harvest;
     $('starCount').textContent = '⭐ ' + s.stars;
     if (c) {
@@ -528,7 +535,7 @@ export class TownScene {
     let k = 1;
     if (cam.intro <= 0) for (let i = 0; i < 6; i++) {
       const px = target.x + (desired.x - target.x) * k, pz = target.z + (desired.z - target.z) * k;
-      if (!this.blocked(px, pz, 0.3) || Math.hypot(px - target.x, pz - target.z) < 2.5) break;
+      if (!this.blockedCam(px, pz, 0.3) || Math.hypot(px - target.x, pz - target.z) < 2.5) break;
       k -= 0.12;
     }
     desired.x = target.x + (desired.x - target.x) * k;
