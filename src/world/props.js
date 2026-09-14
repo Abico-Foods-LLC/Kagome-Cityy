@@ -35,7 +35,7 @@ function seeded(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 10
 
 // ---- Навч (жимсний дээрх) ----
 export function leaf(parent, x, y, z, s = 1, rot = 0) {
-  const l = mesh(G.sphere, toon(PALETTE.leaf, { key: 'leaf' }), parent, x, y, z, 0.5 * s, 0.09 * s, 0.24 * s);
+  const l = mesh(G.sphereLow, toon(PALETTE.leaf, { key: 'leaf' }), parent, x, y, z, 0.5 * s, 0.09 * s, 0.24 * s);
   l.rotation.z = rot; l.rotation.y = 0.3;
   return l;
 }
@@ -45,6 +45,8 @@ export function fruit(type, parent, x = 0, y = 0, z = 0, s = 1, { face = false, 
   const def = FRUITS[type];
   const g = group('Fruit_' + def.name, parent, x, y, z);
   g.scale.setScalar(s);
+  const SG = s <= 0.6 ? G.sphereLow : G.sphere;   // жижиг жимс = бага polygon
+  const sphere = (m, p, px, py, pz, sx = 1, sy = sx, sz = sx) => mesh(SG, m, p, px, py, pz, sx, sy, sz);
   const c = toon(def.color, { key: 'fruit' + type });
   const cd = toon(def.shade, { key: 'fruitD' + type });
   if (type === 2) { // усан үзэм — багц
@@ -225,6 +227,8 @@ export function fence(parent, x, z, len, axis = 'x', { color = PALETTE.whiteWood
 }
 
 // ---- Гудамжны гэрэл ----
+let bulbMat = null;
+export function bulbMaterial() { if (!bulbMat) bulbMat = glow(0xfff0b0, 1.6); return bulbMat; }
 export function lamp(parent, x, z) {
   const g = group('Lamp', parent, x, 0, z);
   const m = toon(0x2f5e4e, { key: 'lampPost' });
@@ -232,7 +236,7 @@ export function lamp(parent, x, z) {
   mesh(new T.CylinderGeometry(0.3, 0.22, 0.2, 8), m, g, 0, 0.1, 0);
   const arm = mesh(new T.CylinderGeometry(0.05, 0.05, 0.9, 6), m, g, 0.4, 3.55, 0); arm.rotation.z = Math.PI / 2;
   mesh(new T.ConeGeometry(0.35, 0.3, 8), m, g, 0.8, 3.65, 0);
-  const bulb = mesh(new T.SphereGeometry(0.16, 10, 8), glow(0xfff0b0, 1.6), g, 0.8, 3.45, 0);
+  const bulb = mesh(new T.SphereGeometry(0.16, 10, 8), bulbMaterial(), g, 0.8, 3.45, 0);
   bulb.castShadow = false; bulb.userData.bulb = true;
   return g;
 }
@@ -257,6 +261,12 @@ export function sign(parent, text, x, y, z, { width = 6, bg = '#fff8e0', fg = '#
   p.position.set(x, y, z); p.castShadow = false; p.receiveShadow = false;
   p.name = 'Sign';
   parent.add(p);
+  if (double) {
+    // Ар тал: толин тусгалгүй, энгийн самбар
+    const back = new T.Mesh(new T.BoxGeometry(width * 0.98, width / 4 * 0.9, 0.08), toon(PALETTE.woodDark, { key: 'woodD' }));
+    back.position.z = -0.05; back.castShadow = false; p.add(back);
+    m.side = T.FrontSide;
+  }
   if (post) {
     cyl(toon(PALETTE.woodDark, { key: 'woodD' }), parent, x, y / 2, z - 0.05, 0.08, y);
   }

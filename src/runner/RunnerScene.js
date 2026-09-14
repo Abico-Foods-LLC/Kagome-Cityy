@@ -8,6 +8,7 @@ import { toon, glow, standard, waterMaterial, PALETTE, outlineGroup } from '../g
 import { stoneTexture } from '../gfx/textures.js';
 import * as P from '../world/props.js';
 import { Character } from '../world/character.js';
+import { mergeStatic } from '../gfx/merge.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop } from '../core/ui.js';
 
 const GAPS = [154, 298];
@@ -93,7 +94,6 @@ export class RunnerScene {
     this.entered = true;
     show('runnerHud', true);
     this.app.post.setScene(this.scene); this.app.post.setCamera(this.camera);
-    this.input.bindPointer($('world'), { swipe: true });
     this.resize();
     this.levelSelect();
   }
@@ -167,7 +167,7 @@ export class RunnerScene {
 
   // ---------------------------------------------------------------- Ертөнц барих
   buildLevel(level) {
-    if (this.world) { this.scene.remove(this.world); this.world.traverse((o) => { if (o.geometry && !o.userData.shared) o.geometry.dispose?.(); }); }
+    if (this.world) { this.scene.remove(this.world); this.world.traverse((o) => { if (o.userData.merged) o.geometry.dispose(); }); }
     this.model = new Runner(level);
     const conf = this.model.config;
     const world = new T.Group(); this.world = world; this.scene.add(world); this.objects.clear();
@@ -264,6 +264,8 @@ export class RunnerScene {
       else if (o.type === 'shield' || o.type === 'magnet') { g = new T.Group(); world.add(g); g.position.set(o.lane * LANE_W, 1, -o.d); const col = o.type === 'shield' ? 0x5cf2d2 : 0xc59bff; P.mesh(new T.OctahedronGeometry(0.5), glow(col, 1.3), g); P.mesh(new T.TorusGeometry(0.7, 0.035, 6, 24), gold, g); const halo = P.mesh(new T.TorusGeometry(0.5, 0.02, 6, 28), glow(col, 1.5), g, 0, -0.9, 0); halo.rotation.x = Math.PI / 2; }
       if (g) { g.traverse((m) => { if (m.isMesh) m.castShadow = true; }); this.objects.set(o.id, g); }
     }
+    const dyn = new Set(this.objects.values());
+    mergeStatic(world, (o) => dyn.has(o) || o.userData.fall !== undefined || o.userData.flame);
     this.sync();
   }
 
@@ -350,8 +352,9 @@ export class RunnerScene {
     const tx = ready ? 0 : m.x * 0.28, ty = 4.2 + (m.hang > 0 ? 0.9 : 0) + (m.y > 0 ? m.y * 0.15 : 0) - (m.slide > 0 ? 0.6 : 0);
     cam.position.x += (tx - cam.position.x) * Math.min(1, dt * 4.5);
     cam.position.y += (ty - cam.position.y) * Math.min(1, dt * 3.5);
-    cam.position.z = 8.4;
-    const fovT = 58 + (playing ? (m.speedMul - 1) * 30 + m.level * 1.2 : 0) + (m.hang > 0 ? 4 : 0);
+    const portrait = innerHeight > innerWidth;
+    cam.position.z = portrait ? 10.5 : 8.4;
+    const fovT = (portrait ? 70 : 58) + (playing ? (m.speedMul - 1) * 30 + m.level * 1.2 : 0) + (m.hang > 0 ? 4 : 0);
     cam.fov += (fovT - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix();
     cam.lookAt(m.x * 0.15, 1.3 + (m.hang > 0 ? 0.6 : 0), -14);
     if (this.impact > 0) { cam.position.x += Math.sin(this.elapsed * 70) * this.impact * 0.12; cam.position.y += Math.cos(this.elapsed * 55) * this.impact * 0.08; }

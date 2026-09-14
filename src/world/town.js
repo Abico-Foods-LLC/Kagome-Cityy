@@ -4,6 +4,7 @@ import { toon, standard, waterMaterial, PALETTE, glow } from '../gfx/materials.j
 import { grassTexture, roadTexture } from '../gfx/textures.js';
 import * as P from './props.js';
 import { FRUITS, PRODUCTS } from '../core/content.js';
+import { mergeStatic } from '../gfx/merge.js';
 
 export const ISLAND = { minX: -60, maxX: 60, minZ: -70, maxZ: 45, cx: 0, cz: -12 };
 export const BRIDGES_Z = [1, -34, 31];
@@ -68,7 +69,10 @@ export function buildTown(scene, { textures }) {
   const roadTex = roadTexture();
   const roadMat = new T.MeshToonMaterial({ color: 0xffffff, map: roadTex, gradientMap: groundMat.gradientMap });
   const road = (x, z, w, h) => {
-    const m = new T.Mesh(new T.PlaneGeometry(w, h), roadMat);
+    const geo = new T.PlaneGeometry(w, h);
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 6, uv.getY(i) * h / 6);
+    const m = new T.Mesh(geo, roadMat);
     m.rotation.x = -Math.PI / 2; m.position.set(x, 0.03, z); m.receiveShadow = true; world.add(m);
     return m;
   };
@@ -154,8 +158,8 @@ export function buildTown(scene, { textures }) {
   P.fruit(1, world, 0, 4.2, -15, 1.6, { face: true }).userData.bob = { base: 4.2, amp: 0.1 };
   out.fountainJets = [];
   for (let j = 0; j < 8; j++) {
-    const jet = P.mesh(new T.CylinderGeometry(0.06, 0.12, 1.6, 6), glow(0xd8f6ff, 0.9), world, Math.sin(j / 8 * Math.PI * 2) * 2.4, 1.2, -15 + Math.cos(j / 8 * Math.PI * 2) * 2.4);
-    jet.rotation.z = Math.sin(j / 8 * Math.PI * 2) * 0.5; jet.rotation.x = -Math.cos(j / 8 * Math.PI * 2) * 0.5; jet.castShadow = false;
+    const jet = P.mesh(new T.CylinderGeometry(0.03, 0.07, 1.1, 6), glow(0xd8f6ff, 0.9), world, Math.sin(j / 8 * Math.PI * 2) * 1.1, 3.3, -15 + Math.cos(j / 8 * Math.PI * 2) * 1.1);
+    jet.rotation.z = Math.sin(j / 8 * Math.PI * 2) * 0.6; jet.rotation.x = -Math.cos(j / 8 * Math.PI * 2) * 0.6; jet.castShadow = false;
     out.fountainJets.push(jet);
   }
   // Тавтай морил хаалга
@@ -263,6 +267,12 @@ export function buildTown(scene, { textures }) {
   out.car = car;
   P.sign(world, 'ЖИМСЭН МАШИН', 10, 4.4, 20, { width: 6, bg: '#fff7d7', fg: '#306e46', border: '#ffa72e' }).userData.carSign = true;
 
+  // ---------- Draw call оновчлол: статик mesh-үүдийг нэгтгэнэ ----------
+  const dynamic = new Set([
+    ...out.harvests.flatMap((h) => [h.obj, h.ring]), ...out.packages.flatMap((p) => [p.obj, p.ring]),
+    ...out.npcs.map((n) => n.obj), ...out.gates.map((g) => g.obj), out.wheel, car, ...out.fountainJets,
+  ]);
+  out.merged = mergeStatic(world, (o) => dynamic.has(o) || o.userData.float || o.userData.bulb || o.userData.bob);
   return out;
 }
 

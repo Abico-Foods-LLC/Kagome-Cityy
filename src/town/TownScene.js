@@ -5,6 +5,7 @@ import { Particles } from '../gfx/particles.js';
 import { glow, toon, PALETTE } from '../gfx/materials.js';
 import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.js';
 import { Character } from '../world/character.js';
+import { bulbMaterial } from '../world/props.js';
 import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
 
@@ -20,7 +21,7 @@ export class TownScene {
     this.scene = new T.Scene();
     this.camera = new T.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 700);
     this.clock = 0;
-    this.dayTime = 0.28; // 0..1 (0.25 = өглөө 6 цаг)
+    this.dayTime = 0.38; // 0..1 (0.25 = нар мандах, 0.5 = үд)
     this.started = false;
     this.active = false;
     this.vehicle = null;
@@ -133,7 +134,6 @@ export class TownScene {
     input.bindButton($('jumpBtn'), 'jump');
     input.bindButton($('actionBtn'), 'interact');
     input.bindButton($('runBtn'), 'run');
-    input.bindPointer($('world'));
     $('mapButton').onclick = () => this.showMap();
     $('collectionButton').onclick = () => this.collection();
     $('pauseButton').onclick = () => this.pauseMenu();
@@ -512,7 +512,8 @@ export class TownScene {
       const d = Math.atan2(Math.sin(P.heading - cam.yaw), Math.cos(P.heading - cam.yaw));
       if (Math.abs(d) < 2.6) cam.yaw += d * Math.min(1, dt * 0.35);
     }
-    const dist = cam.dist + (this.vehicle ? Math.abs(this.car.speed) * 0.08 : 0);
+    const portrait = innerHeight > innerWidth ? 1.35 : 1;
+    const dist = (cam.dist + (this.vehicle ? Math.abs(this.car.speed) * 0.08 : 0)) * portrait;
     const h = Math.sin(cam.pitch) * dist, r = Math.cos(cam.pitch) * dist;
     const desired = new T.Vector3(target.x + Math.sin(cam.yaw) * r, (this.vehicle ? 0 : P.y * 0.5) + 1.6 + h, target.z + Math.cos(cam.yaw) * r);
     // Барилгаас хамгаалах: камерын цэг блоклогдсон бол ойртуулна
@@ -536,7 +537,7 @@ export class TownScene {
     // Хөдөлж буй чиглэл рүү бага зэрэг урагш харна
     if (this.vehicle) look.addScaledVector(new T.Vector3(-Math.sin(this.car.heading), 0, -Math.cos(this.car.heading)), this.car.speed * 0.15);
     camera.lookAt(look);
-    const fovT = 55 + (this.vehicle ? Math.abs(this.car.speed) * 0.7 : P.state === 'run' ? 6 : 0);
+    const fovT = (portrait > 1 ? 62 : 55) + (this.vehicle ? Math.abs(this.car.speed) * 0.7 : P.state === 'run' ? 6 : 0);
     cam.fov += (fovT - cam.fov) * Math.min(1, dt * 4);
     if (Math.abs(camera.fov - cam.fov) > 0.05) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
     // Нар ба сүүдрийн камер тоглогчийг дагана
@@ -552,27 +553,28 @@ export class TownScene {
 
   updateWorld(dt) {
     const t = this.clock, town = this.town;
-    // Өдрийн цаг
-    this.dayTime = (this.dayTime + dt / DAY_LENGTH) % 1;
+    // Өдрийн цаг (шөнө 2 дахин хурдан өнгөрнө)
+    const sunH0 = Math.sin((this.dayTime - 0.25) * Math.PI * 2);
+    this.dayTime = (this.dayTime + dt / DAY_LENGTH * (sunH0 < 0 ? 2.2 : 1)) % 1;
     const sunH = Math.sin((this.dayTime - 0.25) * Math.PI * 2); // -1..1
-    const day = T.MathUtils.smoothstep(sunH, -0.15, 0.35);
-    const dusk = 1 - Math.abs(sunH) / 0.3 > 0 ? Math.max(0, 1 - Math.abs(sunH) / 0.3) : 0;
-    const night = 1 - day;
-    const skyTop = new T.Color(0x3f9ce8).lerp(new T.Color(0x0e1b3f), night).lerp(new T.Color(0xff8d5c), dusk * 0.35);
-    const skyHor = new T.Color(0xbfe9f5).lerp(new T.Color(0x2b3a66), night).lerp(new T.Color(0xffb26b), dusk * 0.6);
+    const day = T.MathUtils.smoothstep(sunH, -0.12, 0.35);
+    const dusk = Math.max(0, 1 - Math.abs(sunH) / 0.28);
+    const night = (1 - day) * 0.8;
+    const skyTop = new T.Color(0x3f9ce8).lerp(new T.Color(0x1a2a5e), night).lerp(new T.Color(0xff8d5c), dusk * 0.35);
+    const skyHor = new T.Color(0xbfe9f5).lerp(new T.Color(0x44598f), night).lerp(new T.Color(0xffb26b), dusk * 0.6);
     this.sky.uniforms.uTop.value.copy(skyTop);
     this.sky.uniforms.uHorizon.value.copy(skyHor);
-    this.sky.uniforms.uBottom.value.copy(new T.Color(0xe4f6f0).lerp(new T.Color(0x1e2a4a), night));
+    this.sky.uniforms.uBottom.value.copy(new T.Color(0xe4f6f0).lerp(new T.Color(0x2e3d66), night));
     this.sky.uniforms.uSunDir.value.copy(this.sunDir);
     this.sky.uniforms.uSunColor.value.set(0xfff2c8).lerp(new T.Color(0xff7a3c), dusk);
     this.scene.fog.color.copy(skyHor);
-    this.sun.intensity = 0.25 + day * 1.4;
-    this.sun.color.set(0xfff1cf).lerp(new T.Color(0xffa060), dusk * 0.7).lerp(new T.Color(0x9fb4ff), night * 0.6);
-    this.hemi.intensity = 0.35 + day * 0.45;
-    this.hemi.color.set(0xdff6ff).lerp(new T.Color(0x5670a8), night);
+    this.sun.intensity = 0.55 + day * 1.1;
+    this.sun.color.set(0xfff1cf).lerp(new T.Color(0xffa060), dusk * 0.7).lerp(new T.Color(0xaabbff), night * 0.7);
+    this.hemi.intensity = 0.5 + day * 0.35;
+    this.hemi.color.set(0xdff6ff).lerp(new T.Color(0x7d8fc4), night);
     // Гэрлийн шил шөнө гэрэлтэнэ
-    const bulbI = 0.6 + night * 2.4;
-    for (const l of town.lamps) for (const c of l.children) if (c.userData.bulb) c.material.color.set(0xfff0b0).multiplyScalar(bulbI);
+    const bulbI = 0.6 + night * 3.2;
+    bulbMaterial().color.set(0xfff0b0).multiplyScalar(bulbI);
 
     // Shader цаг
     for (const m of town.waterMats) m.userData.time.value = t;
