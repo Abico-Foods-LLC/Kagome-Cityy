@@ -191,3 +191,15 @@ dialog p { font-size: 16px; line-height: 1.55; }
   #rControls button small { display: block; font-size: 9px; }
   #ropePrompt { bottom: 110px; font-size: 13px; }
 }
+
+@media (max-width: 520px) {
+  .brand { padding: 7px 11px; border-radius: 14px; } .brand strong { font-size: 18px; letter-spacing: -1px; } .brand span { display: none; }
+  .stat { font-size: 13px; padding: 8px 9px; border-radius: 12px; } button.icon { width: 34px; height: 34px; font-size: 15px; } .stats { gap: 4px; }
+  #quest { top: 62px; width: 62vw; max-width: 230px; padding: 10px 12px; }
+  #quest h2 { font-size: 14px; margin: 3px 0; } #quest p { display: none; } #questHint { display: none; }
+  #location { top: 62px; right: 10px; font-size: 11px; padding: 6px 10px; max-width: 34vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #compass { top: 100px; right: 10px; padding: 6px 9px; font-size: 11px; }
+  #minimap { width: 96px; height: 96px; right: 10px; bottom: 210px; border-width: 4px; }
+  #rLevel { width: 150px; } #rStats span { min-width: 52px; padding: 5px 6px; } #rStats b { font-size: 14px; } #rStats small { font-size: 8px; letter-spacing: 1px; }
+  #rZone { font-size: 20px; top: 160px; }
+}

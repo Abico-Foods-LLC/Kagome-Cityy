@@ -60,7 +60,7 @@ export function roadTexture() {
       x.strokeRect(xx + off + 2, yy + 2, 60, 60);
     }
   }
-  cache.road = finish(c, { repeat: 4 });
+  cache.road = finish(c, { repeat: 1 });
   return cache.road;
 }
 

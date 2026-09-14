@@ -54,6 +54,7 @@ class App {
     setLoading(100, 'Бэлэн!');
     await nextFrame();
 
+    this.input.bindPointer(this.canvas, { swipe: true });
     addEventListener('resize', () => this.resize());
     this.resize();
     this.switchTo('town', { instant: true });
