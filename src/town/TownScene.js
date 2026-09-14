@@ -28,7 +28,7 @@ export class TownScene {
     this.near = null;
     this.goal = null;
     this.interactables = [];
-    this.cam = { yaw: 0.35, pitch: 0.42, dist: 9.5, shake: 0, fov: 55 };
+    this.cam = { yaw: 0.35, pitch: 0.42, dist: 9.5, targetDist: 9.5, shake: 0, fov: 55, intro: 0 };
     this.player = { pos: new T.Vector3(0, 0, 26), vel: new T.Vector3(), yVel: 0, y: 0, grounded: true, coyote: 0, buffer: 0, heading: Math.PI, state: 'idle', stepI: 0 };
     this.car = { speed: 0, steer: 0, heading: -0.5, roll: 0, pitch: 0, bounce: 0, lastPos: new T.Vector3() };
     this.wheelSpin = 0;
@@ -161,6 +161,8 @@ export class TownScene {
 
   start() {
     this.started = true;
+    // Танилцуулга: камер дээрээс аажуухан бууж ирнэ
+    this.cam.dist = 70; this.cam.pitch = 1.1; this.cam.yaw = 0.35 + 2.2; this.cam.intro = 3.2;
     this.audio.startMusic('town'); this.audio.startAmbient();
     const c = this.state.currentChapter;
     toast(c ? 'Тавтай морил! ' + c.hint : 'Тавтай морил, одтой аялагч аа!', 4000, '👋');
@@ -329,7 +331,7 @@ export class TownScene {
     this.driver.root.visible = true;
     this.audio.carIn();
     this.audio.engine(true, 0);
-    this.cam.dist = 13;
+    this.cam.targetDist = 13;
     show('speedo', true);
     toast('W/S урагш-ухрах · A/D жолоодох · Shift турбо · E буух', 3200, '🚗');
   }
@@ -346,7 +348,7 @@ export class TownScene {
     this.driver.root.visible = false;
     this.vehicle = null;
     this.audio.engine(false);
-    this.cam.dist = 9.5;
+    this.cam.targetDist = 9.5;
     show('speedo', false);
   }
 
@@ -365,8 +367,14 @@ export class TownScene {
     const input = this.input;
     const P = this.player;
 
-    // Камерын эргүүлэлт
-    if (active) {
+    // Камерын эргүүлэлт (танилцуулгын үед автомат)
+    const cam = this.cam;
+    cam.dist += (cam.targetDist - cam.dist) * Math.min(1, dt * (cam.intro > 0 ? 1.1 : 4));
+    if (cam.intro > 0) {
+      cam.intro -= dt;
+      cam.pitch += (0.42 - cam.pitch) * Math.min(1, dt * 1.2);
+      cam.yaw += (0.35 - cam.yaw) * Math.min(1, dt * 1.0);
+    } else if (active) {
       this.cam.yaw -= input.look.dx;
       this.cam.pitch = T.MathUtils.clamp(this.cam.pitch + input.look.dy, 0.12, 1.15);
       if (input.held('camLeft')) this.cam.yaw += dt * 1.8;
@@ -518,7 +526,7 @@ export class TownScene {
     const desired = new T.Vector3(target.x + Math.sin(cam.yaw) * r, (this.vehicle ? 0 : P.y * 0.5) + 1.6 + h, target.z + Math.cos(cam.yaw) * r);
     // Барилгаас хамгаалах: камерын цэг блоклогдсон бол ойртуулна
     let k = 1;
-    for (let i = 0; i < 6; i++) {
+    if (cam.intro <= 0) for (let i = 0; i < 6; i++) {
       const px = target.x + (desired.x - target.x) * k, pz = target.z + (desired.z - target.z) * k;
       if (!this.blocked(px, pz, 0.3) || Math.hypot(px - target.x, pz - target.z) < 2.5) break;
       k -= 0.12;
