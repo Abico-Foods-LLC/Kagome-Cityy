@@ -1,0 +1,682 @@
+// Жимсний хот: нээлттэй ертөнцийн gameplay — хөдөлгөөн, камер, машин, харилцаа, аялал, HUD.
+import * as T from 'three';
+import { createSky, createClouds, updateClouds } from '../gfx/sky.js';
+import { Particles } from '../gfx/particles.js';
+import { glow, toon, PALETTE } from '../gfx/materials.js';
+import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.js';
+import { Character } from '../world/character.js';
+import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
+import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
+
+const WALK = 5.6, RUN = 9.4, ACCEL = 34, DECEL = 42, AIR_CTRL = 0.45, GRAVITY = 24, JUMP_V = 8.6, COYOTE = 0.12, BUFFER = 0.14;
+const DAY_LENGTH = 540; // секунд — бүтэн өдөр
+
+export class TownScene {
+  constructor(app) {
+    this.app = app;
+    this.state = app.state;
+    this.input = app.input;
+    this.audio = app.audio;
+    this.scene = new T.Scene();
+    this.camera = new T.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 700);
+    this.clock = 0;
+    this.dayTime = 0.28; // 0..1 (0.25 = өглөө 6 цаг)
+    this.started = false;
+    this.active = false;
+    this.vehicle = null;
+    this.near = null;
+    this.goal = null;
+    this.interactables = [];
+    this.cam = { yaw: 0.35, pitch: 0.42, dist: 9.5, shake: 0, fov: 55 };
+    this.player = { pos: new T.Vector3(0, 0, 26), vel: new T.Vector3(), yVel: 0, y: 0, grounded: true, coyote: 0, buffer: 0, heading: Math.PI, state: 'idle', stepI: 0 };
+    this.car = { speed: 0, steer: 0, heading: -0.5, roll: 0, pitch: 0, bounce: 0, lastPos: new T.Vector3() };
+    this.wheelSpin = 0;
+    this.build();
+  }
+
+  // ---------------------------------------------------------------- Барих
+  build() {
+    const { scene } = this;
+    scene.fog = new T.Fog(0xbfe9f5, 90, 260);
+    const sky = createSky();
+    scene.add(sky.mesh); this.sky = sky;
+    this.clouds = createClouds(16, { spread: 200, height: 42, seed: 3 });
+    scene.add(this.clouds);
+
+    this.hemi = new T.HemisphereLight(0xdff6ff, 0x7fa85a, 0.75);
+    scene.add(this.hemi);
+    this.sun = new T.DirectionalLight(0xfff1cf, 1.6);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(this.sun.shadow.camera, { left: -42, right: 42, top: 42, bottom: -42, near: 1, far: 180 });
+    this.sun.shadow.normalBias = 0.06;
+    this.sun.shadow.bias = -0.0005;
+    scene.add(this.sun, this.sun.target);
+
+    this.town = buildTown(scene, { textures: this.app.productTextures });
+    this.blocked = makeBlocked(this.town);
+
+    this.character = new Character();
+    this.character.root.position.copy(this.player.pos);
+    this.character.root.rotation.y = this.player.heading;
+    scene.add(this.character.root);
+    this.character.onStep = (side) => {
+      if (!this.vehicle) { this.audio.step(this.player.stepI++); this.particles.dust(this.player.pos, this.player.state === 'run' ? 2 : 1); }
+    };
+
+    // Жолооч — машинд суух үед харагдах хуулбар
+    this.driver = new Character({ outline: true, scale: 0.72 });
+    this.driver.root.position.set(0, 0.85, 0.25);
+    this.driver.root.rotation.y = Math.PI;
+    this.driver.root.visible = false;
+    this.town.car.userData.chassis.add(this.driver.root);
+
+    this.particles = new Particles(scene, 500);
+
+    // Зорилгын тэмдэг
+    const g = new T.Group();
+    g.name = 'Goal';
+    const ring = new T.Mesh(new T.TorusGeometry(1.2, 0.1, 8, 32), glow(0xffe672, 1.5)); ring.rotation.x = Math.PI / 2; ring.position.y = 0.15;
+    const arrow = new T.Mesh(new T.ConeGeometry(0.55, 1.1, 6), glow(0xffe672, 1.5)); arrow.rotation.z = Math.PI; arrow.position.y = 5;
+    const beam = new T.Mesh(new T.CylinderGeometry(0.08, 0.5, 30, 8, 1, true), new T.MeshBasicMaterial({ color: 0xffe672, transparent: true, opacity: 0.12, depthWrite: false, side: T.DoubleSide, toneMapped: false }));
+    beam.position.y = 15;
+    g.add(ring, arrow, beam); g.visible = false;
+    scene.add(g); this.goalMarker = g;
+
+    this.setupInteractables();
+    this.setupUI();
+    this.updateHUD();
+    this.setGoalForChapter();
+  }
+
+  setupInteractables() {
+    const add = (o) => { this.interactables.push(o); return o; };
+    const { town, state } = this;
+    for (const h of town.harvests) {
+      h.obj.visible = h.ring.visible = !state.collected.has(h.id);
+      add({ x: h.x, z: h.z, r: 2.6, label: FRUITS[h.type].name + ' түүх', icon: FRUITS[h.type].emoji, visible: () => h.obj.visible, action: () => {
+        if (state.harvest(h.id, h.type)) {
+          h.obj.visible = h.ring.visible = false;
+          this.particles.burst(new T.Vector3(h.x, 1, h.z), FRUITS[h.type].color, 18);
+          this.audio.pickup(h.type);
+          toast(FRUITS[h.type].name + ' түүлээ! +5 од', 2200, FRUITS[h.type].emoji);
+          pop($('fruitCount'));
+          this.commit();
+        }
+      } });
+    }
+    for (const p of town.packages) {
+      p.obj.visible = p.ring.visible = !state.collected.has(p.id);
+      add({ x: p.x, z: p.z, r: 2.6, label: 'Kagome бүтээгдэхүүн цуглуулах', icon: '🧃', visible: () => p.obj.visible, action: () => {
+        if (state.collectPackage(p.id)) {
+          p.obj.visible = p.ring.visible = false;
+          this.particles.burst(new T.Vector3(p.x, 1, p.z), 0xffd24d, 24);
+          this.audio.pickup(4);
+          toast('Kagome цуглуулгад нэмлээ! +10 од', 2400, '🧃');
+          pop($('starCount'));
+          this.commit();
+        }
+      } });
+    }
+    for (const n of town.npcs) {
+      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => this.talk(n) });
+    }
+    add({ x: 10, z: 20, r: 3.8, label: 'Жимсэн машинд суух', icon: '🚗', dynamic: () => town.car.position, action: () => this.enterCar() });
+    add({ x: -28, z: 25, r: 4, label: 'Kagome бүтээгдэхүүнүүд үзэх', icon: '🧃', action: () => this.collection() });
+    add({ x: 38, z: 20, r: 3.4, label: 'Логикийн хүрд эргүүлэх', icon: '🎡', action: () => this.spinWheel() });
+    add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
+  }
+
+  setupUI() {
+    const { input } = this;
+    input.bindStick($('stick'), $('knob'), 36);
+    input.bindButton($('jumpBtn'), 'jump');
+    input.bindButton($('actionBtn'), 'interact');
+    input.bindButton($('runBtn'), 'run');
+    input.bindPointer($('world'));
+    $('mapButton').onclick = () => this.showMap();
+    $('collectionButton').onclick = () => this.collection();
+    $('pauseButton').onclick = () => this.pauseMenu();
+    this.unbind = [
+      input.on('jump', () => { if (this.active && !this.vehicle) this.player.buffer = BUFFER; }),
+      input.on('interact', () => this.interact()),
+      input.on('pause', () => { if (this.started && !isModalOpen()) this.pauseMenu(); else if ($('panel').open && $('panel').dataset.closable === '1') closeModal(); }),
+      input.on('map', () => { if (this.active) this.showMap(); }),
+    ];
+    $('panel').addEventListener('close', () => input.clear());
+  }
+
+  enter() {
+    show('townHud', true);
+    this.app.post.setScene(this.scene); this.app.post.setCamera(this.camera);
+    this.resize();
+    if (this.started) { this.audio.startMusic('town'); this.audio.startAmbient(); }
+  }
+  exit() {
+    show('townHud', false);
+    this.audio.engine(false);
+    this.audio.stopMusic(); this.audio.stopAmbient();
+  }
+  resize() { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
+
+  start() {
+    this.started = true;
+    this.audio.startMusic('town'); this.audio.startAmbient();
+    const c = this.state.currentChapter;
+    toast(c ? 'Тавтай морил! ' + c.hint : 'Тавтай морил, одтой аялагч аа!', 4000, '👋');
+  }
+
+  // ---------------------------------------------------------------- Аялал / хадгалалт
+  commit() {
+    const up = this.state.progress();
+    this.updateHUD();
+    this.state.save();
+    if (up) {
+      const done = this.state.done;
+      toast(done ? 'Бүх аяллаа дуусгалаа! +50 од' : 'Шинэ аялал нээгдлээ! +50 од', 4000, done ? '🏆' : '✨');
+      this.particles.burst(this.player.pos.clone().add(new T.Vector3(0, 1.5, 0)), 0xffdc51, 40, { speed: 5, up: 5 });
+      this.audio.fanfare();
+      this.character.cheer();
+      this.setGoalForChapter();
+    }
+  }
+
+  updateHUD() {
+    const s = this.state, c = s.currentChapter;
+    $('fruitCount').textContent = '🍎 ' + s.counts.harvest;
+    $('starCount').textContent = '⭐ ' + s.stars;
+    if (c) {
+      $('chapter').textContent = `АЯЛАЛ ${s.chapter + 1} / ${CHAPTERS.length}`;
+      $('questTitle').textContent = c.title;
+      $('questText').textContent = c.text;
+      $('questHint').textContent = c.hint;
+      const v = Math.min(c.goal, s.counts[c.key]);
+      $('questProgress').textContent = `${v} / ${c.goal}`;
+      $('questBar').style.width = (v / c.goal * 100) + '%';
+    } else {
+      $('chapter').textContent = 'БҮХ АЯЛАЛ БҮРЭН';
+      $('questTitle').textContent = 'Хотын одтой аялагч!';
+      $('questText').textContent = 'Чөлөөтэй аялж, үлдсэн ургацаа хураагаарай. Ширэнгийн бүх үеийг давж рекорд тогтоо.';
+      $('questHint').textContent = '';
+      $('questProgress').textContent = `${CHAPTERS.length} / ${CHAPTERS.length}`;
+      $('questBar').style.width = '100%';
+    }
+  }
+
+  setGoalForChapter() {
+    const c = this.state.currentChapter;
+    if (c && c.landmark !== undefined) this.setGoal(LANDMARKS[c.landmark]);
+    else this.setGoal(null);
+  }
+
+  setGoal(l) {
+    this.goal = l;
+    this.goalMarker.visible = !!l;
+    if (l) this.goalMarker.position.set(l.x, 0, l.z);
+    $('compass').classList.toggle('on', !!l);
+  }
+
+  // ---------------------------------------------------------------- Харилцаа
+  interact() {
+    if (!this.active) return;
+    if (this.vehicle) { this.exitCar(); return; }
+    if (this.near) { this.audio.ui(); this.near.action(); }
+  }
+
+  talk(n) {
+    const questBtn = n.quest ? `<button id="npcAction" class="primary">${n.quest === 'runner' ? 'Ширэнгэ рүү явах' : 'Сорилоо эхлэх'}</button>` : '';
+    modal(`<div class="npc-head"><div class="reward">${FRUITS[n.type].emoji}</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${n.name}</h2></div></div><p>${n.lines}</p><div class="row">${questBtn}<button id="npcBye" class="ghost">Аяллаа үргэлжлүүлэх</button></div>`);
+    $('npcBye').onclick = () => closeModal();
+    const b = $('npcAction');
+    if (b) b.onclick = () => {
+      if (n.quest === 'logic') this.spinWheel();
+      else if (n.quest === 'runner') { closeModal(); this.setGoal(LANDMARKS[7]); toast('Ширэнгийн хаалга руу алтан тэмдгийг дагаарай.', 3000, '🌴'); }
+      else this.ask(n.quest);
+    };
+  }
+
+  ask(type, idx) {
+    const qs = QUESTIONS[type];
+    if (idx === undefined) idx = this.state.nextQuestion(type);
+    if (idx < 0) { modal('<div class="reward">🏅</div><h2>Энэ сорилыг бүрэн давлаа!</h2><p>Газрын зургаас дараагийн аяллаа сонгоорой.</p><button class="primary" id="ok">Гоё!</button>'); $('ok').onclick = closeModal; return; }
+    const q = qs[idx];
+    const title = { math: 'ТОО БОДОХ ЗАХ', read: 'УНШИХ СОРИЛ', logic: 'ЛОГИКИЙН ХҮРД' }[type];
+    const remaining = qs.filter((_, i) => !this.state.solved.has(type + i)).length;
+    modal(`<div class="eyebrow">${title} · ${remaining} үлдсэн</div><h2>${q.q}</h2>${q.passage ? `<p class="hint">${q.passage}</p>` : ''}<div class="choices">${q.options.map((s, i) => `<button data-answer="${i}">${s}</button>`).join('')}</div><div class="feedback" role="status"></div>`);
+    document.querySelectorAll('[data-answer]').forEach((b) => b.onclick = () => {
+      const ok = this.state.answer(type, idx, +b.dataset.answer);
+      const fb = document.querySelector('.feedback');
+      if (ok) {
+        document.querySelectorAll('[data-answer]').forEach((btn) => btn.disabled = true);
+        b.classList.add('right');
+        fb.textContent = 'Зөв хариуллаа! +15 од';
+        this.audio.correct();
+        this.particles.burst(this.player.pos.clone().add(new T.Vector3(0, 2, 0)), 0x9df5b3, 20);
+        this.commit();
+        const next = document.createElement('button');
+        next.className = 'primary'; next.textContent = this.state.nextQuestion(type) >= 0 ? 'Дараагийн сорил →' : 'Дуусгах';
+        next.onclick = () => this.ask(type);
+        $('panelBody').appendChild(next);
+      } else {
+        b.classList.add('wrong'); b.disabled = true;
+        fb.textContent = 'Дахиад бодоод үзээрэй. ' + q.h;
+        this.audio.wrong();
+      }
+    });
+  }
+
+  spinWheel() {
+    modal('<div class="eyebrow">ЛОГИКИЙН ХҮРД</div><h2>Дараагийн таавраа нээгээрэй</h2><div class="wheel">★</div><button id="spinNow" class="primary">Хүрд эргүүлэх</button><p class="hint">Зүй тогтол, тоон дараалал, уншиж бодох дасгал.</p>');
+    $('spinNow').onclick = () => {
+      $('spinNow').disabled = true;
+      document.querySelector('.wheel').style.transform = 'rotate(1125deg)';
+      this.wheelSpin = 1.7;
+      this.audio.spin();
+      setTimeout(() => { if ($('panel').open) this.ask('logic'); }, 1650);
+    };
+  }
+
+  showMap() {
+    const p = this.player.pos;
+    modal(`<div class="eyebrow">ХОТЫН ХӨТӨЧ</div><h2>Хаашаа аялах вэ?</h2><p>Газрыг сонгоход алтан тэмдэг гарч, луужин чиглэл заана.</p><div class="map-grid">${LANDMARKS.map((l, i) => `<button data-landmark="${i}" class="${this.goal === l ? 'active' : ''}"><span>${l.emoji} ${l.name}</span><b>${Math.round(Math.hypot(l.x - p.x, l.z - p.z))} м</b></button>`).join('')}</div>`);
+    document.querySelectorAll('[data-landmark]').forEach((b) => b.onclick = () => {
+      const l = LANDMARKS[+b.dataset.landmark];
+      this.setGoal(l); closeModal(); this.audio.ui();
+      toast(l.name + ' руу алтан тэмдгийг дагаарай.', 2600, l.emoji);
+    });
+  }
+
+  collection() {
+    const s = this.state;
+    const inv = FRUITS.map((t, i) => `<span class="stat" style="font-size:15px">${t.emoji} ${s.inventory[i] || 0}</span>`).join(' ');
+    modal(`<div class="eyebrow">МИНИЙ АЯЛАЛ</div><h2>Ургац ба цуглуулга</h2><div class="row" style="margin:6px 0 14px">${inv}</div><p>Цуглуулсан од: <b>${s.stars}</b> · Дууссан аялал: <b>${s.chapter}/${CHAPTERS.length}</b> · Ширэнгэ: <b>${s.runner.unlocked}/5 үе</b></p><div class="grid">${PRODUCTS.map((p) => `<div class="product ${s.collected.has('package-' + p.sku) ? 'got' : ''}"><img src="${p.src}" alt="Kagome ${p.flavor}" loading="lazy"><small>${p.name}</small><span>${p.size}</span></div>`).join('')}</div><p class="hint" style="margin-top:14px">Хотоос 8 бүтээгдэхүүнийг олоод бүх ★ авбал цуглуулга бүрэн болно. Ширэнгэнд цуглуулсан: ${s.runner.collection.reduce((a, b) => a + b, 0)} ш.</p>`);
+  }
+
+  pauseMenu() {
+    if (!this.started) return;
+    const st = this.state.settings;
+    modal(`<div class="eyebrow">ТҮР ЗОГСЛОО</div><h2>Kagome City</h2>
+      <div class="settings">
+        <label>Дуу <input type="checkbox" id="sSound" ${st.sound ? 'checked' : ''}></label>
+        <label>Хөгжим <input type="checkbox" id="sMusic" ${st.music ? 'checked' : ''}></label>
+        <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>
+      </div>
+      <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
+    $('sQuality').value = st.quality;
+    $('resume').onclick = closeModal;
+    $('sSound').onchange = (e) => { st.sound = e.target.checked; this.audio.applySettings(); this.state.save(); };
+    $('sMusic').onchange = (e) => { st.music = e.target.checked; this.audio.applySettings(); this.state.save(); };
+    $('sQuality').onchange = (e) => { st.quality = e.target.value; this.state.save(); this.app.applyQuality(); };
+    $('help').onclick = () => this.help();
+    $('gotoRunner').onclick = () => { closeModal(); this.enterJungle(); };
+    $('reset').onclick = () => { if (confirm('Бүх ахиц устгах уу?')) { this.state.reset(); location.reload(); } };
+  }
+
+  help() {
+    modal(`<div class="eyebrow">АЯЛЛЫН ХӨТӨЧ</div><h2>Удирдлага</h2>
+      <p><kbd>W A S D</kbd> / сум — камерын чиглэлд алхана<br><kbd>Shift</kbd> — гүйнэ<br><kbd>Space</kbd> — үсэрнэ<br><kbd>E</kbd> — жимс түүх, ярилцах, машинд суух / буух<br><kbd>M</kbd> — газрын зураг · <kbd>Esc</kbd> — цэс<br>Хулгана чирэх / <kbd>Q</kbd> <kbd>R</kbd> — камер эргүүлэх<br><b>Машинд:</b> W урагш, S ухрах, A/D жолоодох, Shift — турбо</p>
+      <p class="hint">Утсан дээр зүүн дугуй удирдлагыг чирж, баруун товчнуудаар үйлдэл хийнэ. Дэлгэцийг чирж камер эргүүлнэ. Gamepad дэмжигдэнэ.</p>
+      <button class="primary" id="ok">Ойлголоо</button>`);
+    $('ok').onclick = () => this.pauseMenu();
+  }
+
+  // ---------------------------------------------------------------- Машин
+  enterCar() {
+    const car = this.town.car;
+    this.vehicle = car;
+    this.car.speed = 0; this.car.heading = car.rotation.y;
+    this.character.root.visible = false;
+    this.driver.root.visible = true;
+    this.audio.carIn();
+    this.audio.engine(true, 0);
+    this.cam.dist = 13;
+    show('speedo', true);
+    toast('W/S урагш-ухрах · A/D жолоодох · Shift турбо · E буух', 3200, '🚗');
+  }
+
+  exitCar() {
+    if (!this.vehicle) return;
+    const p = this.vehicle.position;
+    const offsets = [[3, 0], [-3, 0], [0, 3], [0, -3], [3, 3], [-3, -3]];
+    const ok = offsets.find(([x, z]) => !this.blocked(p.x + x, p.z + z));
+    if (!ok) { toast('Буух зайгүй байна. Задгай газар очоорой.', 2000, '⚠️'); return; }
+    this.player.pos.set(p.x + ok[0], 0, p.z + ok[1]);
+    this.player.vel.set(0, 0, 0);
+    this.character.root.visible = true;
+    this.driver.root.visible = false;
+    this.vehicle = null;
+    this.audio.engine(false);
+    this.cam.dist = 9.5;
+    show('speedo', false);
+  }
+
+  async enterJungle() {
+    if (this.vehicle) this.exitCar();
+    this.audio.whoosh();
+    await this.app.switchTo('runner');
+  }
+
+  // ---------------------------------------------------------------- Update
+  update(dt) {
+    this.clock += dt;
+    this.state.playtime += dt;
+    const active = this.started && !isModalOpen();
+    this.active = active;
+    const input = this.input;
+    const P = this.player;
+
+    // Камерын эргүүлэлт
+    if (active) {
+      this.cam.yaw -= input.look.dx;
+      this.cam.pitch = T.MathUtils.clamp(this.cam.pitch + input.look.dy, 0.12, 1.15);
+      if (input.held('camLeft')) this.cam.yaw += dt * 1.8;
+      if (input.held('camRight')) this.cam.yaw -= dt * 1.8;
+    }
+
+    let axis = active ? input.axis() : { x: 0, y: 0 };
+    let moving = 0;
+    if (this.vehicle) this.updateCar(dt, axis, active);
+    else this.updatePlayer(dt, axis, active);
+
+    // Дүр
+    const speedNorm = this.vehicle ? 0 : Math.hypot(P.vel.x, P.vel.z) / RUN;
+    this.character.update(dt, { state: P.state, speed: speedNorm, lean: this.vehicle ? 0 : P.lean || 0 });
+    this.character.root.position.set(P.pos.x, P.y, P.pos.z);
+    this.character.root.rotation.y = P.heading;
+    if (this.vehicle) this.driver.update(dt, { state: 'sit', speed: 0, lean: -this.car.steer * 0.3 });
+
+    this.updateCamera(dt);
+    this.updateWorld(dt);
+    this.updateInteractables(active);
+    this.updateHudLive();
+    this.particles.update(dt, this.camera);
+  }
+
+  updatePlayer(dt, axis, active) {
+    const P = this.player, cam = this.cam;
+    const len = Math.hypot(axis.x, axis.y);
+    const run = active && (this.input.held('run') || (this.input.isTouch && len > 0.92));
+    const maxSpeed = run ? RUN : WALK;
+    // Камерын чиглэлтэй харьцангуй хүссэн вектор
+    let wx = 0, wz = 0;
+    if (len > 0.05) {
+      wx = axis.x * Math.cos(cam.yaw) + axis.y * Math.sin(cam.yaw);
+      wz = -axis.x * Math.sin(cam.yaw) + axis.y * Math.cos(cam.yaw);
+      const wl = Math.hypot(wx, wz); wx /= wl; wz /= wl;
+    }
+    const want = Math.min(1, len) * maxSpeed;
+    const tx = wx * want, tz = wz * want;
+    const accel = (len > 0.05 ? ACCEL : DECEL) * (P.grounded ? 1 : AIR_CTRL);
+    P.vel.x += (tx - P.vel.x) * Math.min(1, accel * dt / maxSpeed * 2.2);
+    P.vel.z += (tz - P.vel.z) * Math.min(1, accel * dt / maxSpeed * 2.2);
+    if (Math.hypot(P.vel.x, P.vel.z) < 0.05 && len < 0.05) P.vel.set(0, 0, 0);
+
+    // Хөдөлгөөн + collision (тэнхлэг тус бүрээр гулсах)
+    const nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
+    if (!this.blocked(nx, P.pos.z)) P.pos.x = nx; else P.vel.x *= -0.1;
+    if (!this.blocked(P.pos.x, nz)) P.pos.z = nz; else P.vel.z *= -0.1;
+
+    // Чиглэл
+    const sp = Math.hypot(P.vel.x, P.vel.z);
+    if (sp > 0.3) {
+      const target = Math.atan2(P.vel.x, P.vel.z);
+      const d = Math.atan2(Math.sin(target - P.heading), Math.cos(target - P.heading));
+      P.heading += d * Math.min(1, dt * 14);
+      P.lean = T.MathUtils.clamp(d * 0.8, -0.5, 0.5) * (sp / RUN);
+    } else P.lean = 0;
+
+    // Үсрэлт: coyote + buffer + variable height
+    P.coyote = P.grounded ? COYOTE : Math.max(0, P.coyote - dt);
+    P.buffer = Math.max(0, P.buffer - dt);
+    if (P.buffer > 0 && P.coyote > 0 && active) {
+      P.yVel = JUMP_V; P.grounded = false; P.coyote = 0; P.buffer = 0;
+      this.audio.jump();
+      this.particles.dust(P.pos, 4);
+    }
+    if (!P.grounded) {
+      if (P.yVel > 0 && !this.input.held('jump')) P.yVel -= GRAVITY * 1.6 * dt;   // товчоо суллавал богино үсрэлт
+      else P.yVel -= GRAVITY * dt;
+      P.y += P.yVel * dt;
+      if (P.y <= 0) {
+        P.y = 0; P.grounded = true;
+        this.audio.land(); this.particles.dust(P.pos, 5);
+        cam.shake = Math.max(cam.shake, Math.min(0.25, -P.yVel * 0.012));
+        P.yVel = 0;
+      }
+    }
+    P.state = !P.grounded ? (P.yVel > 0.5 ? 'jump' : 'fall') : sp > 0.4 ? (sp > WALK + 0.6 ? 'run' : 'walk') : 'idle';
+    this.character.shadow.material.opacity = 0.22 * Math.max(0.2, 1 - P.y * 0.18);
+    this.character.shadow.position.y = -P.y + 0.03;
+  }
+
+  updateCar(dt, axis, active) {
+    const C = this.car, car = this.vehicle, cam = this.cam;
+    const turbo = active && this.input.held('run');
+    const maxF = turbo ? 26 : 18, maxR = 7;
+    const throttle = -axis.y;
+    // Хурд: хөдөлгүүр + эсэргүүцэл
+    const drag = 0.9 + Math.abs(C.speed) * 0.045;
+    C.speed += (throttle * (throttle > 0 ? 16 : 12) - C.speed * drag * (Math.abs(throttle) < 0.05 ? 1.6 : 0.35)) * dt;
+    C.speed = T.MathUtils.clamp(C.speed, -maxR, maxF);
+    // Жолоодлого: хурдтай үед мэдрэмтгий, зогссон үед эргэхгүй
+    C.steer += (axis.x - C.steer) * Math.min(1, dt * 8);
+    const grip = Math.min(1, Math.abs(C.speed) / 5);
+    C.heading -= C.steer * dt * 2.1 * grip * Math.sign(C.speed || 1) * (1 - Math.abs(C.speed) / 60);
+    const fx = -Math.sin(C.heading), fz = -Math.cos(C.heading);
+    const nx = car.position.x + fx * C.speed * dt, nz = car.position.z + fz * C.speed * dt;
+    const r = 1.6;
+    if (!this.blocked(nx, nz, r)) car.position.set(nx, 0, nz);
+    else {
+      // Мөргөлт: гулсах эсвэл буцах
+      if (!this.blocked(nx, car.position.z, r)) car.position.x = nx;
+      else if (!this.blocked(car.position.x, nz, r)) car.position.z = nz;
+      else { if (Math.abs(C.speed) > 6) { this.audio.hurt(); cam.shake = 0.4; this.particles.dust(car.position, 8, { color: 0xffffff }); } C.speed *= -0.25; }
+    }
+    car.rotation.y = C.heading;
+    // Их биеийн налалт (suspension)
+    const accel = (C.speed - (C.prevSpeed || 0)) / Math.max(dt, 0.001); C.prevSpeed = C.speed;
+    C.roll += (-C.steer * Math.abs(C.speed) * 0.012 - C.roll) * Math.min(1, dt * 6);
+    C.pitch += (-T.MathUtils.clamp(accel, -20, 20) * 0.006 - C.pitch) * Math.min(1, dt * 5);
+    C.bounce = Math.sin(this.clock * 18) * Math.abs(C.speed) * 0.002;
+    const ch = car.userData.chassis;
+    ch.rotation.z = C.roll; ch.rotation.x = C.pitch; ch.position.y = C.bounce;
+    // Дугуй
+    car.userData.wheels.forEach((w, i) => { w.rotation.x += C.speed * dt * 1.7; if (i % 2 === 0) w.rotation.y = -C.steer * 0.5; });
+    car.userData.wheelSteer.rotation.z = -C.steer * 1.2;
+    // Тоос, дуу
+    if (Math.abs(C.speed) > 6 && Math.random() < dt * 25) this.particles.dust(new T.Vector3(car.position.x - fx * 2, 0, car.position.z - fz * 2), 1, { size: 0.5 });
+    this.audio.engine(true, C.speed);
+    this.player.pos.copy(car.position);
+    this.player.heading = C.heading;
+    this.player.state = 'sit';
+    $('speedVal').textContent = Math.round(Math.abs(C.speed) * 4.2);
+    // Хүргэлтийн хаалга
+    for (const g of this.town.gates) {
+      if (g.obj.visible && Math.hypot(g.x - car.position.x, g.z - car.position.z) < 3.2 && this.state.gate(g.index)) {
+        this.particles.burst(new T.Vector3(g.x, 2.5, g.z), 0xffd645, 36, { speed: 6, up: 4 });
+        this.audio.gate();
+        toast(`Хүргэлт ${g.index + 1} амжилттай! +20 од`, 2600, '🚗');
+        this.commit();
+      }
+    }
+  }
+
+  updateCamera(dt) {
+    const cam = this.cam, P = this.player, camera = this.camera;
+    const target = this.vehicle ? this.vehicle.position : P.pos;
+    // Машинд: камер аажуухан ард нь орно; алхахад: хөдөлж байвал бага зэрэг дагана
+    if (this.vehicle) {
+      const d = Math.atan2(Math.sin(this.car.heading - cam.yaw), Math.cos(this.car.heading - cam.yaw));
+      cam.yaw += d * Math.min(1, dt * (Math.abs(this.car.speed) > 2 ? 1.6 : 0.4));
+    } else if (P.state === 'walk' || P.state === 'run') {
+      const d = Math.atan2(Math.sin(P.heading - cam.yaw), Math.cos(P.heading - cam.yaw));
+      if (Math.abs(d) < 2.6) cam.yaw += d * Math.min(1, dt * 0.35);
+    }
+    const dist = cam.dist + (this.vehicle ? Math.abs(this.car.speed) * 0.08 : 0);
+    const h = Math.sin(cam.pitch) * dist, r = Math.cos(cam.pitch) * dist;
+    const desired = new T.Vector3(target.x + Math.sin(cam.yaw) * r, (this.vehicle ? 0 : P.y * 0.5) + 1.6 + h, target.z + Math.cos(cam.yaw) * r);
+    // Барилгаас хамгаалах: камерын цэг блоклогдсон бол ойртуулна
+    let k = 1;
+    for (let i = 0; i < 6; i++) {
+      const px = target.x + (desired.x - target.x) * k, pz = target.z + (desired.z - target.z) * k;
+      if (!this.blocked(px, pz, 0.3) || Math.hypot(px - target.x, pz - target.z) < 2.5) break;
+      k -= 0.12;
+    }
+    desired.x = target.x + (desired.x - target.x) * k;
+    desired.z = target.z + (desired.z - target.z) * k;
+    desired.y = Math.max(1.2, desired.y);
+    const follow = this.vehicle ? 5 : 7;
+    camera.position.lerp(desired, Math.min(1, dt * follow));
+    if (cam.shake > 0) {
+      cam.shake = Math.max(0, cam.shake - dt * 1.6);
+      camera.position.x += (Math.random() - 0.5) * cam.shake * 0.5;
+      camera.position.y += (Math.random() - 0.5) * cam.shake * 0.5;
+    }
+    const look = new T.Vector3(target.x, (this.vehicle ? 1.6 : P.y * 0.7 + 1.9), target.z);
+    // Хөдөлж буй чиглэл рүү бага зэрэг урагш харна
+    if (this.vehicle) look.addScaledVector(new T.Vector3(-Math.sin(this.car.heading), 0, -Math.cos(this.car.heading)), this.car.speed * 0.15);
+    camera.lookAt(look);
+    const fovT = 55 + (this.vehicle ? Math.abs(this.car.speed) * 0.7 : P.state === 'run' ? 6 : 0);
+    cam.fov += (fovT - cam.fov) * Math.min(1, dt * 4);
+    if (Math.abs(camera.fov - cam.fov) > 0.05) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
+    // Нар ба сүүдрийн камер тоглогчийг дагана
+    const s = this.sun;
+    s.target.position.set(target.x, 0, target.z);
+    s.position.set(target.x + this.sunDir.x * 80, this.sunDir.y * 80, target.z + this.sunDir.z * 80);
+  }
+
+  get sunDir() {
+    const a = (this.dayTime - 0.25) * Math.PI * 2; // 0.25 = нар мандах
+    return new T.Vector3(-Math.cos(a) * 0.8, Math.max(0.12, Math.sin(a)), 0.45).normalize();
+  }
+
+  updateWorld(dt) {
+    const t = this.clock, town = this.town;
+    // Өдрийн цаг
+    this.dayTime = (this.dayTime + dt / DAY_LENGTH) % 1;
+    const sunH = Math.sin((this.dayTime - 0.25) * Math.PI * 2); // -1..1
+    const day = T.MathUtils.smoothstep(sunH, -0.15, 0.35);
+    const dusk = 1 - Math.abs(sunH) / 0.3 > 0 ? Math.max(0, 1 - Math.abs(sunH) / 0.3) : 0;
+    const night = 1 - day;
+    const skyTop = new T.Color(0x3f9ce8).lerp(new T.Color(0x0e1b3f), night).lerp(new T.Color(0xff8d5c), dusk * 0.35);
+    const skyHor = new T.Color(0xbfe9f5).lerp(new T.Color(0x2b3a66), night).lerp(new T.Color(0xffb26b), dusk * 0.6);
+    this.sky.uniforms.uTop.value.copy(skyTop);
+    this.sky.uniforms.uHorizon.value.copy(skyHor);
+    this.sky.uniforms.uBottom.value.copy(new T.Color(0xe4f6f0).lerp(new T.Color(0x1e2a4a), night));
+    this.sky.uniforms.uSunDir.value.copy(this.sunDir);
+    this.sky.uniforms.uSunColor.value.set(0xfff2c8).lerp(new T.Color(0xff7a3c), dusk);
+    this.scene.fog.color.copy(skyHor);
+    this.sun.intensity = 0.25 + day * 1.4;
+    this.sun.color.set(0xfff1cf).lerp(new T.Color(0xffa060), dusk * 0.7).lerp(new T.Color(0x9fb4ff), night * 0.6);
+    this.hemi.intensity = 0.35 + day * 0.45;
+    this.hemi.color.set(0xdff6ff).lerp(new T.Color(0x5670a8), night);
+    // Гэрлийн шил шөнө гэрэлтэнэ
+    const bulbI = 0.6 + night * 2.4;
+    for (const l of town.lamps) for (const c of l.children) if (c.userData.bulb) c.material.color.set(0xfff0b0).multiplyScalar(bulbI);
+
+    // Shader цаг
+    for (const m of town.waterMats) m.userData.time.value = t;
+    for (const m of town.swayMats) if (m.userData.time) m.userData.time.value = t;
+    updateClouds(this.clouds, dt);
+
+    // Хураах жимс / бүтээгдэхүүн хөвнө
+    for (const h of town.harvests) if (h.obj.visible) { h.obj.position.y = 1 + Math.sin(t * 2.2 + h.x) * 0.14; h.obj.rotation.y = t * 0.8; h.ring.scale.setScalar(1 + Math.sin(t * 3 + h.z) * 0.08); }
+    for (const p of town.packages) if (p.obj.visible) { p.obj.position.y = 0.6 + Math.sin(t * 2 + p.z) * 0.12; p.obj.rotation.y = t * 1.2; if (Math.random() < dt * 2) this.particles.sparkle(p.obj.position, 0xffd24d); }
+    town.npcs.forEach((n, i) => { n.obj.position.y = 1.1 + Math.sin(t * 2.4 + i) * 0.08; n.obj.rotation.y = Math.sin(t * 0.7 + i) * 0.25 + (this.near && this.near.label.startsWith(n.name) ? Math.atan2(this.player.pos.x - n.x, this.player.pos.z - n.z) : 0) * 0.35; });
+    // Хүргэлтийн хаалга
+    town.gates.forEach((g) => { g.obj.visible = this.state.chapter === 4 && g.index >= this.state.counts.drive; g.obj.traverse((o) => { if (o.userData.spin) { o.rotation.y = t * 1.5; o.position.y = 2.6 + Math.sin(t * 2) * 0.2; } }); });
+    // Хүрд
+    if (this.wheelSpin > 0) { this.wheelSpin -= dt; town.wheel.rotation.z += dt * (4 + this.wheelSpin * 6); } else town.wheel.rotation.z += dt * 0.15;
+    // Усан оргилуур
+    town.fountainJets.forEach((j, i) => { j.scale.y = 0.85 + Math.sin(t * 6 + i) * 0.2; });
+    if (Math.random() < dt * 14) this.particles.sparkle(new T.Vector3(Math.sin(t * 3) * 2, 2.6, -15 + Math.cos(t * 3) * 2), 0xd8f6ff);
+    // Лянхуа хөвнө
+    town.world.children.forEach((o) => { if (o.userData.float) o.position.y = (o.geometry.type === 'CircleGeometry' ? -0.3 : -0.15) + Math.sin(t * 1.5 + o.position.z) * 0.05; });
+    // Зорилгын тэмдэг
+    if (this.goalMarker.visible) {
+      this.goalMarker.children[0].rotation.z = t;
+      this.goalMarker.children[1].position.y = 5 + Math.sin(t * 3) * 0.35;
+      this.goalMarker.children[1].rotation.y = t * 1.5;
+      if (this.goal && Math.hypot(this.goal.x - this.player.pos.x, this.goal.z - this.player.pos.z) < 6 && this.state.currentChapter && LANDMARKS[this.state.currentChapter.landmark] !== this.goal) this.setGoal(null);
+    }
+  }
+
+  updateInteractables(active) {
+    let best = null, dBest = Infinity;
+    if (active && !this.vehicle) {
+      for (const it of this.interactables) {
+        if (it.visible && !it.visible()) continue;
+        const pos = it.dynamic ? it.dynamic() : it;
+        const d = Math.hypot(pos.x - this.player.pos.x, pos.z - this.player.pos.z);
+        if (d < it.r && d < dBest) { dBest = d; best = it; }
+      }
+    }
+    this.near = best;
+    const pr = $('prompt');
+    const showP = active && (best || this.vehicle);
+    pr.classList.toggle('on', !!showP);
+    if (showP) {
+      $('promptText').textContent = this.vehicle ? 'Машинаас буух' + (this.state.chapter === 4 ? ' · Алтан хаалгаар дарааллаар яв' : '') : best.icon + ' ' + best.label;
+    }
+  }
+
+  updateHudLive() {
+    const p = this.player.pos;
+    let zone = 'Хотын төв', bestD = 24;
+    for (const l of LANDMARKS) { const d = Math.hypot(l.x - p.x, l.z - p.z); if (d < bestD) { bestD = d; zone = l.emoji + ' ' + l.name; } }
+    if (Math.abs(p.x - CANAL.x) < 7 && BRIDGES_Z.some((b) => Math.abs(p.z - b) < 5)) zone = '🌉 Сувгийн гүүр';
+    const loc = $('locName');
+    if (loc.textContent !== zone) loc.textContent = zone;
+    if (this.goal) {
+      const dx = this.goal.x - p.x, dz = this.goal.z - p.z;
+      const ang = Math.atan2(dx, dz) - this.cam.yaw;
+      $('compassNeedle').style.transform = `rotate(${-ang + Math.PI}rad)`;
+      $('compassDist').textContent = Math.round(Math.hypot(dx, dz)) + ' м';
+    }
+    this.drawMinimap();
+  }
+
+  drawMinimap() {
+    const c = $('minimap'), ctx = c.getContext('2d');
+    const W = c.width, S = W / 140; // 140 ертөнцийн нэгж = бүтэн зураг
+    const p = this.player.pos;
+    const mx = (x) => W / 2 + (x - p.x) * S, mz = (z) => W / 2 + (z - p.z) * S;
+    ctx.clearRect(0, 0, W, W);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(W / 2, W / 2, W / 2, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#5fc9dc'; ctx.fillRect(0, 0, W, W);
+    ctx.fillStyle = '#9edb7f'; ctx.fillRect(mx(ISLAND.minX), mz(ISLAND.minZ), (ISLAND.maxX - ISLAND.minX) * S, (ISLAND.maxZ - ISLAND.minZ) * S);
+    ctx.strokeStyle = '#fbe4ac'; ctx.lineWidth = 15 * S / 1.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(mx(0), mz(-68)); ctx.lineTo(mx(0), mz(44));
+    for (const z of BRIDGES_Z) { ctx.moveTo(mx(-55), mz(z)); ctx.lineTo(mx(55), mz(z)); }
+    ctx.moveTo(mx(46), mz(-34)); ctx.lineTo(mx(46), mz(-56));
+    ctx.stroke();
+    ctx.fillStyle = '#66d3e8'; ctx.fillRect(mx(CANAL.x - CANAL.halfW), mz(-70), CANAL.halfW * 2 * S, 115 * S);
+    ctx.fillStyle = '#c39a62'; for (const z of BRIDGES_Z) ctx.fillRect(mx(CANAL.x - 6), mz(z - 4.5), 12 * S, 9 * S);
+    ctx.font = `${Math.round(11 * S)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const l of LANDMARKS) {
+      ctx.fillStyle = l.color; ctx.beginPath(); ctx.arc(mx(l.x), mz(l.z), 7 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.fillText(l.emoji, mx(l.x), mz(l.z) + 1);
+    }
+    // Хураагаагүй жимс
+    ctx.fillStyle = '#ff5c5c';
+    for (const h of this.town.harvests) if (h.obj.visible) { ctx.beginPath(); ctx.arc(mx(h.x), mz(h.z), 2 * S, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#ffd24d';
+    for (const k of this.town.packages) if (k.obj.visible) { ctx.beginPath(); ctx.arc(mx(k.x), mz(k.z), 2.5 * S, 0, Math.PI * 2); ctx.fill(); }
+    if (this.goal) {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(mx(this.goal.x), mz(this.goal.z), 10 * S * (1 + Math.sin(this.clock * 5) * 0.15), 0, Math.PI * 2); ctx.stroke();
+    }
+    if (this.vehicle === null) { ctx.fillStyle = '#ffa72e'; ctx.beginPath(); ctx.arc(mx(this.town.car.position.x), mz(this.town.car.position.z), 4 * S, 0, Math.PI * 2); ctx.fill(); }
+    // Тоглогч — гурвалжин чиглэлтэй
+    ctx.translate(W / 2, W / 2); ctx.rotate(-this.player.heading);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#124f50'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, -9 * S); ctx.lineTo(6 * S, 6 * S); ctx.lineTo(0, 3 * S); ctx.lineTo(-6 * S, 6 * S); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    // Камерын харах хүрээ
+    ctx.save(); ctx.translate(W / 2, W / 2); ctx.rotate(-this.cam.yaw + Math.PI);
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, W / 2, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  render() { this.app.post.render(); }
+}
