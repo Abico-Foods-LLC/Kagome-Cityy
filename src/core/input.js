@@ -145,8 +145,14 @@ export class Input {
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!active || e.pointerId !== active.id) return;
-      this.look.dx += (e.clientX - active.x) * 0.0055;
-      this.look.dy += (e.clientY - active.y) * 0.0035;
+      // Санамсаргүй товшилт камер эргүүлэхгүй: 120мс дарсан эсвэл 8px илүү чирсэн үед л эхэлнэ
+      if (!active.dragging) {
+        const moved = Math.hypot(e.clientX - active.sx, e.clientY - active.sy);
+        if (performance.now() - active.t > 120 || moved > 8) { active.dragging = true; active.x = e.clientX; active.y = e.clientY; }
+        else return;
+      }
+      this.look.dx += (e.clientX - active.x) * 0.0045;
+      this.look.dy += (e.clientY - active.y) * 0.003;
       active.x = e.clientX; active.y = e.clientY;
     });
     const end = (e) => {

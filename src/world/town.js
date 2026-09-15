@@ -65,18 +65,19 @@ export function buildTown(scene, { textures }) {
   }
   // ---------- Зам ----------
   const roadTex = roadTexture();
-  const roadMat = new T.MeshToonMaterial({ color: 0xffffff, map: roadTex, gradientMap: groundMat.gradientMap });
-  const road = (x, z, w, h) => {
+  const roadMat = new T.MeshToonMaterial({ color: 0xffffff, map: roadTex, gradientMap: groundMat.gradientMap, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const road = (x, z, w, h, y = 0.03) => {
     const geo = new T.PlaneGeometry(w, h);
     const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 6, uv.getY(i) * h / 6);
     const m = new T.Mesh(geo, roadMat);
-    m.rotation.x = -Math.PI / 2; m.position.set(x, 0.03, z); m.receiveShadow = true; world.add(m);
+    m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.receiveShadow = true; world.add(m);
     return m;
   };
-  road(0, -12, 15, 113);
-  road(0, 1, 111, 10); road(0, -34, 109, 9); road(0, 31, 103, 8);
-  road(46, -47, 8, 26);                     // ширэнгийн хаалга руу
+  // Замууд давхцах газартаа ялгаатай өндөртэй — z-fighting (жирэлзэлт) гарахгүй
+  road(0, -12, 15, 113, 0.06);
+  road(0, 1, 111, 10, 0.04); road(0, -34, 109, 9, 0.04); road(0, 31, 103, 8, 0.04);
+  road(46, -47, 8, 26, 0.05);               // ширэнгийн хаалга руу
   // Замын хажуугийн хашлага
   const curb = toon(0xfff1cf, { key: 'curb' });
   for (const s of [-1, 1]) {
