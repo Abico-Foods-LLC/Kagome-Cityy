@@ -85,7 +85,7 @@ export class GameState {
   get dailyDone() { return this.daily ? this.daily.quests.filter((q) => q.done).length : 0; }
 
   // ---------- Загас ----------
-  fishCaught() { this.counts.fish++; this.stars += 8; }
+  fishCaught(perfect = false) { this.counts.fish++; this.stars += perfect ? 12 : 8; }   // төгс татахад бонус
 
   // ---------- Миний талбай ----------
   static SEED_PRICE = 10;

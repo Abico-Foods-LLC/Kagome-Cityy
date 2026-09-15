@@ -10,6 +10,12 @@ describe('GameState — загас', () => {
     expect(s.counts.fish).toBe(1);
     expect(s.stars).toBe(8);
   });
+  it('fishCaught(true) — төгс татахад +12 од', () => {
+    const s = new GameState();
+    s.fishCaught(true);
+    expect(s.counts.fish).toBe(1);
+    expect(s.stars).toBe(12);
+  });
 });
 
 describe('GameState — талбай', () => {
