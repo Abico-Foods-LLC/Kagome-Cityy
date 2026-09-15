@@ -5,7 +5,7 @@ const KEYMAP = {
   KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down',
   KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
   Space: 'jump', KeyE: 'interact', Enter: 'interact', ShiftLeft: 'run', ShiftRight: 'run',
-  Escape: 'pause', KeyP: 'pause', KeyM: 'map', KeyQ: 'camLeft', KeyR: 'camRight', Tab: 'map',
+  Escape: 'pause', KeyP: 'pause', KeyM: 'map', KeyQ: 'camLeft', KeyR: 'camRight', Tab: 'map', KeyC: 'roll', ControlLeft: 'roll', Digit1: 'emote1', Digit2: 'emote2', Digit3: 'emote3',
 };
 
 export class Input {
@@ -99,7 +99,7 @@ export class Input {
     // Gamepad товчийг гар товч шиг хувиргана
     const gp = this.gamepad();
     if (gp) {
-      const map = { 0: 'jump', 1: 'interact', 2: 'interact', 9: 'pause', 3: 'map', 4: 'camLeft', 5: 'camRight', 6: 'run', 7: 'run' };
+      const map = { 0: 'jump', 1: 'interact', 2: 'roll', 9: 'pause', 3: 'map', 4: 'camLeft', 5: 'camRight', 6: 'run', 7: 'run' };
       for (const [i, a] of Object.entries(map)) {
         const down = gp.buttons[i]?.pressed;
         if (down && !this.gpPrev[i]) this.press(a);

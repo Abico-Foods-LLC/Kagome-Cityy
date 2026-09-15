@@ -20,6 +20,7 @@ class App {
     this.last = performance.now();
     this.fpsSamples = [];
     this.autoQuality = 'high';
+    this.timeScale = 1;   // debug: удаашруулах
   }
 
   async init() {
@@ -116,7 +117,7 @@ class App {
 
   loop(now) {
     requestAnimationFrame((t) => this.loop(t));
-    const dt = Math.min(0.05, (now - this.last) / 1000 || 0);
+    const dt = Math.min(0.05, (now - this.last) / 1000 || 0) * this.timeScale;
     this.last = now;
     if (!this.current) return;
     this.current.update(dt);

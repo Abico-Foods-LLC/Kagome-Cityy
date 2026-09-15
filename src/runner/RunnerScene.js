@@ -178,8 +178,8 @@ export class RunnerScene {
     this.sky.uniforms.uTop.value.copy(sky); this.sky.uniforms.uHorizon.value.copy(fog); this.sky.uniforms.uBottom.value.copy(fog.clone().multiplyScalar(0.8));
     this.sky.uniforms.uSunDir.value.set(-0.35, 0.55, -0.6).normalize();
     this.scene.fog.color.copy(fog); this.scene.fog.density = conf.mist;
-    this.sun.color.set(conf.light); this.sun.intensity = level === 1 ? 0.7 : 1.4;
-    this.hemi.color.set(level === 1 ? 0x8ea0d8 : 0xfff3d6); this.hemi.groundColor.set(conf.ground); this.hemi.intensity = level === 1 ? 0.6 : 0.85;
+    this.sun.color.set(conf.light); this.sun.intensity = level === 1 ? 0.95 : 1.4;
+    this.hemi.color.set(level === 1 ? 0x8ea0d8 : 0xfff3d6); this.hemi.groundColor.set(conf.ground); this.hemi.intensity = level === 1 ? 0.8 : 0.85;
     this.motes.material.color.set(level === 1 ? 0xa9c4ff : conf.glow);
 
     let rng = 17 + level;
@@ -378,7 +378,7 @@ export class RunnerScene {
         if (m.combo >= 6) { $('rCombo').textContent = `×${e.mult} · ${m.combo} ДАРААЛСАН`; this.comboT = 1.2; pop($('rCombo')); }
         break;
       }
-      case 'hurt': this.impact = 0.6; this.audio.hurt(); this.particles.burst(new T.Vector3(m.x, 1.2, 0), 0xff5a4a, 16); toast('−1 ♥ · Дараагийн саадыг ажигла!', 1500, '💥'); pop($('rLives')); break;
+      case 'hurt': this.impact = 0.6; this.character.play('hurt', 0.6); this.audio.hurt(); this.particles.burst(new T.Vector3(m.x, 1.2, 0), 0xff5a4a, 16); toast('−1 ♥ · Дараагийн саадыг ажигла!', 1500, '💥'); pop($('rLives')); break;
       case 'shieldBreak': this.impact = 0.2; this.audio.shield(); this.particles.burst(new T.Vector3(m.x, 1.3, 0), 0x5cf2d2, 26, { speed: 5 }); toast('Бамбай хамгааллаа!', 1400, '🛡'); break;
       case 'shield': this.audio.shield(); toast('Бамбай 14 сек!', 1400, '🛡'); this.particles.burst(new T.Vector3(m.x, 1.3, 0), 0x5cf2d2, 16); break;
       case 'magnet': this.audio.shield(); toast('Соронз 10 сек!', 1400, '🧲'); this.particles.burst(new T.Vector3(m.x, 1.3, 0), 0xc59bff, 16); break;

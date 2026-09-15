@@ -79,7 +79,7 @@ export class AudioSystem {
   }
   jump() { this.tone({ f: 300, f2: 620, type: 'square', dur: 0.14, vol: 0.06 }); this.noise({ dur: 0.08, vol: 0.05, hp: 2000 }); }
   land() { this.noise({ dur: 0.1, vol: 0.12, hp: 100, lp: 900, pitchDecay: true }); }
-  step(i = 0) { this.noise({ dur: 0.06, vol: 0.035 + (i % 2) * 0.01, hp: 200, lp: 1600 + (i % 2) * 400 }); }
+  step(i = 0, wood = false) { if (wood) { this.tone({ f: 140 + (i % 2) * 25, f2: 90, type: 'triangle', dur: 0.07, vol: 0.05 }); this.noise({ dur: 0.05, vol: 0.03, hp: 150, lp: 900 }); } else this.noise({ dur: 0.06, vol: 0.035 + (i % 2) * 0.01, hp: 200, lp: 1600 + (i % 2) * 400 }); }
   correct() { [523, 659, 784, 1047].forEach((f, i) => this.tone({ f, type: 'triangle', dur: 0.25, vol: 0.14, delay: i * 0.08 })); }
   wrong() { this.tone({ f: 220, f2: 160, type: 'sawtooth', dur: 0.28, vol: 0.08 }); }
   fanfare() { [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone({ f, type: 'triangle', dur: 0.3, vol: 0.15, delay: i * 0.1 })); }

@@ -276,11 +276,11 @@ export function buildTown(scene, { textures }) {
 
 /** Хөдөлгөөн зөвшөөрөгдөх эсэх. */
 export function makeBlocked(town, { radius = 0.45, terrain = true } = {}) {
-  return function blocked(x, z, r = radius) {
+  return function blocked(x, z, r = radius, { canal = true } = {}) {
     if (terrain) {
       if (x < ISLAND.minX + 1 || x > ISLAND.maxX - 1 || z < ISLAND.minZ + 1 || z > ISLAND.maxZ - 1) return true;
-      // Суваг: гүүрнээс бусад газар
-      if (Math.abs(x - CANAL.x) < CANAL.halfW + 0.6 + r && !BRIDGES_Z.some((b) => Math.abs(z - b) < 4.2)) return true;
+      // Суваг: гүүрнээс бусад газар (машин, камерт); тоглогч сэлж болно
+      if (canal && Math.abs(x - CANAL.x) < CANAL.halfW + 0.6 + r && !BRIDGES_Z.some((b) => Math.abs(z - b) < 4.2)) return true;
     }
     for (const c of town.colliders) if (Math.hypot(x - c.x, z - c.z) < c.r + r) return true;
     for (const b of town.boxColliders) if (x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r) return true;

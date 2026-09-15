@@ -9,7 +9,7 @@ import { bulbMaterial } from '../world/props.js';
 import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
 
-const WALK = 5.6, RUN = 9.4, ACCEL = 34, DECEL = 42, AIR_CTRL = 0.45, GRAVITY = 24, JUMP_V = 8.6, COYOTE = 0.12, BUFFER = 0.14;
+const WALK = 5.6, RUN = 9.4, SWIM = 3.2, ROLL_SPEED = 12, ROLL_DUR = 0.45, ACCEL = 34, DECEL = 42, AIR_CTRL = 0.45, GRAVITY = 24, JUMP_V = 8.6, COYOTE = 0.12, BUFFER = 0.14;
 const DAY_LENGTH = 540; // секунд — бүтэн өдөр
 
 export class TownScene {
@@ -29,7 +29,7 @@ export class TownScene {
     this.goal = null;
     this.interactables = [];
     this.cam = { yaw: 0.35, pitch: 0.42, dist: 9.5, targetDist: 9.5, shake: 0, fov: 55, intro: 0 };
-    this.player = { pos: new T.Vector3(0, 0, 26), vel: new T.Vector3(), yVel: 0, y: 0, grounded: true, coyote: 0, buffer: 0, heading: Math.PI, state: 'idle', stepI: 0 };
+    this.player = { pos: new T.Vector3(0, 0, 26), vel: new T.Vector3(), yVel: 0, y: 0, visualY: 0, grounded: true, coyote: 0, buffer: 0, jumps: 0, rollT: 0, wasWater: false, heading: Math.PI, state: 'idle', stepI: 0 };
     this.car = { speed: 0, steer: 0, heading: -0.5, roll: 0, pitch: 0, bounce: 0, lastPos: new T.Vector3() };
     this.wheelSpin = 0;
     this.build();
@@ -63,7 +63,10 @@ export class TownScene {
     this.character.root.rotation.y = this.player.heading;
     scene.add(this.character.root);
     this.character.onStep = (side) => {
-      if (!this.vehicle) { this.audio.step(this.player.stepI++); this.particles.dust(this.player.pos, this.player.state === 'run' ? 2 : 1); }
+      if (this.vehicle) return;
+      const p = this.player.pos, onBridge = Math.abs(p.x - CANAL.x) < 7 && BRIDGES_Z.some((b) => Math.abs(p.z - b) < 5);
+      this.audio.step(this.player.stepI++, onBridge);
+      if (!onBridge) this.particles.dust(p, this.player.state === 'run' ? 2 : 1);
     };
 
     // Жолооч — машинд суух үед харагдах хуулбар
@@ -98,6 +101,7 @@ export class TownScene {
       h.obj.visible = h.ring.visible = !state.collected.has(h.id);
       add({ x: h.x, z: h.z, r: 2.6, label: FRUITS[h.type].name + ' түүх', icon: FRUITS[h.type].emoji, visible: () => h.obj.visible, action: () => {
         if (state.harvest(h.id, h.type)) {
+          this.character.play('pick', 0.7);
           h.obj.visible = h.ring.visible = false;
           this.particles.burst(new T.Vector3(h.x, 1, h.z), FRUITS[h.type].color, 18);
           this.audio.pickup(h.type);
@@ -111,6 +115,7 @@ export class TownScene {
       p.obj.visible = p.ring.visible = !state.collected.has(p.id);
       add({ x: p.x, z: p.z, r: 2.6, label: 'Kagome бүтээгдэхүүн цуглуулах', icon: '🧃', visible: () => p.obj.visible, action: () => {
         if (state.collectPackage(p.id)) {
+          this.character.play('pick', 0.7);
           p.obj.visible = p.ring.visible = false;
           this.particles.burst(new T.Vector3(p.x, 1, p.z), 0xffd24d, 24);
           this.audio.pickup(4);
@@ -121,7 +126,7 @@ export class TownScene {
       } });
     }
     for (const n of town.npcs) {
-      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => this.talk(n) });
+      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => { this.player.heading = Math.atan2(n.x - this.player.pos.x, n.z - this.player.pos.z); this.character.play('wave', 1.1); this.talk(n); } });
     }
     add({ x: 10, z: 20, r: 3.8, label: 'Жимсэн машинд суух', icon: '🚗', dynamic: () => town.car.position, action: () => this.enterCar() });
     add({ x: -28, z: 25, r: 4, label: 'Kagome бүтээгдэхүүнүүд үзэх', icon: '🧃', action: () => this.collection() });
@@ -135,6 +140,7 @@ export class TownScene {
     input.bindButton($('jumpBtn'), 'jump');
     input.bindButton($('actionBtn'), 'interact');
     input.bindButton($('runBtn'), 'run');
+    input.bindButton($('rollBtn'), 'roll');
     $('mapButton').onclick = () => this.showMap();
     $('collectionButton').onclick = () => this.collection();
     $('pauseButton').onclick = () => this.pauseMenu();
@@ -143,6 +149,7 @@ export class TownScene {
       input.on('interact', () => this.interact()),
       input.on('pause', () => { if (this.started && !isModalOpen()) this.pauseMenu(); else if ($('panel').open && $('panel').dataset.closable === '1') closeModal(); }),
       input.on('map', () => { if (this.active) this.showMap(); }),
+      input.on('emote1', () => this.emote('wave')), input.on('emote2', () => this.emote('cheer')), input.on('emote3', () => this.emote('dance')),
     ];
     $('panel').addEventListener('close', () => input.clear());
   }
@@ -226,6 +233,13 @@ export class TownScene {
   }
 
   // ---------------------------------------------------------------- Харилцаа
+  emote(kind) {
+    if (!this.active || this.vehicle || this.player.state !== 'idle') return;
+    if (kind === 'cheer') { this.character.cheer(); this.audio.tone({ f: 660, f2: 990, type: 'triangle', dur: 0.2, vol: 0.08 }); }
+    else this.character.play(kind, kind === 'dance' ? 2.6 : 1.2);
+    if (kind === 'dance') this.particles.burst(this.player.pos.clone().add(new T.Vector3(0, 1.5, 0)), 0xffd1f0, 12, { speed: 2, up: 2, size: 0.15, life: 0.8, gravity: 1 });
+  }
+
   interact() {
     if (!this.active) return;
     if (this.vehicle) { this.exitCar(); return; }
@@ -323,7 +337,7 @@ export class TownScene {
 
   help() {
     modal(`<div class="eyebrow">АЯЛЛЫН ХӨТӨЧ</div><h2>Удирдлага</h2>
-      <p><kbd>W A S D</kbd> / сум — камерын чиглэлд алхана<br><kbd>Shift</kbd> — гүйнэ<br><kbd>Space</kbd> — үсэрнэ<br><kbd>E</kbd> — жимс түүх, ярилцах, машинд суух / буух<br><kbd>M</kbd> — газрын зураг · <kbd>Esc</kbd> — цэс<br>Хулгана чирэх / <kbd>Q</kbd> <kbd>R</kbd> — камер эргүүлэх<br><b>Машинд:</b> W урагш, S ухрах, A/D жолоодох, Shift — турбо</p>
+      <p><kbd>W A S D</kbd> / сум — камерын чиглэлд алхана<br><kbd>Shift</kbd> — гүйнэ<br><kbd>Space</kbd> — үсэрнэ, агаарт дахин дарвал давхар үсрэлт (эргэлт)<br><kbd>C</kbd> — өнхрөх · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> — даллах / баярлах / бүжиглэх<br>Суваг руу орвол сэлнэ (гүүр хэрэггүй!)<br><kbd>E</kbd> — жимс түүх, ярилцах, машинд суух / буух<br><kbd>M</kbd> — газрын зураг · <kbd>Esc</kbd> — цэс<br>Хулгана чирэх / <kbd>Q</kbd> <kbd>R</kbd> — камер эргүүлэх<br><b>Машинд:</b> W урагш, S ухрах, A/D жолоодох, Shift — турбо</p>
       <p class="hint">Утсан дээр зүүн дугуй удирдлагыг чирж, баруун товчнуудаар үйлдэл хийнэ. Дэлгэцийг чирж камер эргүүлнэ. Gamepad дэмжигдэнэ.</p>
       <button class="primary" id="ok">Ойлголоо</button>`);
     $('ok').onclick = () => this.pauseMenu();
@@ -395,8 +409,9 @@ export class TownScene {
 
     // Дүр
     const speedNorm = this.vehicle ? 0 : Math.hypot(P.vel.x, P.vel.z) / RUN;
-    this.character.update(dt, { state: P.state, speed: speedNorm, lean: this.vehicle ? 0 : P.lean || 0 });
-    this.character.root.position.set(P.pos.x, P.y, P.pos.z);
+    const look = !this.vehicle && this.near ? new T.Vector3((this.near.dynamic ? this.near.dynamic() : this.near).x, 1.2, (this.near.dynamic ? this.near.dynamic() : this.near).z) : null;
+    this.character.update(dt, { state: P.state, speed: speedNorm, lean: this.vehicle ? 0 : P.lean || 0, lookAt: look });
+    this.character.root.position.set(P.pos.x, P.visualY, P.pos.z);
     this.character.root.rotation.y = P.heading;
     if (this.vehicle) this.driver.update(dt, { state: 'sit', speed: 0, lean: -this.car.steer * 0.3 });
 
@@ -407,46 +422,75 @@ export class TownScene {
     this.particles.update(dt, this.camera);
   }
 
+  /** Сувагт (гүүрнээс хол) байгаа эсэх — сэлэх бүс */
+  inWater(x, z) {
+    return Math.abs(x - CANAL.x) < CANAL.halfW + 0.3 && !BRIDGES_Z.some((b) => Math.abs(z - b) < 4.4);
+  }
+
   updatePlayer(dt, axis, active) {
-    const P = this.player, cam = this.cam;
+    const P = this.player, cam = this.cam, ch = this.character;
     const len = Math.hypot(axis.x, axis.y);
-    const run = active && (this.input.held('run') || (this.input.isTouch && len > 0.92));
-    const maxSpeed = run ? RUN : WALK;
+    const water = this.inWater(P.pos.x, P.pos.z) && P.y <= 0.01;
+    const rolling = P.rollT > 0;
+    P.rollT = Math.max(0, P.rollT - dt);
+    const run = active && !water && (this.input.held('run') || (this.input.isTouch && len > 0.92));
+    const maxSpeed = water ? SWIM : rolling ? ROLL_SPEED : run ? RUN : WALK;
     // Камерын чиглэлтэй харьцангуй хүссэн вектор
     let wx = 0, wz = 0;
-    if (len > 0.05) {
+    if (len > 0.05 && !rolling) {
       wx = axis.x * Math.cos(cam.yaw) + axis.y * Math.sin(cam.yaw);
       wz = -axis.x * Math.sin(cam.yaw) + axis.y * Math.cos(cam.yaw);
       const wl = Math.hypot(wx, wz); wx /= wl; wz /= wl;
     }
-    const want = Math.min(1, len) * maxSpeed;
+    if (rolling) { wx = Math.sin(P.heading); wz = Math.cos(P.heading); }   // өнхрөх: харсан зүг рүү
+    const want = (rolling ? 1 : Math.min(1, len)) * maxSpeed;
     const tx = wx * want, tz = wz * want;
-    const accel = (len > 0.05 ? ACCEL : DECEL) * (P.grounded ? 1 : AIR_CTRL);
+    const accel = (len > 0.05 || rolling ? ACCEL : DECEL) * (P.grounded ? 1 : AIR_CTRL) * (water ? 0.4 : 1);
     P.vel.x += (tx - P.vel.x) * Math.min(1, accel * dt / maxSpeed * 2.2);
     P.vel.z += (tz - P.vel.z) * Math.min(1, accel * dt / maxSpeed * 2.2);
     if (Math.hypot(P.vel.x, P.vel.z) < 0.05 && len < 0.05) P.vel.set(0, 0, 0);
 
-    // Хөдөлгөөн + collision (тэнхлэг тус бүрээр гулсах)
+    // Хөдөлгөөн + collision (тэнхлэг тус бүрээр гулсах); тоглогч сувагт орж болно
     const nx = P.pos.x + P.vel.x * dt, nz = P.pos.z + P.vel.z * dt;
-    if (!this.blocked(nx, P.pos.z)) P.pos.x = nx; else P.vel.x *= -0.1;
-    if (!this.blocked(P.pos.x, nz)) P.pos.z = nz; else P.vel.z *= -0.1;
+    if (!this.blocked(nx, P.pos.z, 0.45, { canal: false })) P.pos.x = nx; else P.vel.x *= -0.1;
+    if (!this.blocked(P.pos.x, nz, 0.45, { canal: false })) P.pos.z = nz; else P.vel.z *= -0.1;
 
     // Чиглэл
     const sp = Math.hypot(P.vel.x, P.vel.z);
-    if (sp > 0.3) {
+    if (sp > 0.3 && !rolling) {
       const target = Math.atan2(P.vel.x, P.vel.z);
       const d = Math.atan2(Math.sin(target - P.heading), Math.cos(target - P.heading));
       P.heading += d * Math.min(1, dt * 14);
       P.lean = T.MathUtils.clamp(d * 0.8, -0.5, 0.5) * (sp / RUN);
     } else P.lean = 0;
 
-    // Үсрэлт: coyote + buffer + variable height
+    // Усанд орох / гарах
+    if (water && !P.wasWater) { this.audio.splash(); this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 18, { speed: 2.5, up: 3, size: 0.2, life: 0.6, gravity: 8 }); P.yVel = 0; P.grounded = true; }
+    if (!water && P.wasWater) { this.particles.dust(P.pos, 4, { color: 0xbff3ff }); }
+    P.wasWater = water;
+    if (water && sp > 1 && Math.random() < dt * 10) this.particles.sparkle(new T.Vector3(P.pos.x, -0.3, P.pos.z), 0xe6fbff);
+
+    // Үсрэлт: coyote + buffer + variable height + давхар үсрэлт (эргэлттэй)
     P.coyote = P.grounded ? COYOTE : Math.max(0, P.coyote - dt);
     P.buffer = Math.max(0, P.buffer - dt);
-    if (P.buffer > 0 && P.coyote > 0 && active) {
-      P.yVel = JUMP_V; P.grounded = false; P.coyote = 0; P.buffer = 0;
-      this.audio.jump();
-      this.particles.dust(P.pos, 4);
+    if (P.grounded) P.jumps = 0;
+    if (P.buffer > 0 && active && !rolling) {
+      if (P.coyote > 0 || (water && P.grounded)) {
+        P.yVel = water ? JUMP_V * 0.75 : JUMP_V; P.grounded = false; P.coyote = 0; P.buffer = 0; P.jumps = 1;
+        this.audio.jump();
+        if (water) this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 10, { speed: 2, up: 2, size: 0.18, life: 0.5 }); else this.particles.dust(P.pos, 4);
+      } else if (P.jumps === 1 && !P.grounded) {
+        // Давхар үсрэлт: урагш эргэлт
+        P.yVel = JUMP_V * 0.9; P.buffer = 0; P.jumps = 2;
+        ch.flip();
+        this.audio.tone({ f: 500, f2: 1000, type: 'triangle', dur: 0.18, vol: 0.09 });
+        this.particles.burst(new T.Vector3(P.pos.x, P.y + 0.8, P.pos.z), 0xfff3a8, 10, { speed: 2, up: 1, size: 0.16, life: 0.4, gravity: 2 });
+      }
+    }
+    // Өнхрөх (C / gamepad X): газар дээр, хөдөлж байх үед
+    if (active && this.input.justPressed('roll') && P.grounded && !water && !rolling && !ch.busy) {
+      P.rollT = ROLL_DUR; ch.roll(ROLL_DUR);
+      this.audio.whoosh(); this.particles.dust(P.pos, 6);
     }
     if (!P.grounded) {
       if (P.yVel > 0 && !this.input.held('jump')) P.yVel -= GRAVITY * 1.6 * dt;   // товчоо суллавал богино үсрэлт
@@ -454,14 +498,16 @@ export class TownScene {
       P.y += P.yVel * dt;
       if (P.y <= 0) {
         P.y = 0; P.grounded = true;
-        this.audio.land(); this.particles.dust(P.pos, 5);
+        if (this.inWater(P.pos.x, P.pos.z)) { this.audio.splash(); this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 20, { speed: 3, up: 3.5, size: 0.22, life: 0.6, gravity: 8 }); }
+        else { this.audio.land(); this.particles.dust(P.pos, 5); }
         cam.shake = Math.max(cam.shake, Math.min(0.25, -P.yVel * 0.012));
         P.yVel = 0;
       }
     }
-    P.state = !P.grounded ? (P.yVel > 0.5 ? 'jump' : 'fall') : sp > 0.4 ? (sp > WALK + 0.6 ? 'run' : 'walk') : 'idle';
-    this.character.shadow.material.opacity = 0.22 * Math.max(0.2, 1 - P.y * 0.18);
-    this.character.shadow.position.y = -P.y + 0.03;
+    P.state = !P.grounded ? (P.yVel > 0.5 ? 'jump' : 'fall') : water ? 'swim' : sp > 0.4 ? (sp > WALK + 0.6 ? 'run' : 'walk') : 'idle';
+    ch.shadow.material.opacity = water ? 0 : 0.22 * Math.max(0.2, 1 - P.y * 0.18);
+    ch.shadow.position.y = -P.y + 0.03;
+    P.visualY = P.y + (water ? -0.55 : 0);   // усанд бие живнэ
   }
 
   updateCar(dt, axis, active) {
