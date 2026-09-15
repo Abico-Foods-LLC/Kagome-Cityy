@@ -1,6 +1,6 @@
 // Жимсний хотын ертөнцийг барих. Дүрслэлийн объектууд + физик collider-ууд.
 import * as T from 'three';
-import { toon, standard, waterMaterial, PALETTE, glow } from '../gfx/materials.js';
+import { toon, standard, waterMaterial, PALETTE, glow, hitSway } from '../gfx/materials.js';
 import { grassTexture, roadTexture } from '../gfx/textures.js';
 import * as P from './props.js';
 import { FRUITS, PRODUCTS } from '../core/content.js';
@@ -22,7 +22,7 @@ export function buildTown(scene, { textures }) {
   const swayMats = new Set();
   const out = { world, colliders, boxColliders, harvests: [], packages: [], npcs: [], gates: [], lamps: [], waterMats: [], swayMats, wreckables: [] };   // wreckables: машинд эвдэрдэг сандал/хашаа
 
-  const addCollider = (g) => { if (g.userData.collider) colliders.push({ x: g.position.x, z: g.position.z, r: g.userData.collider.r }); };
+  const addCollider = (g) => { if (g.userData.collider) colliders.push({ x: g.position.x, z: g.position.z, r: g.userData.collider.r, tree: g.name === 'Tree' || g.name === 'Palm' }); };   // tree: машин мөргөхөд далайна
 
   // ---------- Газар (суваг хоёр хэсэгт хуваана) ----------
   const grassTex = grassTexture();
@@ -197,9 +197,11 @@ export function buildTown(scene, { textures }) {
   for (let i = 0; i < 12; i++) {
     const x = i % 2 === 0 ? -9 : 9, z = -60 + Math.floor(i / 2) * 19;
     if (BRIDGES_Z.some((b) => Math.abs(z - b) < 5.5)) continue;
-    const l = P.lamp(world, x, z); l.rotation.y = x < 0 ? -Math.PI / 2 : Math.PI / 2; colliders.push({ x, z, r: 0.25 }); out.lamps.push(l);
+    const l = P.lamp(world, x, z); l.rotation.y = x < 0 ? -Math.PI / 2 : Math.PI / 2; const col = { x, z, r: 0.25 }; colliders.push(col); out.lamps.push(l); out.wreckables.push({ group: l, kind: 'lamp', collider: col });
   }
-  for (const [x, z] of [[-14, 1], [14, 1], [-14, 31], [14, 31], [-14, -34], [33, 1], [-36, -34], [36, -34]]) { const l = P.lamp(world, x, z); colliders.push({ x, z, r: 0.25 }); out.lamps.push(l); }
+  for (const [x, z] of [[-14, 1], [14, 1], [-14, 31], [14, 31], [-14, -34], [33, 1], [-36, -34], [36, -34]]) { const l = P.lamp(world, x, z); const col = { x, z, r: 0.25 }; colliders.push(col); out.lamps.push(l); out.wreckables.push({ group: l, kind: 'lamp', collider: col }); }
+  // Модны материалд мөргөлтийн далайлт (нэгтгэхээс өмнө нэг удаа)
+  for (const [c, k] of [[PALETTE.leaf, 'leaf'], [PALETTE.leafLight, 'leafL'], [PALETTE.leafDark, 'leafD'], [PALETTE.trunk, 'trunk']]) hitSway(toon(c, { key: k }));
 
   // ---------- Мод, бут, чулуу (ерөнхий ландшафт) ----------
   const rt = seeded(77);

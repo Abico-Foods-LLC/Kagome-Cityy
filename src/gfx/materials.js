@@ -192,3 +192,27 @@ export function curveTree(root) {
     for (const m of mats) applyCurve(m);
   });
 }
+
+// ---- Мөргөлтийн далайлт: машин мод мөргөхөд титэм/их бие уян далайна (нэгтгэсэн статик mesh дээр ч ажиллана) ----
+export const hitUniforms = { uHitPos: { value: new T.Vector3(0, -100, 0) }, uHitDir: { value: new T.Vector2(1, 0) }, uHitT: { value: -100 }, uNow: { value: 0 } };
+export function hitSway(material) {
+  if (!material || material.userData.hitSway) return material;
+  material.userData.hitSway = true;
+  const prev = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey ? material.customProgramCacheKey.bind(material) : null;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prev) prev(shader, renderer);
+    Object.assign(shader.uniforms, { uHitPos: hitUniforms.uHitPos, uHitDir: hitUniforms.uHitDir, uHitT: hitUniforms.uHitT, uNow: hitUniforms.uNow });
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uHitPos; uniform vec2 uHitDir; uniform float uHitT, uNow;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        {
+          vec4 hwp = modelMatrix * vec4(position, 1.0);
+          float hdt = uNow - uHitT;
+          float hw = smoothstep(4.5, 0.5, distance(hwp.xz, uHitPos.xz)) * exp(-hdt * 2.0) * step(0.0, hdt) * clamp(hwp.y, 0.0, 4.0) * 0.25;
+          transformed.xz += uHitDir * sin(hdt * 13.0) * 0.45 * hw;
+        }`);
+  };
+  material.customProgramCacheKey = () => (prevKey ? prevKey() : '') + '|hit';
+  return material;
+}

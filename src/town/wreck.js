@@ -16,7 +16,7 @@ export class Wreckables {
   register({ group, kind, collider }) {
     const pieces = [];
     group.traverse((o) => { if (o.isMesh && !o.userData.shadow) pieces.push({ mesh: o, home: { p: o.position.clone(), r: o.rotation.clone() }, broken: false, v: null, spin: null, t: 0 }); });
-    const it = { group, kind, collider, pieces, broken: 0, hint: new T.Vector3(), label: kind === 'bench' ? 'Сандал' : 'Хашаа' };
+    const it = { group, kind, collider, pieces, broken: 0, hint: new T.Vector3(), label: { bench: 'Сандал', fence: 'Хашаа', lamp: 'Гэрлийн шон' }[kind], homeQ: group.quaternion.clone(), topple: null };
     this.items.push(it);
     this.scene.interactables.push({ dynamic: () => it.hint, r: 2.8, hintY: 1.5, label: () => `${it.label} засах`, icon: '🔧', visible: () => it.broken > 0 && !this.scene.vehicle, action: () => this.repair(it) });
   }
@@ -27,6 +27,16 @@ export class Wreckables {
     let any = false;
     const pt = new T.Vector3(x, 0, z), local = new T.Vector3();
     for (const it of this.items) {
+      if (it.kind === 'lamp') {
+        // Шон: бүхэлдээ мөргөсөн чиглэлд нурна (хэсэг тарахгүй)
+        if (it.broken || Math.hypot(it.group.position.x - x, it.group.position.z - z) > 1.6) continue;
+        it.broken = it.pieces.length; it.hint.copy(it.group.position);
+        const axis = new T.Vector3(0, 1, 0).cross(new T.Vector3(dx, 0, dz)).normalize();   // түлхэлтэд перпендикуляр
+        it.topple = { axis, t: 0, angle: 0 };
+        if (it.collider) it.collider.disabled = true;
+        this.scene.particles.burst(new T.Vector3(x, 3.4, z), 0xfff0b0, 14, { speed: 3, up: 2, size: 0.16, life: 0.6 });
+        any = true; continue;
+      }
       local.copy(pt); it.group.worldToLocal(local);
       let n = 0; const sum = new T.Vector3();
       for (const pc of it.pieces) {
@@ -47,6 +57,7 @@ export class Wreckables {
         const c = new T.Vector3(), w = new T.Vector3(); let k = 0;
         for (const pc of it.pieces) if (pc.broken) { pc.mesh.getWorldPosition(w); c.add(w); k++; }
         it.hint.copy(c.divideScalar(k)); it.hint.y = 0;
+        if (it.kind === 'bench') this.scene.scareCats(it.group.position, dx, dz);   // сандал дээрх муур зугтана
       }
     }
     return any;
@@ -60,6 +71,14 @@ export class Wreckables {
   }
 
   update(dt) {
+    // Нурж буй шон: 0.9 сек-т ~85° хазайж, жаахан ойно
+    for (const it of this.items) {
+      const tp = it.topple; if (!tp || tp.t >= 1.4) continue;
+      tp.t += dt;
+      const k = Math.min(1, tp.t / 0.9), target = (1 - Math.pow(1 - k, 3)) * 1.48 - (tp.t > 0.9 ? Math.sin((tp.t - 0.9) * 12) * Math.exp(-(tp.t - 0.9) * 6) * 0.12 : 0);
+      it.group.quaternion.copy(it.homeQ).premultiply(new T.Quaternion().setFromAxisAngle(tp.axis, target));
+      if (tp.t >= 0.9 && !tp.landed) { tp.landed = true; this.scene.particles.dust(it.hint, 8, { color: 0xd8c8a8 }); this.scene.audio.land(); }
+    }
     // Унаж буй хэсгүүд
     for (const it of this.items) for (const pc of it.pieces) {
       if (!pc.broken || pc.t >= FALL_T) continue;
@@ -80,7 +99,9 @@ export class Wreckables {
     if (f.t < REPAIR_DUR) return;
     const it = f.it; this.fixing = null;
     for (const pc of it.pieces) if (pc.broken) { pc.broken = false; pc.mesh.position.copy(pc.home.p); pc.mesh.rotation.copy(pc.home.r); }
+    if (it.topple) { it.topple = null; it.group.quaternion.copy(it.homeQ); }
     it.broken = 0;
+    if (it.kind === 'bench') this.scene.returnCats(it.group.position);
     if (it.collider) it.collider.disabled = false;
     this.scene.particles.burst(new T.Vector3(it.hint.x, 0.8, it.hint.z), 0xffe27a, 18, { speed: 2, up: 3, size: 0.18, life: 0.7 });
     this.scene.audio.correct(); this.scene.character.cheer();

@@ -3,7 +3,7 @@ import * as T from 'three';
 import { createSky, createClouds, updateClouds } from '../gfx/sky.js';
 import { Particles } from '../gfx/particles.js';
 import { createSunFlare, createRain, updateRain, createRainbow, updateRainbow, createLeaves, updateLeaves, createButterflies, updateButterflies, createBirds, updateBirds } from '../gfx/effects.js';
-import { glow, toon, PALETTE, curveTree } from '../gfx/materials.js';
+import { glow, toon, PALETTE, curveTree, hitUniforms } from '../gfx/materials.js';
 import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.js';
 import { createAvatar, AVATARS } from '../world/avatar.js';
 import { Mascot, MASCOTS, ACCESSORIES } from '../world/mascot.js';
@@ -185,7 +185,7 @@ export class TownScene {
     for (let i = 0; i < 4; i++) { const d = createDuck(i % 2 ? 0xfff3d6 : 0xd9c48a); d.userData.cz = -50 + i * 20 + (i % 2) * 6; scene.add(d); this.ducks.push(d); }
     // Муур — сандал дээр
     this.cats = [];
-    for (const [x, z, r, c] of [[-5.5, -22, 0.6, 0x8a8a8a], [30, 30, -Math.PI / 2, 0xf2a35a]]) { const cat = createCat(c); cat.position.set(x, 0.55, z - 0.1); cat.rotation.y = r + Math.PI / 2; scene.add(cat); this.cats.push(cat); }
+    for (const [x, z, r, c] of [[-5.5, -22, 0.6, 0x8a8a8a], [30, 30, -Math.PI / 2, 0xf2a35a]]) { const cat = createCat(c); cat.position.set(x, 0.55, z - 0.1); cat.rotation.y = r + Math.PI / 2; cat.userData.home = { p: cat.position.clone(), ry: cat.rotation.y }; scene.add(cat); this.cats.push(cat); }
     // Ажилтай иргэд: тариаланч (усалдаг), худалдагч (лангууны ард), загасчин
     const farmer = new Mascot({ kind: 'carrot', scale: 0.9 }); farmer.wear({ hat: 'straw' }); scene.add(farmer.root);
     this.farmer = { m: farmer, path: [[31, -31], [49, -31], [49, -35], [31, -35], [31, -39], [49, -39], [49, -43], [31, -43]], i: 0, wait: 0, heading: 0 };
@@ -209,7 +209,7 @@ export class TownScene {
     else { this.dog.update(dt, this.dog.root.position, this.blocked, 'idle'); }
     // Нугас
     for (const d of this.ducks) updateDuck(d, dt, t, CANAL.x, d.userData.cz, 2.6);
-    for (const c of this.cats) updateCat(c, dt, t);
+    for (const c of this.cats) { updateCat(c, dt, t); this.updateCatMove(c, dt); }
     // Тариаланч: талбайн мөрөөр алхаж, зогсоод усална
     const F = this.farmer, fr = F.m.root;
     if (this.updateKnock(F, dt)) { /* мөргүүлж унасан */ } else if (F.wait > 0) {
@@ -323,6 +323,45 @@ export class TownScene {
         this.knock(e, dx / d * 0.6 + fx * Math.sign(speed) * 0.7, dz / d * 0.6 + fz * Math.sign(speed) * 0.7, speed);
       }
     }
+  }
+
+  /** Сандал мөргөгдөхөд дээр нь суусан муур үсрэн зугтана */
+  scareCats(benchPos, dx, dz) {
+    for (const c of this.cats) {
+      if (c.userData.move || Math.hypot(c.position.x - benchPos.x, c.position.z - benchPos.z) > 1.6) continue;
+      const a = Math.atan2(dx, dz) + (Math.random() - 0.5) * 1.2;
+      let tx = c.position.x + Math.sin(a) * 6, tz = c.position.z + Math.cos(a) * 6;
+      for (let k = 0; k < 6 && this.blocked(tx, tz, 0.3); k++) { const b = a + k * 1.1; tx = c.position.x + Math.sin(b) * 5; tz = c.position.z + Math.cos(b) * 5; }
+      c.userData.move = { from: c.position.clone(), to: new T.Vector3(tx, 0.1, tz), t: 0, dur: 1.1, jump: 1.4 };
+      c.rotation.y = Math.atan2(tx - c.position.x, tz - c.position.z);
+      this.audio.whoosh();
+    }
+  }
+  /** Сандал засагдахад муур буцаж ирнэ */
+  returnCats(benchPos) {
+    for (const c of this.cats) {
+      const h = c.userData.home;
+      if (!h || Math.hypot(h.p.x - benchPos.x, h.p.z - benchPos.z) > 1.6 || c.position.distanceTo(h.p) < 0.2) continue;
+      c.userData.move = { from: c.position.clone(), to: h.p.clone(), t: 0, dur: 1.4, jump: 1.0, ry: h.ry };
+      c.rotation.y = Math.atan2(h.p.x - c.position.x, h.p.z - c.position.z);
+    }
+  }
+  updateCatMove(c, dt) {
+    const mv = c.userData.move; if (!mv) return;
+    mv.t += dt;
+    const k = Math.min(1, mv.t / mv.dur);
+    c.position.lerpVectors(mv.from, mv.to, k); c.position.y += Math.sin(k * Math.PI) * mv.jump;
+    c.scale.y = 1 + Math.sin(k * Math.PI * 4) * 0.08;
+    if (k >= 1) { c.userData.move = null; if (mv.ry !== undefined) c.rotation.y = mv.ry; }
+  }
+  /** Машин мод мөргөх: титэм далайж навч унана (shader) */
+  treeHit(col, dx, dz, speed) {
+    if (this.clock - (this.treeHitT || -9) < 0.6) return;   // давтан мөргөлтийг хязгаарлана
+    this.treeHitT = this.clock;
+    hitUniforms.uHitPos.value.set(col.x, 0, col.z); hitUniforms.uHitDir.value.set(dx, dz); hitUniforms.uHitT.value = this.clock;
+    const leaf = toon(PALETTE.leaf, { key: 'leaf' }).color.getHex();
+    this.particles.burst(new T.Vector3(col.x, 3.2, col.z), leaf, 14, { speed: 2.5, up: 1, size: 0.22, life: 1.2, gravity: 3 });
+    this.audio.whoosh();
   }
 
   /** Алхдаг иргэнтэй ярилцах: зогсоод даллана, санамсаргүй яриа */
@@ -855,10 +894,20 @@ export class TownScene {
     if (this.wreck.hit(car.position.x + fx * 1.8, car.position.z + fz * 1.8, fx * Math.sign(C.speed || 1), fz * Math.sign(C.speed || 1), C.speed)) { C.speed *= 0.6; this.audio.hurt(); cam.shake = Math.max(cam.shake, 0.3); this.particles.dust(new T.Vector3(car.position.x + fx * 1.8, 0.3, car.position.z + fz * 1.8), 10, { color: 0xe8d8b0 }); }
     if (!this.blocked(nx, nz, r)) car.position.set(nx, 0, nz);
     else {
-      // Мөргөлт: гулсах эсвэл буцах
-      if (!this.blocked(nx, car.position.z, r)) car.position.x = nx;
-      else if (!this.blocked(car.position.x, nz, r)) car.position.z = nz;
-      else { if (Math.abs(C.speed) > 6) { this.audio.hurt(); cam.shake = 0.4; this.particles.dust(car.position, 8, { color: 0xffffff }); } C.speed *= -0.25; }
+      // Мөргөлт: гулсах эсвэл буцах (тэнхлэгийн дагуу шууд мөргөхөд гулсах хөдөлгөөн бараг 0 → мөргөлт гэж үзнэ)
+      const ox = car.position.x, oz = car.position.z;
+      if (!this.blocked(nx, oz, r)) car.position.x = nx;
+      else if (!this.blocked(ox, nz, r)) car.position.z = nz;
+      const moved = Math.hypot(car.position.x - ox, car.position.z - oz), want = Math.abs(C.speed) * dt;
+      if (moved < want * 0.5) {
+        if (Math.abs(C.speed) > 6) {
+          this.audio.hurt(); cam.shake = 0.4; this.particles.dust(car.position, 8, { color: 0xffffff });
+          const hx = car.position.x + fx * 1.8, hz = car.position.z + fz * 1.8;
+          const tree = this.town.colliders.find((c) => c.tree && !c.disabled && Math.hypot(c.x - hx, c.z - hz) < c.r + 1.4);
+          if (tree) this.treeHit(tree, fx * Math.sign(C.speed || 1), fz * Math.sign(C.speed || 1), C.speed);
+        }
+        C.speed *= -0.25;
+      }
     }
     car.rotation.y = C.heading;
     this.carHitsPeople(car, fx, fz, C.speed);
@@ -975,6 +1024,7 @@ export class TownScene {
 
     // Shader цаг
     for (const m of town.waterMats) m.userData.time.value = t;
+    hitUniforms.uNow.value = t;
     for (const m of town.swayMats) if (m.userData.time) m.userData.time.value = t;
     updateClouds(this.clouds, dt);
 
