@@ -11,11 +11,13 @@ npm install
 npm run dev        # http://localhost:5173
 npm run build      # dist/ хавтас — статик хостинг (Vercel, GitHub Pages, Netlify)
 npm run preview
+npm test           # GameState unit test (Vitest)
 ```
 
 ## Онцлог
 
 - **Жимсний хот** — 6 бүлэгт аялал (жимс түүх, тоо бодох, унших, логик, машин, гүйлт), 10 mascot дүр + хувцас (Kagome маркет), шүүсний лаборатори mini-game, өдрийн даалгавар, жимс дахин ургах
+- **Хотын activity** — 🎣 загас барих (сувгийн эрэг, timing), 🌱 миний талбай (үр авах → тарих → услах → хураах, реал цаг), 📬 хүргэлтийн даалгавар (захиалгын самбараас хугацаатай, машинаар хурдан)
 - **Амьд хот** — алхдаг иргэд, тариаланч, худалдагч, загасчин, дагадаг нохой (Луувсай), нугас, муур, эрвээхий, шувуу; өдөр-шөнө, бороо/солонго, 4 улирал (5 мин тутам)
 - **Jungle Runner** — 5 үе + төгсгөлгүй горим, power-up (бамбай, соронз, jetpack, ×2), рекордын самбар
 - **Дүрслэл** — toon shading, дугуй хязгаар, lens flare, depth of field, contact shadow, particle, procedural texture
@@ -57,6 +59,10 @@ src/
            props.js     мод, байшин, хашаа, машин, бүтээгдэхүүн...
            town.js      хотын байршил, collider
   town/    TownScene.js хотын gameplay (хөдөлгөөн, камер, машин, аялал, minimap)
+           juice.js     шүүсний лаборатори mini-game
+           fishing.js   загас барих (3D timing)
+           farm.js      миний талбай (тарих/услах/хураах)
+           delivery.js  хүргэлтийн даалгавар + HUD
   runner/  RunnerCore.js runner логик (дүрслэлгүй)
            RunnerScene.js runner дүрслэл, камер, эффект
 ```
