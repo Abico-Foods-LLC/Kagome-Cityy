@@ -522,7 +522,7 @@ export class TownScene {
         P.y = 0; P.grounded = true;
         if (this.inWater(P.pos.x, P.pos.z)) { this.audio.splash(); this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 20, { speed: 3, up: 3.5, size: 0.22, life: 0.6, gravity: 8 }); }
         else { this.audio.land(); this.particles.dust(P.pos, 5); }
-        cam.shake = Math.max(cam.shake, Math.min(0.25, -P.yVel * 0.012));
+        cam.shake = Math.max(cam.shake, Math.min(0.12, -P.yVel * 0.006));
         P.yVel = 0;
       }
     }
@@ -587,41 +587,48 @@ export class TownScene {
   updateCamera(dt) {
     const cam = this.cam, P = this.player, camera = this.camera;
     const target = this.vehicle ? this.vehicle.position : P.pos;
-    // Машинд: камер аажуухан ард нь орно; алхахад: хөдөлж байвал бага зэрэг дагана
+    // Камерын өнцөг зөвхөн тоглогчийн хүсэлтээр (хулгана/Q/R) эргэнэ.
+    // Машинд л аажуухан ард нь орно — алхахад дэлгэц өөрөө эргэхгүй.
     if (this.vehicle) {
       const d = Math.atan2(Math.sin(this.car.heading - cam.yaw), Math.cos(this.car.heading - cam.yaw));
-      cam.yaw += d * Math.min(1, dt * (Math.abs(this.car.speed) > 2 ? 1.6 : 0.4));
-    } else if (P.state === 'walk' || P.state === 'run') {
-      const d = Math.atan2(Math.sin(P.heading - cam.yaw), Math.cos(P.heading - cam.yaw));
-      if (Math.abs(d) < 2.6) cam.yaw += d * Math.min(1, dt * 0.35);
+      cam.yaw += d * Math.min(1, dt * (Math.abs(this.car.speed) > 2 ? 1.2 : 0.3));
     }
     const portrait = innerHeight > innerWidth ? 1.35 : 1;
-    const dist = (cam.dist + (this.vehicle ? Math.abs(this.car.speed) * 0.08 : 0)) * portrait;
+    const dist = (cam.dist + (this.vehicle ? Math.abs(this.car.speed) * 0.06 : 0)) * portrait;
     const h = Math.sin(cam.pitch) * dist, r = Math.cos(cam.pitch) * dist;
-    const desired = new T.Vector3(target.x + Math.sin(cam.yaw) * r, (this.vehicle ? 0 : P.y * 0.5) + 1.6 + h, target.z + Math.cos(cam.yaw) * r);
-    // Барилгаас хамгаалах: камерын цэг блоклогдсон бол ойртуулна
+    // Камерын өндөр: үсрэлтийг бараг дагахгүй (дэлгэц дээш доош үсрэхгүй)
+    cam.groundY = cam.groundY ?? 0;
+    cam.groundY += ((this.vehicle ? 0 : P.y * 0.15) - cam.groundY) * Math.min(1, dt * 3);
+    const desired = new T.Vector3(target.x + Math.sin(cam.yaw) * r, cam.groundY + 1.6 + h, target.z + Math.cos(cam.yaw) * r);
+    // Барилгаас хамгаалах: камерын цэг блоклогдсон бол ойртуулна (зөөлөн)
     let k = 1;
     if (cam.intro <= 0) for (let i = 0; i < 6; i++) {
       const px = target.x + (desired.x - target.x) * k, pz = target.z + (desired.z - target.z) * k;
       if (!this.blockedCam(px, pz, 0.3) || Math.hypot(px - target.x, pz - target.z) < 2.5) break;
       k -= 0.12;
     }
-    desired.x = target.x + (desired.x - target.x) * k;
-    desired.z = target.z + (desired.z - target.z) * k;
+    cam.k = cam.k ?? 1;
+    cam.k += (k - cam.k) * Math.min(1, dt * (k < cam.k ? 10 : 2.5));   // ойртохдоо хурдан, холдохдоо удаан
+    desired.x = target.x + (desired.x - target.x) * cam.k;
+    desired.z = target.z + (desired.z - target.z) * cam.k;
     desired.y = Math.max(1.2, desired.y);
-    const follow = this.vehicle ? 5 : 7;
+    // Байрлал: тоглогчтой хамт хатуу хөдөлнө (хоцрохгүй), эргэлт зөөлөн
+    const follow = this.vehicle ? 6 : 12;
     camera.position.lerp(desired, Math.min(1, dt * follow));
     if (cam.shake > 0) {
-      cam.shake = Math.max(0, cam.shake - dt * 1.6);
-      camera.position.x += (Math.random() - 0.5) * cam.shake * 0.5;
-      camera.position.y += (Math.random() - 0.5) * cam.shake * 0.5;
+      cam.shake = Math.max(0, cam.shake - dt * 2.5);
+      camera.position.x += (Math.random() - 0.5) * cam.shake * 0.25;
+      camera.position.y += (Math.random() - 0.5) * cam.shake * 0.25;
     }
-    const look = new T.Vector3(target.x, (this.vehicle ? 1.6 : P.y * 0.7 + 1.9), target.z);
-    // Хөдөлж буй чиглэл рүү бага зэрэг урагш харна
-    if (this.vehicle) look.addScaledVector(new T.Vector3(-Math.sin(this.car.heading), 0, -Math.cos(this.car.heading)), this.car.speed * 0.15);
-    camera.lookAt(look);
-    const fovT = (portrait > 1 ? 62 : 55) + (this.vehicle ? Math.abs(this.car.speed) * 0.7 : P.state === 'run' ? 6 : 0);
-    cam.fov += (fovT - cam.fov) * Math.min(1, dt * 4);
+    // Харах цэг: тоглогчийн цээж — үсрэхэд бага зэрэг л дагана
+    const look = new T.Vector3(target.x, (this.vehicle ? 1.6 : cam.groundY + 1.9), target.z);
+    if (this.vehicle) look.addScaledVector(new T.Vector3(-Math.sin(this.car.heading), 0, -Math.cos(this.car.heading)), this.car.speed * 0.12);
+    cam.lookPt = cam.lookPt || look.clone();
+    cam.lookPt.lerp(look, Math.min(1, dt * 14));
+    camera.lookAt(cam.lookPt);
+    // FOV: зөвхөн машинд мэдэгдэхүйц, гүйхэд бараг үл мэдэг
+    const fovT = (portrait > 1 ? 62 : 55) + (this.vehicle ? Math.abs(this.car.speed) * 0.5 : P.state === 'run' ? 2 : 0);
+    cam.fov += (fovT - cam.fov) * Math.min(1, dt * 3);
     if (Math.abs(camera.fov - cam.fov) > 0.05) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
     // Нар ба сүүдрийн камер тоглогчийг дагана
     const s = this.sun;
