@@ -44,7 +44,7 @@ export function buildTown(scene, { textures }) {
     const g = new T.Mesh(geo, groundMat);
     g.rotation.x = -Math.PI / 2; g.position.set(cx, 0, ISLAND.cz); g.receiveShadow = true; g.name = 'Ground';
     world.add(g);
-    const cliff = new T.Mesh(new T.BoxGeometry(w, 3, h), cliffMat);
+    const cliff = new T.Mesh(new T.BoxGeometry(w, 3, h, Math.ceil(w / 4), 1, Math.ceil(h / 4)), cliffMat);
     cliff.position.set(cx, -1.62, ISLAND.cz); world.add(cliff);
   };
   groundPiece(ISLAND.minX - 4, CANAL.x - CANAL.halfW - 0.6);
@@ -68,8 +68,10 @@ export function buildTown(scene, { textures }) {
   const roadTex = roadTexture();
   // Замд сөрөг offset өгөхгүй — халиад харахад зам алга болдог (depth 0-ээс доош clamp). Газар нь эерэг offset-оор ард нь байна.
   const roadMat = new T.MeshToonMaterial({ color: 0xffffff, map: roadTex, gradientMap: groundMat.gradientMap });
+  // Том хавтгайг заавал олон сегменттэй хийнэ — дугуй хязгаарын shader vertex бүрийг нугалдаг тул
+  // 4 оройтой урт зам нь газрын муруйн доогуур "хөндлөн шулуун" болж далдлагддаг байсан.
   const road = (x, z, w, h, y = 0.03) => {
-    const geo = new T.PlaneGeometry(w, h);
+    const geo = new T.PlaneGeometry(w, h, Math.max(1, Math.ceil(w / 3)), Math.max(1, Math.ceil(h / 3)));
     const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 6, uv.getY(i) * h / 6);
     const m = new T.Mesh(geo, roadMat);
@@ -92,9 +94,9 @@ export function buildTown(scene, { textures }) {
   const canal = new T.Mesh(new T.PlaneGeometry(CANAL.halfW * 2 + 1.2, ISLAND.maxZ - ISLAND.minZ + 8, 4, 60), canalMat);
   canal.rotation.x = -Math.PI / 2; canal.position.set(CANAL.x, -0.35, ISLAND.cz); world.add(canal);
   const bank = toon(0xd9c8a3, { key: 'bank' });
-  for (const s of [-1, 1]) P.box(bank, world, CANAL.x + s * (CANAL.halfW + 0.3), -0.1, ISLAND.cz, 0.6, 0.5, ISLAND.maxZ - ISLAND.minZ + 8);
+  for (const s of [-1, 1]) { const bk = new T.Mesh(new T.BoxGeometry(0.6, 0.5, ISLAND.maxZ - ISLAND.minZ + 8, 1, 1, 30), bank); bk.position.set(CANAL.x + s * (CANAL.halfW + 0.3), -0.1, ISLAND.cz); bk.receiveShadow = true; world.add(bk); }
   // Сувгийн ёроол
-  const bed = new T.Mesh(new T.BoxGeometry(CANAL.halfW * 2 + 1.2, 2.4, ISLAND.maxZ - ISLAND.minZ + 8), toon(0x8fb9c4, { key: 'bed' }));
+  const bed = new T.Mesh(new T.BoxGeometry(CANAL.halfW * 2 + 1.2, 2.4, ISLAND.maxZ - ISLAND.minZ + 8, 2, 1, 30), toon(0x8fb9c4, { key: 'bed' }));
   bed.position.set(CANAL.x, -2.0, ISLAND.cz); world.add(bed);
   for (const z of BRIDGES_Z) P.bridge(world, CANAL.x, z, 12, z === 1 ? 10 : 9);
   // Хөвөгч лянхуа
@@ -142,7 +144,7 @@ export function buildTown(scene, { textures }) {
   P.fence(world, -48, -8, 27); P.fence(world, -48, -8, 27, 'z'); P.fence(world, -48, 19, 27); P.fence(world, -21, -8, 27, 'z');
   const soil = toon(0xa5744c, { key: 'soil' });
   for (let row = 0; row < 4; row++) {
-    P.box(soil, world, 40, 0.06, -43 + row * 4.1, 20, 0.14, 2.6);
+    { const sb = new T.Mesh(new T.BoxGeometry(20, 0.14, 2.6, 8, 1, 1), soil); sb.position.set(40, 0.06, -43 + row * 4.1); sb.receiveShadow = true; world.add(sb); }
     for (let c = 0; c < 9; c++) P.fruit(4 + (row % 4), world, 31 + c * 2.2, 0.55, -43 + row * 4.1, 0.55, { outline: false });
   }
   P.fence(world, 29, -46.5, 22); P.fence(world, 29, -46.5, 20, 'z'); P.fence(world, 51, -46.5, 20, 'z');

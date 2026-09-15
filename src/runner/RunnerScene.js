@@ -200,7 +200,7 @@ export class RunnerScene {
     const L = conf.length;
 
     // Газар ба зам
-    P.mesh(new T.BoxGeometry(220, 0.6, L + 400), ground, world, 0, -1.2, -L / 2 - 60).receiveShadow = true;
+    P.mesh(new T.BoxGeometry(220, 0.6, L + 400, 30, 1, Math.ceil((L + 400) / 6)), ground, world, 0, -1.2, -L / 2 - 60).receiveShadow = true;
     for (let d = -14; d < L + 90; d += 6) {
       if (GAPS.some((g) => Math.abs(d - g - 6) < 9)) continue;
       const slab = P.mesh(new T.BoxGeometry(8.2, 0.3, 5.85), stoneM, world, 0, -0.15, -d);

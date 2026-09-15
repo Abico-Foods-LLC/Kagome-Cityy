@@ -957,12 +957,12 @@ export class TownScene {
     }
     if (this.vehicle === null) { ctx.fillStyle = '#ffa72e'; ctx.beginPath(); ctx.arc(mx(this.town.car.position.x), mz(this.town.car.position.z), 4 * S, 0, Math.PI * 2); ctx.fill(); }
     // Тоглогч — гурвалжин чиглэлтэй
-    ctx.translate(W / 2, W / 2); ctx.rotate(-this.player.heading);
+    ctx.translate(W / 2, W / 2); ctx.rotate(Math.PI - this.player.heading);   // heading 0 = +z = зураг дээр доош
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#124f50'; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.moveTo(0, -9 * S); ctx.lineTo(6 * S, 6 * S); ctx.lineTo(0, 3 * S); ctx.lineTo(-6 * S, 6 * S); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
     // Камерын харах хүрээ
-    ctx.save(); ctx.translate(W / 2, W / 2); ctx.rotate(-this.cam.yaw + Math.PI);
+    ctx.save(); ctx.translate(W / 2, W / 2); ctx.rotate(-this.cam.yaw);
     ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, W / 2, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
