@@ -85,6 +85,12 @@ class App {
     for (const s of Object.values(this.scenes)) if (s.sun) { s.sun.castShadow = q !== 'low'; s.sun.shadow.mapSize.setScalar(q === 'high' ? 2048 : 1024); if (s.sun.shadow.map) { s.sun.shadow.map.dispose(); s.sun.shadow.map = null; } }
   }
 
+  setAvatar(kind) {
+    this.state.settings.avatar = kind;
+    this.state.save();
+    for (const s of Object.values(this.scenes)) s.buildAvatar?.(kind);
+  }
+
   resize() {
     this.renderer.setSize(innerWidth, innerHeight);
     this.post.setSize(innerWidth, innerHeight);
@@ -99,7 +105,7 @@ class App {
       $('welcomeSave').textContent = `Хадгалсан аялал: ${this.state.chapter}/6 бүлэг · ⭐ ${this.state.stars} од · Ширэнгэ ${this.state.runner.unlocked}/5 үе`;
     } else $('welcomeSave').textContent = 'Алхах · Машин унах · Бодох · Гүйх · Судлах';
     d.showModal();
-    $('start').onclick = () => { this.audio.unlock(); this.audio.ui(); d.close(); this.scenes.town.start(); };
+    $('start').onclick = () => { this.audio.unlock(); this.audio.ui(); d.close(); if (hasSave) this.scenes.town.start(); else this.scenes.town.pickAvatar(() => this.scenes.town.start()); };
     $('startRunner').onclick = async () => { this.audio.unlock(); this.audio.ui(); d.close(); this.scenes.town.started = true; await this.switchTo('runner'); };
     d.addEventListener('cancel', (e) => e.preventDefault());
   }

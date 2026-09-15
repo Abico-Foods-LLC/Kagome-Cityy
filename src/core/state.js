@@ -17,7 +17,7 @@ export class GameState {
       collection: [0, 0, 0, 0, 0, 0, 0, 0],
       ...(data.runner || {}),
     };
-    this.settings = { sound: true, music: true, quality: 'auto', ...(data.settings || {}) };
+    this.settings = { sound: true, music: true, quality: 'auto', avatar: 'tomato', ...(data.settings || {}) };
     this.playtime = Number(data.playtime) || 0;
   }
 

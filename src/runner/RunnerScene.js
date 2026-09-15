@@ -7,7 +7,7 @@ import { Particles } from '../gfx/particles.js';
 import { toon, glow, standard, waterMaterial, PALETTE, outlineGroup } from '../gfx/materials.js';
 import { stoneTexture } from '../gfx/textures.js';
 import * as P from '../world/props.js';
-import { Character } from '../world/character.js';
+import { createAvatar } from '../world/avatar.js';
 import { mergeStatic } from '../gfx/merge.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop } from '../core/ui.js';
 
@@ -37,11 +37,8 @@ export class RunnerScene {
     scene.add(this.sun, this.sun.target);
     scene.fog = new T.FogExp2(0xc0e2d2, 0.009);
 
-    this.character = new Character();
-    this.character.root.rotation.y = Math.PI;
-    scene.add(this.character.root);
-    this.character.onStep = () => { if (this.model?.state === 'playing') { this.audio.step(); this.particles.dust(new T.Vector3(this.model.x, 0, 0), 1, { color: 0x9c8b6a, size: 0.3 }); } };
     this.particles = new Particles(scene, 500);
+    this.buildAvatar(this.state.settings.avatar);
 
     // Уяа (зүүгдэх үед)
     this.rope = new T.Group();
@@ -69,6 +66,14 @@ export class RunnerScene {
     this.speedLinesPos = sl; this.rebuildSpeedLines(0); scene.add(this.speedLines);
 
     this.bindUI();
+  }
+
+  buildAvatar(kind) {
+    if (this.character) this.scene.remove(this.character.root);
+    this.character = createAvatar(kind);
+    this.character.root.rotation.y = Math.PI;
+    this.scene.add(this.character.root);
+    this.character.onStep = () => { if (this.model?.state === 'playing') { this.audio.step(); this.particles.dust(new T.Vector3(this.model.x, 0, 0), 1, { color: 0x9c8b6a, size: 0.3 }); } };
   }
 
   rebuildSpeedLines(len) {

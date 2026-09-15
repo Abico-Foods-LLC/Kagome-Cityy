@@ -4,7 +4,7 @@ import { createSky, createClouds, updateClouds } from '../gfx/sky.js';
 import { Particles } from '../gfx/particles.js';
 import { glow, toon, PALETTE } from '../gfx/materials.js';
 import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.js';
-import { Character } from '../world/character.js';
+import { createAvatar, AVATARS } from '../world/avatar.js';
 import { bulbMaterial } from '../world/props.js';
 import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
@@ -58,23 +58,7 @@ export class TownScene {
     this.blocked = makeBlocked(this.town);
     this.blockedCam = makeBlocked(this.town, { terrain: false });   // камер ус, арлын ирмэг дээгүүр гарч болно
 
-    this.character = new Character();
-    this.character.root.position.copy(this.player.pos);
-    this.character.root.rotation.y = this.player.heading;
-    scene.add(this.character.root);
-    this.character.onStep = (side) => {
-      if (this.vehicle) return;
-      const p = this.player.pos, onBridge = Math.abs(p.x - CANAL.x) < 7 && BRIDGES_Z.some((b) => Math.abs(p.z - b) < 5);
-      this.audio.step(this.player.stepI++, onBridge);
-      if (!onBridge) this.particles.dust(p, this.player.state === 'run' ? 2 : 1);
-    };
-
-    // Жолооч — машинд суух үед харагдах хуулбар
-    this.driver = new Character({ outline: true, scale: 0.72 });
-    this.driver.root.position.set(0, 0.85, 0.25);
-    this.driver.root.rotation.y = Math.PI;
-    this.driver.root.visible = false;
-    this.town.car.userData.chassis.add(this.driver.root);
+    this.buildAvatar(this.state.settings.avatar);
 
     this.particles = new Particles(scene, 500);
 
@@ -92,6 +76,43 @@ export class TownScene {
     this.setupUI();
     this.updateHUD();
     this.setGoalForChapter();
+  }
+
+  /** Дүрийг (дахин) үүсгэнэ — тоглогч болон машины жолооч хоёулаа */
+  buildAvatar(kind) {
+    const prevVisible = this.character ? this.character.root.visible : true;
+    if (this.character) this.scene.remove(this.character.root);
+    if (this.driver) this.driver.root.removeFromParent();
+    this.character = createAvatar(kind);
+    this.character.root.position.set(this.player.pos.x, this.player.visualY || 0, this.player.pos.z);
+    this.character.root.rotation.y = this.player.heading;
+    this.character.root.visible = prevVisible;
+    this.scene.add(this.character.root);
+    this.character.onStep = () => {
+      if (this.vehicle) return;
+      const p = this.player.pos, onBridge = Math.abs(p.x - CANAL.x) < 7 && BRIDGES_Z.some((b) => Math.abs(p.z - b) < 5);
+      this.audio.step(this.player.stepI++, onBridge);
+      if (!onBridge) this.particles.dust(p, this.player.state === 'run' ? 2 : 1);
+    };
+    // Жолооч — машинд суух үед харагдах хуулбар
+    this.driver = createAvatar(kind, { scale: 0.72 });
+    this.driver.root.position.set(0, 0.85, 0.25);
+    this.driver.root.rotation.y = Math.PI;
+    this.driver.root.visible = !!this.vehicle;
+    this.town.car.userData.chassis.add(this.driver.root);
+  }
+
+  /** Дүр сонгох цонх */
+  pickAvatar(onDone) {
+    const cur = this.state.settings.avatar;
+    modal(`<div class="eyebrow">ДҮРЭЭ СОНГО</div><h2>Хэн болж аялах вэ?</h2><div class="avatars">${Object.entries(AVATARS).map(([k, a]) => `<button data-avatar="${k}" class="${k === cur ? 'active' : ''}"><span>${a.emoji}</span><small>${a.name}</small></button>`).join('')}</div><div class="row"><button class="primary" id="avOk">Болно →</button></div>`, { closable: !!onDone });
+    document.querySelectorAll('[data-avatar]').forEach((b) => b.onclick = () => {
+      document.querySelectorAll('[data-avatar]').forEach((x) => x.classList.remove('active')); b.classList.add('active');
+      this.audio.ui();
+      this.app.setAvatar(b.dataset.avatar);
+      this.character.cheer();
+    });
+    $('avOk').onclick = () => { closeModal(); onDone?.(); };
   }
 
   setupInteractables() {
@@ -324,7 +345,7 @@ export class TownScene {
         <label>Хөгжим <input type="checkbox" id="sMusic" ${st.music ? 'checked' : ''}></label>
         <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>
       </div>
-      <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
+      <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="pickAvatar">🍅 Дүр солих</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
     $('sQuality').value = st.quality;
     $('resume').onclick = closeModal;
     $('sSound').onchange = (e) => { st.sound = e.target.checked; this.audio.applySettings(); this.state.save(); };
@@ -332,6 +353,7 @@ export class TownScene {
     $('sQuality').onchange = (e) => { st.quality = e.target.value; this.state.save(); this.app.applyQuality(); };
     $('help').onclick = () => this.help();
     $('gotoRunner').onclick = () => { closeModal(); this.enterJungle(); };
+    $('pickAvatar').onclick = () => this.pickAvatar(() => this.pauseMenu());
     $('reset').onclick = () => { if (confirm('Бүх ахиц устгах уу?')) { this.state.reset(); location.reload(); } };
   }
 

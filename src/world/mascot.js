@@ -1,0 +1,395 @@
+// Зөөлөн mascot дүрүүд (хулуу, тоор, мөөг, улаан лооль, алим, жүрж, усан үзэм, лууван):
+// бөөрөнхий бие, жижиг гар хөл, том жимсэн толгой, цэгэн нүд, ягаан хацар, гөлгөр сүүдэрлэлт.
+// Character-тэй ижил API: root, shadow, update(dt, p), play(), flip(), roll(), cheer(), setMood(), busy, onStep.
+import * as T from 'three';
+
+const sphereGeo = new T.SphereGeometry(1, 28, 20);
+let _bodyGeo = null;
+function bodyGeo() {
+  if (_bodyGeo) return _bodyGeo;
+  const pts = [[0, -0.66], [0.3, -0.64], [0.55, -0.5], [0.66, -0.25], [0.66, 0.02], [0.58, 0.25], [0.45, 0.42], [0.28, 0.53], [0.0, 0.58]];
+  const curve = new T.CatmullRomCurve3(pts.map(([r, y]) => new T.Vector3(r, y, 0)));
+  const prof = curve.getPoints(40).map((v) => new T.Vector2(Math.max(0, v.x), v.y));
+  _bodyGeo = new T.LatheGeometry(prof, 36);
+  return _bodyGeo;
+}
+const capsuleCache = new Map();
+function capsule(r, len) { const k = r + ':' + len; if (!capsuleCache.has(k)) capsuleCache.set(k, new T.CapsuleGeometry(r, len, 8, 18)); return capsuleCache.get(k); }
+const lerp = (a, b, k) => a + (b - a) * k;
+const MOODS = ['smile', 'blink', 'happy', 'surprised', 'focus', 'hurt', 'talk'];
+
+const matCache = new Map();
+/** Зөөлөн, гөлгөр материал (toon биш) */
+export function soft(color, { glow = 0.3 } = {}) {
+  const k = color + '|' + glow;
+  // Сүүдэр тал нь хэт бараантахгүй — өөрийн өнгөөр бага зэрэг гэрэлтэнэ (pastel харагдац)
+  if (!matCache.has(k)) matCache.set(k, new T.MeshStandardMaterial({ color: new T.Color(color), roughness: 0.95, metalness: 0, emissive: new T.Color(color), emissiveIntensity: glow }));
+  return matCache.get(k);
+}
+
+function part(geo, mat, parent, x, y, z, sx = 1, sy = sx, sz = sx) {
+  const m = new T.Mesh(geo, mat);
+  m.position.set(x, y, z); m.scale.set(sx, sy, sz);
+  m.castShadow = true; m.receiveShadow = false;
+  parent.add(m);
+  return m;
+}
+
+/** Mascot-ын нүүр: цэгэн нүд, жижиг ам, ягаан хацар. */
+export function mascotFace(mood = 'smile', { skin = '#fff3e0' } = {}) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 256, 256);
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  const ink = '#2b2320';
+  const EY = 126, EX = [96, 160];
+  // Хөмсөг (зөвхөн зарим илэрхийлэлд)
+  if (mood === 'focus' || mood === 'hurt' || mood === 'surprised') {
+    x.strokeStyle = ink; x.lineWidth = 5;
+    EX.forEach((ex, i) => { const s = i ? 1 : -1; x.beginPath();
+      if (mood === 'focus') { x.moveTo(ex - 14, 100 + s * -5); x.lineTo(ex + 14, 100 + s * 5); }
+      else if (mood === 'hurt') { x.moveTo(ex - 14, 102 + s * 5); x.lineTo(ex + 14, 102 + s * -5); }
+      else { x.moveTo(ex - 13, 96); x.quadraticCurveTo(ex, 88, ex + 13, 96); }
+      x.stroke(); });
+  }
+  // Нүд
+  x.fillStyle = ink; x.strokeStyle = ink;
+  for (const ex of EX) {
+    if (mood === 'blink') { x.lineWidth = 6; x.beginPath(); x.moveTo(ex - 10, EY); x.quadraticCurveTo(ex, EY + 7, ex + 10, EY); x.stroke(); }
+    else if (mood === 'happy') { x.lineWidth = 6; x.beginPath(); x.moveTo(ex - 11, EY + 4); x.quadraticCurveTo(ex, EY - 12, ex + 11, EY + 4); x.stroke(); }
+    else if (mood === 'hurt') { x.lineWidth = 6; x.beginPath(); x.moveTo(ex - 9, EY - 9); x.lineTo(ex + 9, EY + 9); x.moveTo(ex + 9, EY - 9); x.lineTo(ex - 9, EY + 9); x.stroke(); }
+    else {
+      const r = mood === 'surprised' ? 14 : 11.5;
+      x.beginPath(); x.ellipse(ex, EY, r * 0.85, r * (mood === 'focus' ? 0.8 : 1.15), 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#fff'; x.beginPath(); x.arc(ex + 3, EY - 4, 3, 0, Math.PI * 2); x.fill(); x.fillStyle = ink;
+    }
+  }
+  // Ам — жижигхэн
+  x.strokeStyle = '#5a2a28'; x.lineWidth = 4;
+  x.beginPath();
+  if (mood === 'happy' || mood === 'talk') { x.fillStyle = '#5a2a28'; x.moveTo(116, 152); x.quadraticCurveTo(128, 170, 140, 152); x.closePath(); x.fill(); }
+  else if (mood === 'surprised') { x.fillStyle = '#5a2a28'; x.ellipse(128, 156, 6, 8, 0, 0, Math.PI * 2); x.fill(); }
+  else if (mood === 'focus') { x.moveTo(120, 154); x.lineTo(136, 154); x.stroke(); }
+  else if (mood === 'hurt') { x.moveTo(118, 160); x.quadraticCurveTo(128, 150, 138, 160); x.stroke(); }
+  else { x.moveTo(120, 152); x.quadraticCurveTo(128, 158, 136, 152); x.stroke(); }
+  // Хацар
+  x.fillStyle = mood === 'happy' ? 'rgba(255,120,130,.55)' : 'rgba(255,130,140,.42)';
+  x.beginPath(); x.ellipse(70, 146, 15, 9, 0, 0, Math.PI * 2); x.fill();
+  x.beginPath(); x.ellipse(186, 146, 15, 9, 0, 0, Math.PI * 2); x.fill();
+  const t = new T.CanvasTexture(c);
+  t.colorSpace = T.SRGBColorSpace;
+  return t;
+}
+
+// ---------- Дүрийн төрлүүд ----------
+export const MASCOTS = {
+  tomato: { name: 'Улаан лооль', emoji: '🍅', body: 0xf0483d, head: 0xf0483d, limb: 0xd93a30 },
+  pumpkin: { name: 'Хулуу', emoji: '🎃', body: 0xf5922e, head: 0xf5922e, limb: 0xe07f1c },
+  peach: { name: 'Тоор', emoji: '🍑', body: 0xf7a8b8, head: 0xf7a8b8, limb: 0xf0a0b0 },
+  mushroom: { name: 'Мөөг', emoji: '🍄', body: 0xfff3e0, head: 0xfff3e0, cap: 0xe83a3a, dots: true },
+  shiitake: { name: 'Хар мөөг', emoji: '🟤', body: 0xfff3e0, head: 0xfff3e0, cap: 0x5a3a2a, dots: false },
+  apple: { name: 'Алим', emoji: '🍎', body: 0xf0464f, head: 0xf0464f, limb: 0xd83540 },
+  orange: { name: 'Жүрж', emoji: '🍊', body: 0xffa030, head: 0xffa030, limb: 0xf08d1e },
+  grape: { name: 'Усан үзэм', emoji: '🍇', body: 0x9a6bd8, head: 0x9a6bd8, limb: 0x875bc4 },
+  carrot: { name: 'Лууван', emoji: '🥕', body: 0xff8a3c, head: 0xff8a3c, limb: 0xee7a2c },
+  mango: { name: 'Манго', emoji: '🥭', body: 0xffc23c, head: 0xffc23c, limb: 0xf0b02a },
+};
+export const DEFAULT_MASCOT = 'tomato';
+
+export class Mascot {
+  constructor({ kind = DEFAULT_MASCOT, scale = 1 } = {}) {
+    const def = MASCOTS[kind] || MASCOTS[DEFAULT_MASCOT];
+    this.kind = kind; this.def = def;
+    const root = new T.Group(); root.name = 'Mascot_' + kind; this.root = root;
+    this.scale = scale; root.scale.setScalar(scale);
+    const bodyM = soft(def.body), headM = soft(def.head);
+    const leaf = soft(0x5fbb5a), leafD = soft(0x3f8f45), stem = soft(0x7a5a3a), cream = soft(0xfff3e0);
+
+    // ---- Бие: R6 шиг тус бүр НЭГ бүхэл хэсэг, гэхдээ зөөлөн дугуй хэлбэртэй ----
+    //   их бие = нэг лийр (lathe), гар = нэг капсул, хөл = нэг капсул, толгой = нэг жимс
+    const roll = new T.Group(); roll.position.y = 1.15; root.add(roll); this.rollPivot = roll;   // эргэлтийн төв
+    const body = new T.Group(); body.position.y = -1.15; roll.add(body); this.body = body;      // газраас
+    const torso = new T.Group(); torso.position.y = 0.98; body.add(torso); this.torso = torso;  // их биеийн төв
+    const limbM = soft(def.limb ?? def.body);
+    part(bodyGeo(), bodyM, torso, 0, 0, 0, 1.1, 1, 1.0);
+    // ---- Хөл: богино, бүдүүн капсул (ташаанаас доош) ----
+    this.legs = [];
+    for (const s of [-1, 1]) {
+      const hip = new T.Group(); hip.position.set(s * 0.27, -0.5, 0); torso.add(hip);
+      part(capsule(0.21, 0.18), limbM, hip, 0, -0.2, 0.02);
+      this.legs.push({ hip, s });
+    }
+    // ---- Гар: жижиг хиам капсул (мөрнөөс) ----
+    this.arms = [];
+    for (const s of [-1, 1]) {
+      const sh = new T.Group(); sh.position.set(s * 0.56, 0.16, 0.06); torso.add(sh);
+      part(capsule(0.13, 0.3), limbM, sh, 0, -0.24, 0);
+      sh.rotation.z = s * 0.5;
+      this.arms.push({ sh, s, base: s * 0.5 });
+    }
+    // ---- Толгой ----
+    const neck = new T.Group(); neck.position.y = 0.55; torso.add(neck); this.neck = neck;
+    const head = new T.Group(); head.position.y = 0.42; neck.add(head); this.head = head;
+    this.buildHead(kind, def, head, { headM, leaf, leafD, stem, cream });
+
+    // Нүүр
+    this.faces = {}; for (const m of MOODS) this.faces[m] = mascotFace(m);
+    const faceMat = new T.MeshBasicMaterial({ map: this.faces.smile, transparent: true, depthWrite: false, toneMapped: false });
+    const fr = this.faceRadius;
+    const face = new T.Mesh(new T.SphereGeometry(fr + 0.012, 32, 20, Math.PI * 0.12, Math.PI * 0.76, Math.PI * 0.33, Math.PI * 0.42), faceMat);
+    face.position.copy(this.faceCenter); face.userData.noOutline = true; face.castShadow = false;
+    head.add(face); this.faceMat = faceMat;
+
+    // Сүүдэр диск
+    const shadow = new T.Mesh(new T.CircleGeometry(0.62, 24), new T.MeshBasicMaterial({ color: 0x0f2a1c, transparent: true, opacity: 0.22, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; root.add(shadow); this.shadow = shadow;
+
+    // Төлөв
+    this.state = 'idle'; this.time = 0;
+    this.blinkT = 2 + Math.random() * 3; this.blinking = 0;
+    this.speedNorm = 0; this.lean = 0; this.landT = 0; this.cheerT = 0;
+    this.actionT = 0; this.action = null; this.actionDur = 0;
+    this.idleT = 0; this.mood = 'smile'; this.moodHold = 0;
+    this.flipT = 0; this.rollT = 0; this.rollDur = 0.45;
+    this.footPhase = 0; this.onStep = null; this._lastStepSide = 0; this._prevSpeed = 0;
+    this.headYaw = 0; this.headPitchLook = 0; this.headYawIdle = 0;
+    this.wobble = 0; this.wobbleV = 0;
+  }
+
+  buildHead(kind, def, head, m) {
+    const { headM, leaf, leafD, stem, cream } = m;
+    const R = 0.72;
+    this.faceRadius = R; this.faceCenter = new T.Vector3(0, 0.1, 0);
+    const leafAt = (x, y, z, rz = 0, sx = 0.26) => { const l = part(sphereGeo, leaf, head, x, y, z, sx, 0.05, sx * 0.55); l.rotation.z = rz; return l; };
+    switch (kind) {
+      case 'mushroom': case 'shiitake': {
+        part(sphereGeo, cream, head, 0, 0.05, 0, 0.66, 0.62, 0.62);
+        this.faceRadius = 0.66; this.faceCenter.set(0, 0.05, 0);
+        part(sphereGeo, soft(def.cap), head, 0, 0.5, 0, 0.98, 0.56, 0.98);      // малгай — нэг хавтгай бөмбөрцөг
+        if (def.dots) { const dot = soft(0xfff6e8); for (let i = 0; i < 8; i++) { const a = i * 2.4, r = 0.35 + (i % 3) * 0.2; part(sphereGeo, dot, head, Math.sin(a) * r, 0.68 + Math.cos(i) * 0.1 - r * 0.15, Math.cos(a) * r, 0.1 + (i % 2) * 0.04, 0.04, 0.1 + (i % 2) * 0.04); } }
+        break;
+      }
+      case 'pumpkin': {
+        part(sphereGeo, headM, head, 0, 0.06, 0, R * 1.08, R * 0.9, R * 1.08);
+        part(new T.CylinderGeometry(0.07, 0.11, 0.35, 8), stem, head, 0.04, 0.78, 0).rotation.z = 0.25;
+        leafAt(0.3, 0.76, 0.05, -0.3);
+        break;
+      }
+      case 'peach': {
+        part(sphereGeo, headM, head, 0, 0.1, 0, R, R * 1.02, R);
+        // Навчин зах (хүзүү) — зургийн дагуу
+        for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; const l = part(sphereGeo, leaf, head, Math.sin(a) * 0.5, -0.55, Math.cos(a) * 0.5, 0.24, 0.05, 0.13); l.rotation.y = a; l.rotation.x = 0.35; }
+        break;
+      }
+      case 'tomato': {
+        part(sphereGeo, headM, head, 0, 0.08, 0, R * 1.02, R * 0.94, R * 1.02);
+        for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2; const l = part(sphereGeo, leafD, head, Math.sin(a) * 0.3, 0.73, Math.cos(a) * 0.3, 0.3, 0.05, 0.11); l.rotation.y = a; l.rotation.x = -0.35; }
+        part(new T.CylinderGeometry(0.05, 0.06, 0.22, 8), leafD, head, 0, 0.82, 0);
+        break;
+      }
+      case 'apple': {
+        part(sphereGeo, headM, head, 0, 0.08, 0, R, R * 0.94, R);
+        part(new T.CylinderGeometry(0.04, 0.05, 0.3, 8), stem, head, 0, 0.82, 0).rotation.z = 0.15;
+        leafAt(0.2, 0.86, 0, 0.3);
+        break;
+      }
+      case 'orange': {
+        part(sphereGeo, headM, head, 0, 0.1, 0, R);
+        part(sphereGeo, soft(0xe07a18), head, 0, 0.8, 0, 0.07, 0.05, 0.07);
+        leafAt(0.14, 0.82, 0, -0.3);
+        break;
+      }
+      case 'grape': {
+        part(sphereGeo, headM, head, 0, 0.1, 0, R);
+        leafAt(0.1, 0.8, 0.05, 0, 0.3);
+        break;
+      }
+      case 'carrot': {
+        part(sphereGeo, headM, head, 0, 0.1, 0, R * 0.95, R * 1.05, R * 0.95);
+        part(new T.ConeGeometry(0.5, 1.0, 16), headM, head, 0, 0.95, 0);
+        for (let i = 0; i < 4; i++) { const l = part(sphereGeo, leaf, head, (i - 1.5) * 0.12, 1.5, 0, 0.1, 0.32, 0.06); l.rotation.z = (i - 1.5) * 0.35; }
+        break;
+      }
+      case 'mango': {
+        part(sphereGeo, headM, head, 0, 0.1, 0, R * 0.92, R * 1.08, R * 0.9).rotation.z = 0.15;
+        leafAt(-0.15, 0.85, 0, 0.5, 0.3);
+        break;
+      }
+      default: part(sphereGeo, headM, head, 0, 0.1, 0, R);
+    }
+  }
+
+  setMood(m, hold = 0) { this.mood = m; this.moodHold = hold; }
+  cheer() { this.cheerT = 1.6; this.setMood('happy', 1.6); }
+  play(action, dur = 0.7) { this.action = action; this.actionT = dur; this.actionDur = dur; const md = { wave: 'talk', hurt: 'hurt', pick: 'focus', dance: 'happy' }[action]; if (md) this.setMood(md, dur); }
+  flip() { this.flipT = 0.55; this.setMood('surprised', 0.55); }
+  roll(dur = 0.45) { this.rollT = dur; this.rollDur = dur; this.setMood('focus', dur); }
+  get busy() { return this.actionT > 0; }
+
+  update(dt, p) {
+    this.time += dt;
+    const prev = this.state; this.state = p.state;
+    const air = (s) => s === 'jump' || s === 'fall';
+    if (air(prev) && !air(p.state) && p.state !== 'swim') this.landT = 0.22;
+    this.landT = Math.max(0, this.landT - dt);
+    this.cheerT = Math.max(0, this.cheerT - dt);
+    this.actionT = Math.max(0, this.actionT - dt); if (this.actionT === 0) this.action = null;
+    this.flipT = Math.max(0, this.flipT - dt);
+    this.rollT = Math.max(0, this.rollT - dt);
+    this.moodHold = Math.max(0, this.moodHold - dt);
+    if (this.state === 'idle') this.idleT += dt; else this.idleT = 0;
+
+    // Нүүр
+    this.blinkT -= dt;
+    if (this.blinkT <= 0) { this.blinking = 0.12; this.blinkT = 2.5 + Math.random() * 4; }
+    if (this.blinking > 0) this.blinking -= dt;
+    let mood = this.moodHold > 0 ? this.mood : (this.cheerT > 0 ? 'happy' : this.state === 'run' ? 'focus' : this.state === 'jump' ? 'surprised' : (this.state === 'swim' || this.state === 'slide') ? 'focus' : 'smile');
+    if (this.blinking > 0 && !['happy', 'hurt', 'surprised'].includes(mood)) mood = 'blink';
+    const tex = this.faces[mood] || this.faces.smile;
+    if (this.faceMat.map !== tex) this.faceMat.map = tex;
+
+    const target = Math.min(1, p.speed);
+    this.speedNorm += (target - this.speedNorm) * Math.min(1, dt * 10);
+    this.lean += ((p.lean || 0) - this.lean) * Math.min(1, dt * 8);
+    const accel = (target - this._prevSpeed) / Math.max(dt, 0.001); this._prevSpeed = target;
+    const s = this.speedNorm, t = this.time;
+    const gait = s > 0.6 ? 13 : 9.5;
+    this.footPhase += dt * gait * Math.max(0.15, s);
+    const ph = this.footPhase;
+    const k8 = Math.min(1, dt * 8), k12 = Math.min(1, dt * 12);
+
+    const stepSide = Math.sin(ph) > 0 ? 1 : -1;
+    if (this.state === 'walk' || this.state === 'run') {
+      if (stepSide !== this._lastStepSide && this.onStep && s > 0.2) this.onStep(stepSide);
+      this._lastStepSide = stepSide;
+    }
+
+    let bodyY = 0, torsoPitch = 0, torsoRoll = 0, headPitch = 0, headRoll = 0, rollX = 0, squash = 0;
+    const setLegs = (fn) => { for (const l of this.legs) fn(l); };
+    const setArms = (fn) => { for (const a of this.arms) fn(a); };
+    const easeLegs = (rx, k = k12) => setLegs((l) => { l.hip.rotation.x = lerp(l.hip.rotation.x, rx(l), k); });
+    const easeArms = (rx, rz, k = k12) => setArms((a) => { a.sh.rotation.x = lerp(a.sh.rotation.x, rx(a), k); a.sh.rotation.z = lerp(a.sh.rotation.z, rz(a), k); });
+
+    switch (this.state) {
+      case 'walk': case 'run': {
+        const amp = 0.6 + s * 0.6;
+        setLegs((l) => { l.hip.rotation.x = Math.sin(ph + (l.s > 0 ? 0 : Math.PI)) * amp; });
+        setArms((a) => { const v = Math.sin(ph + (a.s > 0 ? Math.PI : 0)); a.sh.rotation.x = v * amp * 0.7; a.sh.rotation.z = a.base + (s > 0.6 ? -a.s * 0.3 : 0); });
+        bodyY = Math.abs(Math.cos(ph)) * (0.04 + s * 0.08);
+        torsoPitch = 0.05 + s * 0.2;
+        torsoRoll = Math.sin(ph) * (0.08 + s * 0.06);   // хөгжилтэй дэгжин алхаа
+        headRoll = -Math.sin(ph) * 0.06;
+        headPitch = -0.04 - s * 0.06;
+        squash = -Math.abs(Math.cos(ph)) * 0.02 * s;
+        break;
+      }
+      case 'jump': case 'fall': {
+        const up = this.state === 'jump';
+        easeLegs((l) => up ? -0.5 : 0.3);
+        easeArms(() => up ? -2.6 : -1.6, (a) => a.base * 0.6, Math.min(1, dt * 10));
+        torsoPitch = up ? -0.1 : 0.15; headPitch = up ? -0.2 : 0.12;
+        squash = up ? 0.08 : -0.03;
+        break;
+      }
+      case 'swim': {
+        const sw = t * 7;
+        setArms((a) => { a.sh.rotation.x = -1.4 + Math.sin(sw + (a.s > 0 ? 0 : Math.PI)) * 1.2; a.sh.rotation.z = a.base * 0.9; });
+        setLegs((l) => { l.hip.rotation.x = Math.sin(sw * 1.4 + (l.s > 0 ? 0 : Math.PI)) * 0.5; });
+        torsoPitch = 1.15 - s * 0.1; headPitch = -0.95; bodyY = -0.62 + Math.sin(t * 3) * 0.04;
+        break;
+      }
+      case 'slide': {
+        setLegs((l) => { l.hip.rotation.x = -1.2; }); setArms((a) => { a.sh.rotation.x = -2.6; a.sh.rotation.z = a.base * 0.5; });
+        torsoPitch = 1.2; headPitch = -0.8; bodyY = -0.5;
+        break;
+      }
+      case 'hang': {
+        setLegs((l) => { l.hip.rotation.x = Math.sin(t * 5 + l.s) * 0.3; }); setArms((a) => { a.sh.rotation.x = -Math.PI + 0.1; a.sh.rotation.z = a.base * 0.2; });
+        torsoPitch = 0.1 + Math.sin(t * 5) * 0.05; headPitch = -0.2;
+        break;
+      }
+      case 'sit': {
+        setLegs((l) => { l.hip.rotation.x = -1.3; }); setArms((a) => { a.sh.rotation.x = -1.0 + (p.lean || 0) * a.s * 0.3; a.sh.rotation.z = a.base * 0.5; });
+        torsoPitch = 0.05;
+        break;
+      }
+      default: {
+        const iv = this.idleT > 6 ? (Math.floor(this.idleT / 6) % 3) + 1 : 0;
+        const ph2 = (this.idleT % 6) / 6;
+        easeLegs(() => 0, k8);
+        if (iv === 2) { const st = Math.sin(ph2 * Math.PI); easeArms(() => -2.6 * st, (a) => a.base * (1 - st * 0.6), k8); bodyY = st * 0.05; headPitch = -0.2 * st; squash = st * 0.05; }
+        else { easeArms((a) => Math.sin(t * 2.2 + a.s) * 0.05, (a) => a.base + Math.sin(t * 2.2) * 0.03, k8); bodyY = Math.sin(t * 2.2) * 0.012; squash = Math.sin(t * 2.2) * 0.012; headPitch = Math.sin(t * 1.3) * 0.03; }
+        this.headYawIdle = iv === 1 ? Math.sin(ph2 * Math.PI * 2) * 0.7 : 0;
+        if (iv === 3) { bodyY += Math.max(0, Math.sin(t * 6)) * 0.03; headRoll = Math.sin(t * 6) * 0.06; }
+      }
+    }
+
+    // ---- Нэг удаагийн үйлдэл ----
+    if (this.action) {
+      const q = 1 - this.actionT / this.actionDur, bell = Math.sin(q * Math.PI);
+      if (this.action === 'pick') {
+        torsoPitch = lerp(torsoPitch, 0.85, bell); bodyY -= bell * 0.15; headPitch = lerp(headPitch, 0.3, bell);
+        const a = this.arms[1]; a.sh.rotation.x = lerp(a.sh.rotation.x, -1.6, bell); a.sh.rotation.z = lerp(a.sh.rotation.z, 0.1, bell);
+      } else if (this.action === 'wave') {
+        const a = this.arms[1]; const k = Math.min(1, q * 4) * (q > 0.85 ? (1 - q) / 0.15 : 1);
+        a.sh.rotation.x = lerp(a.sh.rotation.x, -2.8, k); a.sh.rotation.z = lerp(a.sh.rotation.z, 0.7 + Math.sin(t * 16) * 0.4, k);
+        headRoll += 0.1 * bell;
+      } else if (this.action === 'dance') {
+        const b = t * 9;
+        torsoRoll = Math.sin(b) * 0.22; bodyY += Math.abs(Math.sin(b)) * 0.08; squash = Math.abs(Math.sin(b)) * 0.05;
+        setArms((a) => { const up = Math.sin(b + (a.s > 0 ? 0 : Math.PI)); a.sh.rotation.x = -1.4 - up * 1.3; a.sh.rotation.z = a.base * 0.4 + a.s * up * 0.3; });
+        setLegs((l) => { l.hip.rotation.x = Math.sin(b + (l.s > 0 ? 0 : Math.PI)) * 0.3; });
+        headRoll = Math.sin(b) * 0.15; this.headYawIdle = Math.sin(b * 0.5) * 0.4;
+      } else if (this.action === 'hurt') {
+        torsoPitch = lerp(torsoPitch, -0.35, bell); bodyY -= bell * 0.08;
+        setArms((a) => { a.sh.rotation.x = lerp(a.sh.rotation.x, -1.6, bell); a.sh.rotation.z = lerp(a.sh.rotation.z, a.s * 1.3, bell); });
+        headPitch = lerp(headPitch, -0.35, bell);
+      }
+    }
+    if (this.cheerT > 0) {
+      const c = this.cheerT;
+      setArms((a) => { a.sh.rotation.x = -Math.PI + 0.2 + Math.sin(t * 14 + a.s) * 0.25; a.sh.rotation.z = a.base * 0.6; });
+      bodyY += Math.abs(Math.sin(c * 12)) * 0.25 * Math.min(1, c); headPitch = -0.15; squash = Math.abs(Math.sin(c * 12)) * 0.06;
+    }
+    if (this.flipT > 0) {
+      const q = 1 - this.flipT / 0.55, e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+      rollX = e * Math.PI * 2;
+      setLegs((l) => { l.hip.rotation.x = -1.4; }); setArms((a) => { a.sh.rotation.x = -0.9; a.sh.rotation.z = a.base * 0.3; });
+      torsoPitch = 0.3;
+    }
+    if (this.rollT > 0) {
+      rollX = (1 - this.rollT / this.rollDur) * Math.PI * 2; bodyY -= 0.2;
+      setLegs((l) => { l.hip.rotation.x = -1.5; }); setArms((a) => { a.sh.rotation.x = -1.0; a.sh.rotation.z = a.base * 0.3; });
+      torsoPitch = 0.4; headPitch = 0.4;
+    }
+    if (this.landT > 0) { const q = this.landT / 0.22; bodyY -= q * 0.1; squash -= q * 0.14; torsoPitch += q * 0.15; }
+
+    // Толгой харах
+    let wantYaw = this.headYawIdle || 0, wantPitch = 0;
+    if (p.lookAt && !this.action && this.state !== 'swim') {
+      const local = this.root.worldToLocal(p.lookAt.clone());
+      const yaw = Math.atan2(local.x, local.z);
+      if (Math.abs(yaw) < 1.35) { wantYaw = T.MathUtils.clamp(yaw, -0.8, 0.8); wantPitch = T.MathUtils.clamp(-Math.atan2(local.y - 1.9, Math.hypot(local.x, local.z)), -0.3, 0.4); }
+    }
+    this.headYaw = lerp(this.headYaw, wantYaw, Math.min(1, dt * 5));
+    this.headPitchLook = lerp(this.headPitchLook, wantPitch, Math.min(1, dt * 5));
+
+    // Толгойн зөөлөн ганхалт (secondary): хурдлах/тоормослоход
+    this.wobbleV += (-accel * 0.6 - this.wobble * 70 - this.wobbleV * 9) * dt;
+    this.wobble += this.wobbleV * dt;
+
+    // Apply
+    this.body.position.y = -1.15 + bodyY;
+    if (rollX === 0 && this.rollPivot.rotation.x > Math.PI * 1.9) this.rollPivot.rotation.x = 0;
+    this.rollPivot.rotation.x = lerp(this.rollPivot.rotation.x, rollX, rollX === 0 ? Math.min(1, dt * 14) : 1);
+    this.torso.rotation.x = lerp(this.torso.rotation.x, torsoPitch, k12);
+    this.torso.rotation.z = lerp(this.torso.rotation.z, torsoRoll - this.lean * 0.3, Math.min(1, dt * 10));
+    this.neck.rotation.x = lerp(this.neck.rotation.x, headPitch + this.headPitchLook + T.MathUtils.clamp(this.wobble, -0.3, 0.3), Math.min(1, dt * 10));
+    this.head.rotation.z = headRoll + this.lean * 0.12;
+    this.head.rotation.y = this.headYaw;
+    // Squash & stretch
+    const st = squash + (this.state === 'jump' ? 0.06 : this.state === 'fall' ? -0.03 : 0);
+    this.root.scale.set(this.scale * (1 - st * 0.7), this.scale * (1 + st), this.scale * (1 - st * 0.7));
+    this.shadow.scale.setScalar(1 / (1 - st * 0.7));
+  }
+}
