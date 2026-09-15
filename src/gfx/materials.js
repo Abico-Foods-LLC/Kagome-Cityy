@@ -56,31 +56,56 @@ export function outlineGroup(group, thickness = 0.045) {
   });
 }
 
-// ---------- Ус ----------
-export function waterMaterial(color = 0x3fb8d4, opts = {}) {
-  const m = new T.MeshStandardMaterial({
-    color: new T.Color(color), roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.86, ...opts,
-  });
+// ---------- Ус: stylized (caustic нүд, нарны гялбаа, эргийн хөөс, гүний өнгө) ----------
+/**
+ * @param {number} color  усны үндсэн өнгө
+ * @param {object} opts   { deep: гүний өнгө, shore: [minX,minZ,maxX,maxZ] арлын хүрээ (нуурт хөөс/гүн), edges: [x0,x1] сувгийн эрэг (хөөс) }
+ */
+export function waterMaterial(color = 0x3fb8d4, { deep = null, shore = null, edges = null, opacity = 0.88, ...opts } = {}) {
+  const m = new T.MeshStandardMaterial({ color: new T.Color(color), roughness: 0.28, metalness: 0.0, transparent: true, opacity, ...opts });
   m.userData.time = { value: 0 };
+  const uDeep = { value: new T.Color(deep ?? color).multiplyScalar(deep ? 1 : 0.7) };
+  const uShore = { value: new T.Vector4(...(shore || [-1e5, -1e5, 1e5, 1e5])) };
+  const uEdges = { value: new T.Vector2(...(edges || [-1e5, 1e5])) };
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = m.userData.time;
+    shader.uniforms.uDeep = uDeep; shader.uniforms.uShore = uShore; shader.uniforms.uEdges = uEdges;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec3 vWPos;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec4 wp = modelMatrix * vec4(position, 1.0);
-        float w = sin(wp.x * 0.35 + uTime * 1.3) * 0.08 + sin(wp.z * 0.5 + uTime * 0.9) * 0.06 + sin((wp.x + wp.z) * 0.9 + uTime * 2.0) * 0.03;
+        float w = sin(wp.x * 0.35 + uTime * 1.1) * 0.06 + sin(wp.z * 0.5 + uTime * 0.8) * 0.05 + sin((wp.x + wp.z) * 0.9 + uTime * 1.7) * 0.025;
         transformed.y += w;
         vWPos = wp.xyz;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec3 vWPos;')
+      .replace('#include <common>', `#include <common>
+        uniform float uTime; uniform vec3 uDeep; uniform vec4 uShore; uniform vec2 uEdges; varying vec3 vWPos;
+        float hash21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+        float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash21(i), hash21(i + vec2(1, 0)), f.x), mix(hash21(i + vec2(0, 1)), hash21(i + vec2(1, 1)), f.x), f.y); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        float r1 = sin(vWPos.x * 1.7 + uTime * 1.1 + sin(vWPos.z * 1.3 + uTime * 0.7) * 1.2);
-        float r2 = sin(vWPos.z * 2.3 - uTime * 0.9 + sin(vWPos.x * 1.1 - uTime * 0.6) * 1.4);
-        float ripple = smoothstep(0.72, 0.98, r1 * r2);
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), ripple * 0.35);
-        float depthFade = smoothstep(0.2, 0.9, r1 * 0.5 + 0.5);
-        diffuseColor.rgb *= 0.9 + depthFade * 0.18;`);
+        {
+          vec2 p = vWPos.xz;
+          // Зөөлөн гэрэлт нүд (caustic) — хоёр давхар noise
+          float n1 = vnoise(p * 0.55 + vec2(uTime * 0.12, uTime * 0.07));
+          float n2 = vnoise(p * 1.2 - vec2(uTime * 0.09, -uTime * 0.11) + 7.3);
+          float cells = smoothstep(0.52, 0.78, n1 * 0.55 + n2 * 0.45);
+          // Гүн: арлаас холдох тусам бараан
+          float dIsland = max(max(uShore.x - p.x, p.x - uShore.z), max(uShore.y - p.y, p.y - uShore.w));
+          float deep = smoothstep(2.0, 40.0, dIsland);
+          diffuseColor.rgb = mix(diffuseColor.rgb, uDeep, deep);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), cells * 0.28);
+          // Жижиг гялбаа
+          float sp = smoothstep(0.88, 0.97, vnoise(p * 3.5 + vec2(uTime * 0.5, -uTime * 0.3)));
+          diffuseColor.rgb += sp * 0.35;
+          // Эргийн хөөс: арлын ирмэг ба сувгийн эрэг дагуу
+          float dEdge = min(abs(p.x - uEdges.x), abs(p.x - uEdges.y));
+          float foamD = min(abs(dIsland), dEdge);
+          float foam = smoothstep(1.4, 0.15, foamD) * (0.55 + 0.45 * sin(foamD * 6.0 - uTime * 2.2 + vnoise(p * 2.0) * 3.0));
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), clamp(foam, 0.0, 1.0) * 0.8);
+        }`);
   };
+  m.customProgramCacheKey = () => 'water2';
   return m;
 }
 

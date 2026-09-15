@@ -51,7 +51,7 @@ export function buildTown(scene, { textures }) {
   out.groundMat = groundMat;
   groundPiece(ISLAND.minX - 4, CANAL.x - CANAL.halfW - 0.6);
   groundPiece(CANAL.x + CANAL.halfW + 0.6, ISLAND.maxX + 4);
-  const lakeMat = waterMaterial(PALETTE.water);
+  const lakeMat = waterMaterial(0x4ccbe0, { deep: 0x2277b8, shore: [ISLAND.minX - 4, ISLAND.minZ - 4, ISLAND.maxX + 4, ISLAND.maxZ + 4] });
   out.waterMats.push(lakeMat);
   const lake = new T.Mesh(new T.PlaneGeometry(700, 700, 48, 48), lakeMat);
   lake.rotation.x = -Math.PI / 2; lake.position.set(0, -0.55, -12); lake.receiveShadow = true;
@@ -91,7 +91,7 @@ export function buildTown(scene, { textures }) {
   }
 
   // ---------- Суваг ба гүүр ----------
-  const canalMat = waterMaterial(0x5cd3e8);
+  const canalMat = waterMaterial(0x5cd3e8, { deep: 0x3aa8c8, edges: [CANAL.x - CANAL.halfW - 0.6, CANAL.x + CANAL.halfW + 0.6], opacity: 0.82 });
   out.waterMats.push(canalMat);
   const canal = new T.Mesh(new T.PlaneGeometry(CANAL.halfW * 2 + 1.2, ISLAND.maxZ - ISLAND.minZ + 8, 4, 60), canalMat);
   canal.rotation.x = -Math.PI / 2; canal.position.set(CANAL.x, -0.35, ISLAND.cz); world.add(canal);
@@ -179,7 +179,7 @@ export function buildTown(scene, { textures }) {
 
   // ---------- Төв талбай ----------
   addCollider(P.fountain(world, 0, -15));
-  const fWater = new T.Mesh(new T.CircleGeometry(3.7, 24), waterMaterial(0x63d8ec));
+  const fWater = new T.Mesh(new T.CircleGeometry(3.7, 24), waterMaterial(0x63d8ec, { deep: 0x4fc0dc }));
   fWater.rotation.x = -Math.PI / 2; fWater.position.set(0, 0.55, -15); world.add(fWater); out.waterMats.push(fWater.material);
   const statue = new Mascot({ kind: 'orange', scale: 1.15 }); statue.wear({ hat: 'crown' }); statue.pose('happy', { armsUp: true }); statue.root.position.set(0, 3.6, -15); statue.root.userData.bob = true; world.add(statue.root); out.statue = statue;
   out.fountainJets = [];
