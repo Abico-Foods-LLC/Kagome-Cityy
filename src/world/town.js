@@ -47,6 +47,7 @@ export function buildTown(scene, { textures }) {
     const cliff = new T.Mesh(new T.BoxGeometry(w, 3, h, Math.ceil(w / 4), 1, Math.ceil(h / 4)), cliffMat);
     cliff.position.set(cx, -1.62, ISLAND.cz); world.add(cliff);
   };
+  out.groundMat = groundMat;
   groundPiece(ISLAND.minX - 4, CANAL.x - CANAL.halfW - 0.6);
   groundPiece(CANAL.x + CANAL.halfW + 0.6, ISLAND.maxX + 4);
   const lakeMat = waterMaterial(PALETTE.water);

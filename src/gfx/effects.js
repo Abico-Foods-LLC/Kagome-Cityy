@@ -44,17 +44,18 @@ export function createLightShafts(count = 10, { length = 500, color = 0xfff2c0, 
 }
 
 /** Бороо: Points-оор урт дусал. */
-export function createRain(count = 900, { area = 60, height = 30 } = {}) {
+export function createRain(count = 900, { area = 60, height = 30, snow = false } = {}) {
   const pos = new Float32Array(count * 3), vel = new Float32Array(count);
-  for (let i = 0; i < count; i++) { pos[i * 3] = (Math.random() - 0.5) * area; pos[i * 3 + 1] = Math.random() * height; pos[i * 3 + 2] = (Math.random() - 0.5) * area; vel[i] = 18 + Math.random() * 8; }
+  for (let i = 0; i < count; i++) { pos[i * 3] = (Math.random() - 0.5) * area; pos[i * 3 + 1] = Math.random() * height; pos[i * 3 + 2] = (Math.random() - 0.5) * area; vel[i] = snow ? 1.2 + Math.random() * 1.2 : 18 + Math.random() * 8; }
   const geo = new T.BufferGeometry().setAttribute('position', new T.BufferAttribute(pos, 3));
   const c = document.createElement('canvas'); c.width = 32; c.height = 32;
   const x = c.getContext('2d'); const gr = x.createLinearGradient(0, 0, 0, 32); gr.addColorStop(0, 'rgba(220,240,255,0)'); gr.addColorStop(0.5, 'rgba(220,240,255,.8)'); gr.addColorStop(1, 'rgba(220,240,255,0)');
-  x.fillStyle = gr; x.fillRect(14, 0, 3, 32);   // нимгэн босоо зураас
+  if (snow) { x.clearRect(0, 0, 32, 32); const rg = x.createRadialGradient(16, 16, 0, 16, 16, 12); rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = rg; x.fillRect(0, 0, 32, 32); }
+  else x.fillStyle = gr, x.fillRect(14, 0, 3, 32);   // нимгэн босоо зураас
   const tex = new T.CanvasTexture(c);
-  const mat = new T.PointsMaterial({ map: tex, size: 0.55, transparent: true, opacity: 0, depthWrite: false, color: 0xdff2ff, sizeAttenuation: true });
+  const mat = new T.PointsMaterial({ map: tex, size: snow ? 0.35 : 0.55, transparent: true, opacity: 0, depthWrite: false, color: snow ? 0xffffff : 0xdff2ff, sizeAttenuation: true });
   const pts = new T.Points(geo, mat); pts.frustumCulled = false; pts.name = 'Rain';
-  pts.userData = { vel, area, height, target: 0 };
+  pts.userData = { vel, area, height, target: 0, snow };
   return pts;
 }
 export function updateRain(rain, dt, center) {
@@ -63,7 +64,7 @@ export function updateRain(rain, dt, center) {
   if (rain.material.opacity < 0.01) { rain.visible = false; return; }
   rain.visible = true;
   rain.position.set(center.x, 0, center.z);
-  for (let i = 0; i < u.vel.length; i++) { p[i * 3 + 1] -= u.vel[i] * dt; if (p[i * 3 + 1] < 0) { p[i * 3 + 1] = u.height; p[i * 3] = (Math.random() - 0.5) * u.area; p[i * 3 + 2] = (Math.random() - 0.5) * u.area; } }
+  for (let i = 0; i < u.vel.length; i++) { p[i * 3 + 1] -= u.vel[i] * dt; if (u.snow) p[i * 3] += Math.sin(p[i * 3 + 1] * 1.3 + i) * dt * 0.6; if (p[i * 3 + 1] < 0) { p[i * 3 + 1] = u.height; p[i * 3] = (Math.random() - 0.5) * u.area; p[i * 3 + 2] = (Math.random() - 0.5) * u.area; } }
   rain.geometry.attributes.position.needsUpdate = true;
 }
 

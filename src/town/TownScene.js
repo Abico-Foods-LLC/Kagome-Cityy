@@ -8,6 +8,8 @@ import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.
 import { createAvatar, AVATARS } from '../world/avatar.js';
 import { Mascot, MASCOTS, ACCESSORIES } from '../world/mascot.js';
 import { JuiceGame } from './juice.js';
+import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
+import * as P from '../world/props.js';
 import { bulbMaterial } from '../world/props.js';
 import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
@@ -86,6 +88,9 @@ export class TownScene {
     this.ringTimer = 0;
     // Хотын иргэд: замаар алхдаг mascot-ууд
     this.buildCitizens();
+    this.buildAnimals();
+    this.snow = createRain(700, { area: 50, height: 22, snow: true }); scene.add(this.snow);
+    this.season = -1;
 
     // Зорилгын тэмдэг
     const g = new T.Group();
@@ -159,6 +164,91 @@ export class TownScene {
       this.citizens.push({ m, node: start, next: null, target: null, wait: i * 1.5, heading: 0, lane: (i % 2 ? 2.5 : -2.5) });
     });
     this.roadNodes = N; this.roadEdges = E;
+  }
+
+  buildAnimals() {
+    const { scene, town } = this;
+    // Нохой — усан оргилуурын дэргэд; E дарвал дагана
+    this.dog = new Dog(0xf2c58a);
+    this.dog.root.position.set(5, 0, -9); this.dog.heading = -1;
+    scene.add(this.dog.root);
+    this.interactables.push({ x: 5, z: -9, r: 3, label: this.state.pet ? 'Луувсайг илэх' : 'Луувсайг дагуулах', icon: '🐶', dynamic: () => this.dog.root.position, action: () => {
+      if (!this.state.pet) { this.state.pet = true; this.state.save(); toast('Луувсай одооноос чамайг дагана! 🐾', 3000, '🐶'); this.character.cheer(); this.interactables.find((i) => i.icon === '🐶').label = 'Луувсайг илэх'; }
+      else { this.character.play('pick', 0.8); this.dog.happy = 2; this.particles.burst(this.dog.root.position.clone().add(new T.Vector3(0, 0.8, 0)), 0xffa7c0, 8, { speed: 1.5, up: 2, size: 0.15, life: 0.7 }); this.audio.tone({ f: 880, f2: 1400, type: 'sine', dur: 0.15, vol: 0.08 }); }
+      this.audio.ui();
+    } });
+    // Нугас — сувагт
+    this.ducks = [];
+    for (let i = 0; i < 4; i++) { const d = createDuck(i % 2 ? 0xfff3d6 : 0xd9c48a); d.userData.cz = -50 + i * 20 + (i % 2) * 6; scene.add(d); this.ducks.push(d); }
+    // Муур — сандал дээр
+    this.cats = [];
+    for (const [x, z, r, c] of [[-5.5, -22, 0.6, 0x8a8a8a], [30, 30, -Math.PI / 2, 0xf2a35a]]) { const cat = createCat(c); cat.position.set(x, 0.55, z - 0.1); cat.rotation.y = r + Math.PI / 2; scene.add(cat); this.cats.push(cat); }
+    // Ажилтай иргэд: тариаланч (усалдаг), худалдагч (лангууны ард), загасчин
+    const farmer = new Mascot({ kind: 'carrot', scale: 0.9 }); farmer.wear({ hat: 'straw' }); scene.add(farmer.root);
+    this.farmer = { m: farmer, path: [[31, -31], [49, -31], [49, -35], [31, -35], [31, -39], [49, -39], [49, -43], [31, -43]], i: 0, wait: 0, heading: 0 };
+    farmer.root.position.set(31, 0, -31);
+    const vendor = new Mascot({ kind: 'orange', scale: 0.9 }); vendor.wear({ hat: 'cap' }); vendor.root.position.set(-29, 0, -14.2); vendor.root.rotation.y = Math.PI; scene.add(vendor.root);
+    this.vendor = vendor;
+    const fisher = new Mascot({ kind: 'shiitake', scale: 0.9 }); fisher.wear({ hat: 'straw' }); fisher.root.position.set(16, 0.1, -20); fisher.root.rotation.y = Math.PI / 2; scene.add(fisher.root);
+    this.fisher = fisher;
+    const rod = new T.Group(); rod.position.set(16.5, 0.9, -20); scene.add(rod); this.rod = rod;
+    const rodM = P.mesh(new T.CylinderGeometry(0.02, 0.03, 2.6, 6), toon(0x6a4a2a, { key: 'rodW' }), rod, 0.9, 1.0, 0); rodM.rotation.z = -1.1;
+    this.float = P.sphere(toon(0xe83a4a, { key: 'floatR' }), scene, 22, -0.3, -20, 0.1);
+    const lineGeo = new T.BufferGeometry().setFromPoints([new T.Vector3(18.2, 2.3, -20), new T.Vector3(22, -0.3, -20)]);
+    this.line = new T.Line(lineGeo, new T.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })); scene.add(this.line);
+    P.contactShadow(scene, 0.5, 5, -9);
+  }
+
+  updateAnimals(dt) {
+    const t = this.clock, pp = this.player.pos;
+    // Нохой
+    if (this.state.pet) this.dog.update(dt, this.vehicle ? this.vehicle.position : pp, this.blocked, this.player.state);
+    else { this.dog.update(dt, this.dog.root.position, this.blocked, 'idle'); }
+    // Нугас
+    for (const d of this.ducks) updateDuck(d, dt, t, CANAL.x, d.userData.cz, 2.6);
+    for (const c of this.cats) updateCat(c, dt, t);
+    // Тариаланч: талбайн мөрөөр алхаж, зогсоод усална
+    const F = this.farmer, fr = F.m.root;
+    if (F.wait > 0) {
+      F.wait -= dt;
+      F.m.update(dt, { state: 'idle', speed: 0 });
+      if (Math.random() < dt * 14) this.particles.sparkle(new T.Vector3(fr.position.x + Math.sin(F.heading) * 1.2 + (Math.random() - 0.5), 0.6, fr.position.z + Math.cos(F.heading) * 1.2 + (Math.random() - 0.5)), 0x9fe4ff, 1);
+      if (F.wait <= 0) F.i = (F.i + 1) % F.path.length;
+    } else {
+      const [tx, tz] = F.path[F.i], dx = tx - fr.position.x, dz = tz - fr.position.z, d = Math.hypot(dx, dz);
+      if (d < 0.3) { F.wait = 2.5; F.m.play('pick', 2.4); }
+      else { const h = Math.atan2(dx, dz); F.heading += Math.atan2(Math.sin(h - F.heading), Math.cos(h - F.heading)) * Math.min(1, dt * 6); fr.rotation.y = F.heading; fr.position.x += Math.sin(F.heading) * 2 * dt; fr.position.z += Math.cos(F.heading) * 2 * dt; F.m.update(dt, { state: 'walk', speed: 0.4 }); }
+    }
+    // Худалдагч: тоглогч ойртвол даллана
+    const nearV = Math.hypot(pp.x + 29, pp.z + 14.2) < 6;
+    this.vendor.update(dt, { state: 'idle', speed: 0, lookAt: nearV ? new T.Vector3(pp.x, 1.5, pp.z) : null });
+    if (nearV && !this.vendor.busy && Math.random() < dt * 0.4) this.vendor.play('wave', 1.2);
+    // Загасчин: сууж, хөвүүр бөмбөрнө, хааяа загас
+    this.fisher.update(dt, { state: 'sit', speed: 0 });
+    this.float.position.y = -0.3 + Math.sin(t * 2.5) * 0.06;
+    this.fisher.catchT = (this.fisher.catchT || 0) - dt;
+    if (this.fisher.catchT <= 0) { this.fisher.catchT = 12 + Math.random() * 15; this.fisher.cheer(); this.particles.burst(this.float.position.clone(), 0xbff3ff, 12, { speed: 2, up: 3, size: 0.16, life: 0.6, gravity: 8 }); if (Math.hypot(pp.x - 16, pp.z + 20) < 10) this.audio.splash(); }
+    this.line.geometry.attributes.position.setY(1, this.float.position.y); this.line.geometry.attributes.position.needsUpdate = true;
+  }
+
+  /** Улирал: 5 минут тутамд солигдоно — навчны өнгө, газар, унах зүйлс */
+  updateSeason() {
+    const idx = Math.floor(this.state.playtime / 300) % 4;   // 0 хавар, 1 зун, 2 намар, 3 өвөл
+    if (idx === this.season) return;
+    this.season = idx;
+    const leaf = toon(PALETTE.leaf, { key: 'leaf' }), leafL = toon(PALETTE.leafLight, { key: 'leafL' }), leafD = toon(PALETTE.leafDark, { key: 'leafD' });
+    const sets = [
+      { leaf: 0x5fc45a, leafL: 0x9ee07a, leafD: 0x3f9e4a, ground: 0xffffff, petals: [0xffb3c6, 0xffd9e6, 0xfff0a8], name: 'Хавар', emoji: '🌸' },
+      { leaf: PALETTE.leaf, leafL: PALETTE.leafLight, leafD: PALETTE.leafDark, ground: 0xffffff, petals: [0xb8ec9a, 0xfff0a8, 0xffffff], name: 'Зун', emoji: '☀️' },
+      { leaf: 0xe08a2e, leafL: 0xf2b84a, leafD: 0xb85c1e, ground: 0xe8d9a8, petals: [0xe08a2e, 0xf2b84a, 0xc9502a], name: 'Намар', emoji: '🍂' },
+      { leaf: 0xb9c9bc, leafL: 0xe6eeea, leafD: 0x8fa397, ground: 0xdde8e4, petals: [0xffffff, 0xf0f8ff, 0xe6f2ff], name: 'Өвөл', emoji: '❄️' },
+    ];
+    const S = sets[idx];
+    leaf.color.set(S.leaf); leafL.color.set(S.leafL); leafD.color.set(S.leafD);
+    this.town.groundMat.color.set(S.ground);
+    const col = new T.Color();
+    this.leaves.userData.items.forEach((it, i) => { col.set(S.petals[i % 3]); this.leaves.setColorAt(i, col); }); this.leaves.instanceColor.needsUpdate = true;
+    if (this.started) toast(`${S.name} ирлээ`, 3000, S.emoji);
   }
 
   updateCitizens(dt) {
@@ -858,6 +948,9 @@ export class TownScene {
     updateBirds(this.birds, dt, t, this.player.pos);
 
     this.updateCitizens(dt);
+    this.updateAnimals(dt);
+    this.updateSeason();
+    this.snow.userData.target = this.season === 3 && W.rain < 0.3 ? 0.9 : 0; updateRain(this.snow, dt, this.player.pos);
     // Жимс дахин ургах: 4 минутын дараа нахиалж буцаад гарна
     this.regrowT = (this.regrowT || 0) + dt;
     if (this.regrowT > 1) {

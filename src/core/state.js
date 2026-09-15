@@ -23,6 +23,7 @@ export class GameState {
     this.regrow = { ...(data.regrow || {}) };          // crop id → дахин ургах цаг (ms)
     this.daily = data.daily || null;                     // { date, quests: [{id, goal, progress, done}] }
     this.juice = data.juice || { made: {}, stockDate: '', stock: {} };
+    this.pet = !!data.pet;
     this.ensureDaily();
     this.applyRegrow();
   }
@@ -109,7 +110,7 @@ export class GameState {
       counts: this.counts, stars: this.stars, inventory: this.inventory,
       solved: [...this.solved], collected: [...this.collected], chapter: this.chapter,
       runner: this.runner, settings: this.settings, playtime: this.playtime,
-      wardrobe: this.wardrobe, regrow: this.regrow, daily: this.daily, juice: this.juice,
+      wardrobe: this.wardrobe, regrow: this.regrow, daily: this.daily, juice: this.juice, pet: this.pet,
     };
   }
 
