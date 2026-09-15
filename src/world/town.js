@@ -20,7 +20,7 @@ export function buildTown(scene, { textures }) {
   const colliders = [];      // {x,z,r}
   const boxColliders = [];   // {minX,maxX,minZ,maxZ}
   const swayMats = new Set();
-  const out = { world, colliders, boxColliders, harvests: [], packages: [], npcs: [], gates: [], lamps: [], waterMats: [], swayMats };
+  const out = { world, colliders, boxColliders, harvests: [], packages: [], npcs: [], gates: [], lamps: [], waterMats: [], swayMats, wreckables: [] };   // wreckables: машинд эвдэрдэг сандал/хашаа
 
   const addCollider = (g) => { if (g.userData.collider) colliders.push({ x: g.position.x, z: g.position.z, r: g.userData.collider.r }); };
 
@@ -164,15 +164,15 @@ export function buildTown(scene, { textures }) {
 
   // ---------- Цэцэрлэг ба ферм ----------
   for (let row = 0; row < 3; row++) for (let c = 0; c < 4; c++) { const t = P.tree(world, -43 + c * 6, -4 + row * 6, { type: (row + c) % 4, s: 0.9, seed: row * 7 + c }); addCollider(t); }
-  P.fence(world, -48, -8, 27); P.fence(world, -48, -8, 27, 'z'); P.fence(world, -48, 19, 27); P.fence(world, -21, -8, 27, 'z');
+  for (const f of [P.fence(world, -48, -8, 27), P.fence(world, -48, -8, 27, 'z'), P.fence(world, -48, 19, 27), P.fence(world, -21, -8, 27, 'z')]) out.wreckables.push({ group: f, kind: 'fence', collider: null });
   const soil = toon(0xa5744c, { key: 'soil' });
   for (let row = 0; row < 4; row++) {
     { const sb = new T.Mesh(new T.BoxGeometry(20, 0.14, 2.6, 8, 1, 1), soil); sb.position.set(40, 0.06, -43 + row * 4.1); sb.receiveShadow = true; world.add(sb); }
     for (let c = 0; c < 9; c++) P.fruit(4 + (row % 4), world, 31 + c * 2.2, 0.55, -43 + row * 4.1, 0.55, { outline: false });
   }
-  P.fence(world, 29, -46.5, 22); P.fence(world, 29, -46.5, 20, 'z'); P.fence(world, 51, -46.5, 20, 'z');
-  // Тариалангийн талбайн хашаа collider
-  boxColliders.push({ minX: 29.5, maxX: 50.5, minZ: -46.8, maxZ: -46.2 });
+  const farmFenceCol = { minX: 29.5, maxX: 50.5, minZ: -46.8, maxZ: -46.2 };   // тариалангийн талбайн хашаа collider
+  boxColliders.push(farmFenceCol);
+  out.wreckables.push({ group: P.fence(world, 29, -46.5, 22), kind: 'fence', collider: farmFenceCol }, { group: P.fence(world, 29, -46.5, 20, 'z'), kind: 'fence', collider: null }, { group: P.fence(world, 51, -46.5, 20, 'z'), kind: 'fence', collider: null });
   // Хөдөө аж ахуйн сав, тэрэг
   P.box(toon(0xb2743c, { key: 'crate' }), world, 52, 0.5, -30, 1.2, 1, 1.2); P.box(toon(0xb2743c, { key: 'crate' }), world, 52.3, 1.5, -30.1, 1, 1, 1);
   colliders.push({ x: 52, z: -30, r: 1 });
@@ -193,7 +193,7 @@ export function buildTown(scene, { textures }) {
   P.mesh(new T.TorusGeometry(7.5, 0.22, 8, 32, Math.PI), toon(PALETTE.cream, { key: 'cream' }), world, 0, 6, 8);
   P.sign(world, 'KAGOME FRUIT TOWN', 0, 8.2, 8, { width: 13, bg: '#188658', fg: '#ffffff', border: '#ffd24d' });
   // Сандал, гэрэл
-  for (const [x, z, r] of [[-5.5, -22, 0.6], [5.5, -22, -0.6], [-5.5, -8, 2.5], [5.5, -8, -2.5], [-24, 6, Math.PI / 2], [30, 30, -Math.PI / 2]]) { P.bench(world, x, z, r); colliders.push({ x, z, r: 0.9 }); }
+  for (const [x, z, r] of [[-5.5, -22, 0.6], [5.5, -22, -0.6], [-5.5, -8, 2.5], [5.5, -8, -2.5], [-24, 6, Math.PI / 2], [30, 30, -Math.PI / 2]]) { const col = { x, z, r: 0.9 }; colliders.push(col); out.wreckables.push({ group: P.bench(world, x, z, r), kind: 'bench', collider: col }); }
   for (let i = 0; i < 12; i++) {
     const x = i % 2 === 0 ? -9 : 9, z = -60 + Math.floor(i / 2) * 19;
     if (BRIDGES_Z.some((b) => Math.abs(z - b) < 5.5)) continue;
@@ -303,7 +303,7 @@ export function buildTown(scene, { textures }) {
   // ---------- Draw call оновчлол: статик mesh-үүдийг нэгтгэнэ ----------
   const dynamic = new Set([
     ...out.harvests.flatMap((h) => [h.obj, h.ring]), ...out.packages.flatMap((p) => [p.obj, p.ring]),
-    ...out.npcs.map((n) => n.obj), ...out.gates.map((g) => g.obj), out.wheel, car, ...out.fountainJets,
+    ...out.npcs.map((n) => n.obj), ...out.gates.map((g) => g.obj), out.wheel, car, ...out.fountainJets, ...out.wreckables.map((w) => w.group),
   ]);
   out.merged = mergeStatic(world, (o) => dynamic.has(o) || o.userData.float || o.userData.bulb || o.userData.bob);
   return out;
@@ -317,8 +317,8 @@ export function makeBlocked(town, { radius = 0.45, terrain = true } = {}) {
       // Суваг: гүүрнээс бусад газар (машин, камерт); тоглогч сэлж болно
       if (canal && Math.abs(x - CANAL.x) < CANAL.halfW + 0.6 + r && !BRIDGES_Z.some((b) => Math.abs(z - b) < 4.2)) return true;
     }
-    for (const c of town.colliders) if (Math.hypot(x - c.x, z - c.z) < c.r + r) return true;
-    for (const b of town.boxColliders) if (x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r) return true;
+    for (const c of town.colliders) if (!c.disabled && Math.hypot(x - c.x, z - c.z) < c.r + r) return true;
+    for (const b of town.boxColliders) if (!b.disabled && x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r) return true;
     return false;
   };
 }

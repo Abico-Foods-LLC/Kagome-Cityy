@@ -50,7 +50,7 @@ const shadowGeo = new T.CircleGeometry(1, 20);
 export function contactShadow(parent, r, x = 0, z = 0, sz = r) {
   const m = new T.Mesh(shadowGeo, getShadowMat());
   m.rotation.x = -Math.PI / 2; m.position.set(x, 0.025, z); m.scale.set(r, sz, 1);
-  m.castShadow = false; m.receiveShadow = false; m.renderOrder = 1;
+  m.castShadow = false; m.receiveShadow = false; m.renderOrder = 1; m.userData.shadow = true;
   parent.add(m);
   return m;
 }
@@ -243,12 +243,17 @@ export function grassTufts(parent, positions, { color = 0x7ed35e } = {}) {
 export function fence(parent, x, z, len, axis = 'x', { color = PALETTE.whiteWood } = {}) {
   const g = group('Fence', parent, x, 0, z);
   const m = toon(color, { key: 'fence' + color });
-  for (let k = 0; k <= len; k += 1.6) {
-    const a = axis === 'x' ? k : 0, b = axis === 'z' ? k : 0;
+  // Сегментчилсэн: шон + хоёр шонгийн хоорондох банз тусдаа mesh — эвдрэхэд зөвхөн мөргөсөн хэсэг унана
+  const seg = 1.6, n = Math.ceil(len / seg);
+  for (let k = 0; k <= n; k++) {
+    const d = Math.min(len, k * seg), a = axis === 'x' ? d : 0, b = axis === 'z' ? d : 0;
     box(m, g, a, 0.6, b, 0.14, 1.2, 0.14);
     mesh(G.cone, m, g, a, 1.28, b, 0.12, 0.18, 0.12);
+    if (k < n) {
+      const d2 = Math.min(len, (k + 1) * seg), L = d2 - d, c = (d + d2) / 2;
+      for (const y of [0.4, 0.9]) box(m, g, axis === 'x' ? c : 0, y, axis === 'z' ? c : 0, axis === 'x' ? L : 0.1, 0.1, axis === 'z' ? L : 0.1);
+    }
   }
-  for (const y of [0.4, 0.9]) box(m, g, axis === 'x' ? len / 2 : 0, y, axis === 'z' ? len / 2 : 0, axis === 'x' ? len : 0.1, 0.1, axis === 'z' ? len : 0.1);
   return g;
 }
 
