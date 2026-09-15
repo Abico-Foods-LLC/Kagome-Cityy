@@ -9,6 +9,7 @@ import { createAvatar, AVATARS } from '../world/avatar.js';
 import { Mascot, MASCOTS, ACCESSORIES } from '../world/mascot.js';
 import { JuiceGame } from './juice.js';
 import { FarmPlot } from './farm.js';
+import { FishingGame } from './fishing.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import * as P from '../world/props.js';
 import { bulbMaterial } from '../world/props.js';
@@ -338,6 +339,7 @@ export class TownScene {
     add({ x: 38, z: 20, r: 3.4, label: 'Логикийн хүрд эргүүлэх', icon: '🎡', action: () => this.spinWheel() });
     add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
     this.farm = new FarmPlot(this);
+    this.fishing = new FishingGame(this);
   }
 
   setupUI() {
@@ -452,6 +454,7 @@ export class TownScene {
   interact() {
     if (!this.active) return;
     if (this.vehicle) { this.exitCar(); return; }
+    if (this.fishing.active) { this.fishing.press(); return; }
     if (this.near) { this.audio.ui(); this.near.action(); }
   }
 
@@ -672,6 +675,7 @@ export class TownScene {
     this.updateCamera(dt);
     this.updateWorld(dt);
     this.farm.update(dt);
+    this.fishing.update(dt);
     this.updateInteractables(active);
     this.updateHudLive();
     this.particles.update(dt, this.camera);
@@ -998,21 +1002,22 @@ export class TownScene {
       }
     }
     this.near = best;
+    const ov = this.fishing?.active ? this.fishing.promptText : null;   // загас барих үед prompt-ыг дарна, hint нуугдана
     // Хөвөх icon + цагираг pulse
-    if (best && !this.vehicle) {
+    if (best && !this.vehicle && !ov) {
       const pos = best.dynamic ? best.dynamic() : best;
-      this.hint.visible = true;
       const icon = typeof best.icon === 'function' ? best.icon() : best.icon;
+      this.hint.visible = true;
       this.hint.material.map = this.hintTexture(icon || '✨'); this.hint.material.needsUpdate = true;
       this.hint.position.set(pos.x, (best.hintY ?? 2.6) + Math.sin(this.clock * 4) * 0.12, pos.z);
       this.hint.scale.setScalar(1.25 + Math.sin(this.clock * 4) * 0.08);
     } else this.hint.visible = false;
     const pr = $('prompt');
-    const showP = active && (best || this.vehicle);
+    const showP = active && (best || this.vehicle || ov);
     pr.classList.toggle('on', !!showP);
     if (showP) {
       const icon = typeof best?.icon === 'function' ? best.icon() : best?.icon, label = typeof best?.label === 'function' ? best.label() : best?.label;
-      $('promptText').textContent = this.vehicle ? 'Машинаас буух' + (this.state.chapter === 4 ? ' · Алтан хаалгаар дарааллаар яв' : '') : icon + ' ' + label;
+      $('promptText').textContent = ov ?? (this.vehicle ? 'Машинаас буух' + (this.state.chapter === 4 ? ' · Алтан хаалгаар дарааллаар яв' : '') : icon + ' ' + label);
     }
   }
 
