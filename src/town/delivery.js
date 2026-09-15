@@ -30,7 +30,8 @@ export class DeliveryBoard {
   dist(npc) { return Math.hypot(npc.x - BOARD.x, npc.z - BOARD.z); }
 
   newOffer() {
-    const npcs = this.scene.town.npcs.filter((n) => this.dist(n) >= MIN_DIST);
+    const all = this.scene.town.npcs, far = all.filter((n) => this.dist(n) >= MIN_DIST);
+    const npcs = far.length ? far : all;   // бүгд ойрхон бол хамаагүй
     const npc = npcs[Math.floor(Math.random() * npcs.length)];
     const type = Math.floor(Math.random() * FRUITS.length);
     const count = Math.random() < 0.6 ? 2 : 3;
