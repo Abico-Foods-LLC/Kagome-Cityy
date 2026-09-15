@@ -209,7 +209,7 @@ export function buildTown(scene, { textures }) {
     if (x > 41 && x < 51 && z > -61 && z < -33) return false;      // ширэнгийн зам
     if (x > -50 && x < -20 && z > -10 && z < 20) return false;      // цэцэрлэг
     if (x > 28 && x < 52 && z > -48 && z < -28) return false;      // ферм
-    if (x > 52 && x < 60 && z > -43 && z < -33) return false;      // миний талбай
+    if (x > 50 && x < 60 && z > -48 && z < -30) return false;      // миний талбай (+модны титмийн зай)
     if (x > 38 && x < 56 && z > -66 && z < -44) return false;      // ширэнгийн хаалга
     for (const c of colliders) if (Math.hypot(x - c.x, z - c.z) < c.r + 3) return false;
     return x > ISLAND.minX + 3 && x < ISLAND.maxX - 3 && z > ISLAND.minZ + 3 && z < ISLAND.maxZ - 3;

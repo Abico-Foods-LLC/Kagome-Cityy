@@ -34,7 +34,11 @@ export class FarmPlot {
     const { scene, town, interactables } = this.scene;
     // Суурь хөрс + тэмдэг
     P.box(this.mats.soil, scene, CENTER.x, 0.03, CENTER.z, COLS * STEP + 1.2, 0.06, ROWS * STEP + 1.2);
-    P.sign(scene, 'МИНИЙ ТАЛБАЙ', CENTER.x, 3.0, CENTER.z - ROWS * STEP / 2 - 1.1, { width: 4.4, bg: '#fff7d7', fg: '#306e46', border: '#61a148', post: true });
+    // Хашаа: хойд, урд, зүүн тал (баруун тал — үрийн савтай орц); самбар урд хашааны гадна
+    const fx = CENTER.x - COLS * STEP / 2 - 0.6, fz0 = CENTER.z - ROWS * STEP / 2 - 0.6, fz1 = CENTER.z + ROWS * STEP / 2 + 0.6, fl = COLS * STEP + 1.2;
+    P.fence(scene, fx, fz0, fl); P.fence(scene, fx, fz1, fl); P.fence(scene, fx + fl, fz0, fz1 - fz0, 'z');
+    town.boxColliders.push({ minX: fx, maxX: fx + fl, minZ: fz0 - 0.2, maxZ: fz0 + 0.2 }, { minX: fx, maxX: fx + fl, minZ: fz1 - 0.2, maxZ: fz1 + 0.2 }, { minX: fx + fl - 0.2, maxX: fx + fl + 0.2, minZ: fz0, maxZ: fz1 });
+    P.sign(scene, 'МИНИЙ ТАЛБАЙ', CENTER.x, 2.6, fz0 - 0.5, { width: 4.0, bg: '#fff7d7', fg: '#306e46', border: '#61a148', post: true });
     // Үрийн сав
     P.box(this.mats.crate, scene, CRATE.x, 0.5, CRATE.z, 1.1, 1, 1.1);
     P.box(this.mats.crate, scene, CRATE.x + 0.1, 1.4, CRATE.z - 0.1, 0.9, 0.8, 0.9);

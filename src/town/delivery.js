@@ -20,10 +20,18 @@ export class DeliveryBoard {
 
   setup() {
     const { scene, town, interactables } = this.scene;
-    P.cyl(toon(PALETTE.woodDark, { key: 'woodD' }), scene, BOARD.x, 1.3, BOARD.z, 0.09, 2.6);
-    P.sign(scene, 'ЗАХИАЛГА', BOARD.x, 2.5, BOARD.z, { width: 3.4, bg: '#fff1d6', fg: '#8a4a12', border: '#e07a3f' });
-    P.box(toon(0xe07a3f, { key: 'boardOr' }), scene, BOARD.x, 0.9, BOARD.z + 0.16, 0.5, 0.36, 0.06);   // дугтуй
-    town.colliders.push({ x: BOARD.x, z: BOARD.z, r: 0.3 });
+    // Зарлалын самбар: 2 шон, модон самбар, дээвэр, урд талд нэр + наасан цаас, дугтуй (урд тал +z — усан оргилуур руу)
+    const wood = toon(PALETTE.woodDark, { key: 'woodD' }), plank = toon(0xc99a5b, { key: 'boardPlank' });
+    for (const s of [-1, 1]) P.cyl(wood, scene, BOARD.x + s * 1.05, 1.1, BOARD.z, 0.07, 2.2);
+    P.box(plank, scene, BOARD.x, 1.5, BOARD.z, 2.4, 1.2, 0.1);
+    P.box(wood, scene, BOARD.x, 2.18, BOARD.z, 2.7, 0.12, 0.3);
+    P.sign(scene, 'ЗАХИАЛГА', BOARD.x, 1.82, BOARD.z + 0.07, { width: 2.0, bg: '#fff1d6', fg: '#8a4a12', border: '#e07a3f', double: false });
+    const paper = toon(0xfffdf0, { key: 'boardPaper' });
+    P.box(paper, scene, BOARD.x - 0.65, 1.2, BOARD.z + 0.07, 0.5, 0.42, 0.02).rotation.z = 0.08;
+    P.box(paper, scene, BOARD.x + 0.05, 1.18, BOARD.z + 0.07, 0.5, 0.42, 0.02).rotation.z = -0.06;
+    P.box(toon(0xe07a3f, { key: 'boardOr' }), scene, BOARD.x + 0.75, 1.2, BOARD.z + 0.07, 0.42, 0.28, 0.03);   // дугтуй
+    P.contactShadow(scene, 1.5, BOARD.x, BOARD.z, 0.5);
+    town.colliders.push({ x: BOARD.x - 1.05, z: BOARD.z, r: 0.25 }, { x: BOARD.x + 1.05, z: BOARD.z, r: 0.25 }, { x: BOARD.x, z: BOARD.z, r: 0.2 });
     interactables.push({ x: BOARD.x, z: BOARD.z, r: 3, label: 'Захиалгын самбар', icon: '📬', action: () => this.open() });
   }
 

@@ -8,6 +8,7 @@ import { $, toast, pop } from '../core/ui.js';
 const SPOT = { x: 16, z: -25, r: 3 };       // эрэг дээрх зогсох цэг (загасчны хажууд)
 const TARGET = { x: 21, z: -25 };            // хөвүүр буух цэг (сувгийн гол)
 const CAST_DUR = 0.5, BITE_WINDOW = 1.0, MISS_DUR = 0.8, CAUGHT_DUR = 1.2;
+const ROD_LEN = 2.4, ROD_BASE = new T.Vector3(0.42, 0.95, 0.25), ROD_DIR = new T.Vector3(0, 0.55, 0.835).normalize();   // дүрийн локал (урд = +z)
 
 export class FishingGame {
   constructor(scene) {
@@ -27,12 +28,19 @@ export class FishingGame {
     this.lineGeo = new T.BufferGeometry().setFromPoints([new T.Vector3(), new T.Vector3()]);
     this.line = new T.Line(this.lineGeo, new T.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 }));
     this.line.visible = false; this.line.frustumCulled = false; scene.add(this.line);
+    // Загасны саваа: дүрийн гарт, урагш-дээш чиглэнэ (идэвхтэй үед л харагдана); шугам үзүүрээс гарна
+    this.rod = new T.Group(); this.rod.visible = false; scene.add(this.rod);
+    const rodMat = toon(0x6a4a2a, { key: 'rodW' });
+    const rodM = P.mesh(new T.CylinderGeometry(0.025, 0.055, ROD_LEN, 6), rodMat, this.rod, 0, 0, 0);
+    rodM.position.copy(ROD_BASE).addScaledVector(ROD_DIR, ROD_LEN / 2); rodM.rotation.x = Math.atan2(ROD_DIR.z, ROD_DIR.y);
+    P.cyl(toon(0x3b3b3b, { key: 'reel' }), this.rod, ROD_BASE.x + 0.08, ROD_BASE.y + 0.12, ROD_BASE.z + 0.18, 0.07, 0.06).rotation.z = Math.PI / 2;
+    this.rodTip = new T.Vector3();
     // Загас (барихад дүр рүү нисдэг)
     this.fish = new T.Group(); this.fish.visible = false; scene.add(this.fish);
     P.sphere(this.mats.fish, this.fish, 0, 0, 0, 0.18, 0.11, 0.09);
     P.mesh(new T.ConeGeometry(1, 1, 6), this.mats.fin, this.fish, -0.22, 0, 0, 0.08, 0.16, 0.05).rotation.z = Math.PI / 2;
     // Эрэг дээрх хувин + самбар
-    P.cyl(toon(0x6d8fa8, { key: 'bucket' }), scene, SPOT.x - 0.9, 0.3, SPOT.z + 1.2, 0.3, 0.6, 0.25);
+    P.cyl(toon(0x6d8fa8, { key: 'bucket' }), scene, SPOT.x - 1.3, 0.3, SPOT.z + 1.7, 0.3, 0.6, 0.25);
     P.sign(scene, 'ЗАГАСНЫ ЦЭГ', SPOT.x - 0.6, 2.6, SPOT.z - 1.6, { width: 3.2, bg: '#e6f6ff', fg: '#1f5f8a', border: '#4fb3e8', post: true });
     interactables.push({ x: SPOT.x, z: SPOT.z, r: SPOT.r, label: 'Загас барих', icon: '🎣', visible: () => !this.active, action: () => this.start() });
   }
@@ -45,10 +53,19 @@ export class FishingGame {
     this.cast();
   }
 
+  /** Саваагаа дүр дээр байрлуулж, үзүүрийн дэлхийн координатыг тооцно */
+  updateRod() {
+    const pl = this.scene.player;
+    this.rod.position.set(pl.pos.x, pl.visualY, pl.pos.z); this.rod.rotation.y = pl.heading;
+    this.rod.updateMatrixWorld();
+    this.rodTip.copy(ROD_BASE).addScaledVector(ROD_DIR, ROD_LEN); this.rod.localToWorld(this.rodTip);
+    return this.rodTip;
+  }
+
   cast() {
     this.phase = 'cast'; this.t = 0;
-    const pp = this.scene.player.pos;
-    this.from = new T.Vector3(pp.x + 0.4, 1.4, pp.z);
+    this.rod.visible = true;
+    this.from = this.updateRod().clone();
     this.to = new T.Vector3(TARGET.x + (Math.random() - 0.5) * 2, -0.3, TARGET.z + (Math.random() - 0.5) * 2);
     this.float.visible = this.line.visible = true;
     this.float.position.copy(this.from);
@@ -79,7 +96,7 @@ export class FishingGame {
 
   cancel() {
     this.active = false; this.phase = 'idle';
-    this.float.visible = this.line.visible = this.fish.visible = false;
+    this.float.visible = this.line.visible = this.fish.visible = this.rod.visible = false;
     this.promptText = '';
   }
 
@@ -109,9 +126,9 @@ export class FishingGame {
       if (k >= 1) this.fish.visible = false;
       if (this.t >= CAUGHT_DUR) this.cast();
     }
-    // Шугам: дүрийн гараас хөвүүр хүртэл
-    const pos = this.lineGeo.attributes.position;
-    pos.setXYZ(0, pl.pos.x + Math.sin(pl.heading) * 0.4, 1.5, pl.pos.z + Math.cos(pl.heading) * 0.4);
+    // Шугам: савааны үзүүрээс хөвүүр хүртэл
+    const tip = this.updateRod(), pos = this.lineGeo.attributes.position;
+    pos.setXYZ(0, tip.x, tip.y, tip.z);
     pos.setXYZ(1, fl.x, fl.y, fl.z);
     pos.needsUpdate = true;
   }
