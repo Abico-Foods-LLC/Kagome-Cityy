@@ -25,7 +25,7 @@ export function buildTown(scene, { textures }) {
 
   // ---------- Газар (суваг хоёр хэсэгт хуваана) ----------
   const grassTex = grassTexture();
-  const groundMat = new T.MeshToonMaterial({ color: 0xffffff, map: grassTex, gradientMap: toon(0xffffff).gradientMap, vertexColors: true });
+  const groundMat = new T.MeshToonMaterial({ color: 0xffffff, map: grassTex, gradientMap: toon(0xffffff).gradientMap, vertexColors: true, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
   const cliffMat = toon(0x8a6a48, { key: 'cliff' });
   const r0 = seeded(4);
   const groundPiece = (x0, x1) => {
@@ -65,7 +65,7 @@ export function buildTown(scene, { textures }) {
   }
   // ---------- Зам ----------
   const roadTex = roadTexture();
-  const roadMat = new T.MeshToonMaterial({ color: 0xffffff, map: roadTex, gradientMap: groundMat.gradientMap, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const roadMat = new T.MeshToonMaterial({ color: 0xffffff, map: roadTex, gradientMap: groundMat.gradientMap, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   const road = (x, z, w, h, y = 0.03) => {
     const geo = new T.PlaneGeometry(w, h);
     const uv = geo.attributes.uv;
@@ -75,9 +75,9 @@ export function buildTown(scene, { textures }) {
     return m;
   };
   // Замууд давхцах газартаа ялгаатай өндөртэй — z-fighting (жирэлзэлт) гарахгүй
-  road(0, -12, 15, 113, 0.06);
-  road(0, 1, 111, 10, 0.04); road(0, -34, 109, 9, 0.04); road(0, 31, 103, 8, 0.04);
-  road(46, -47, 8, 26, 0.05);               // ширэнгийн хаалга руу
+  road(0, -12, 15, 113, 0.08);
+  road(0, 1, 111, 10, 0.06); road(0, -34, 109, 9, 0.06); road(0, 31, 103, 8, 0.06);
+  road(46, -47, 8, 26, 0.07);               // ширэнгийн хаалга руу
   // Замын хажуугийн хашлага
   const curb = toon(0xfff1cf, { key: 'curb' });
   for (const s of [-1, 1]) {
@@ -177,8 +177,9 @@ export function buildTown(scene, { textures }) {
   // ---------- Мод, бут, чулуу (ерөнхий ландшафт) ----------
   const rt = seeded(77);
   const freeSpot = (x, z) => {
-    if (Math.abs(x) < 10 || Math.abs(x - CANAL.x) < 6.5) return false;
-    if (BRIDGES_Z.some((b) => Math.abs(z - b) < 6.5)) return false;
+    if (Math.abs(x) < 10.5 || Math.abs(x - CANAL.x) < 6.5) return false;
+    if (BRIDGES_Z.some((b) => Math.abs(z - b) < 7)) return false;
+    if (x > 41 && x < 51 && z > -61 && z < -33) return false;      // ширэнгийн зам
     if (x > -50 && x < -20 && z > -10 && z < 20) return false;      // цэцэрлэг
     if (x > 28 && x < 52 && z > -48 && z < -28) return false;      // ферм
     if (x > 38 && x < 56 && z > -66 && z < -44) return false;      // ширэнгийн хаалга
