@@ -22,6 +22,7 @@ export class GameState {
     this.wardrobe = { owned: [], equipped: {}, ...(data.wardrobe || {}) };
     this.regrow = { ...(data.regrow || {}) };          // crop id → дахин ургах цаг (ms)
     this.daily = data.daily || null;                     // { date, quests: [{id, goal, progress, done}] }
+    this.juice = data.juice || { made: {}, stockDate: '', stock: {} };
     this.ensureDaily();
     this.applyRegrow();
   }
@@ -50,6 +51,7 @@ export class GameState {
     { id: 'talk', goal: 3, text: '3 иргэнтэй ярилц', reward: 25, icon: '💬' },
     { id: 'drive', goal: 200, text: 'Машинаар 200 метр яв', reward: 30, icon: '🚗' },
     { id: 'flips', goal: 5, text: '5 удаа давхар үсрэлт хий', reward: 25, icon: '🔄' },
+    { id: 'juice', goal: 2, text: 'Лабораторид 2 шүүс хий', reward: 40, icon: '🧃' },
   ];
   ensureDaily() {
     const today = new Date().toISOString().slice(0, 10);
@@ -107,7 +109,7 @@ export class GameState {
       counts: this.counts, stars: this.stars, inventory: this.inventory,
       solved: [...this.solved], collected: [...this.collected], chapter: this.chapter,
       runner: this.runner, settings: this.settings, playtime: this.playtime,
-      wardrobe: this.wardrobe, regrow: this.regrow, daily: this.daily,
+      wardrobe: this.wardrobe, regrow: this.regrow, daily: this.daily, juice: this.juice,
     };
   }
 

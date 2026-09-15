@@ -154,6 +154,23 @@ dialog p { font-size: 16px; line-height: 1.55; }
 .shop-item button { padding: 6px 10px; font-size: 12px; width: 100%; }
 @media (max-width: 520px) { .shop { grid-template-columns: repeat(3, 1fr); } #quest .daily { display: flex; } }
 
+/* ---------- Шүүсний лаборатори ---------- */
+.juice-head { display: flex; gap: 14px; align-items: center; } .juice-head img { height: 90px; }
+.juice-area { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: center; margin: 14px 0; }
+.blender { display: grid; justify-items: center; }
+.blender.shake { animation: blend .25s linear 5; }
+@keyframes blend { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-4px) rotate(-2deg); } 75% { transform: translateX(4px) rotate(2deg); } }
+.jar { width: 96px; height: 130px; border: 4px solid #cfd8d8; border-top-width: 2px; border-radius: 8px 8px 22px 22px; background: rgba(255,255,255,.55); position: relative; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+.jar .liquid { position: absolute; left: 0; right: 0; bottom: 0; transition: height .35s cubic-bezier(.2,1.2,.4,1); opacity: .85; }
+.jar .mixlist { position: relative; font-size: 13px; font-weight: 900; padding-bottom: 6px; text-shadow: 0 1px 0 #fff; }
+.base { width: 110px; height: 34px; background: #3a3f4a; border-radius: 6px 6px 12px 12px; margin-top: -2px; }
+.ings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ings button { display: grid; justify-items: center; padding: 8px 4px; background: #f0f6ea; position: relative; }
+.ings button span { font-size: 28px; line-height: 1; } .ings button small { font-size: 11px; font-weight: 800; }
+.ings button b { position: absolute; top: 4px; right: 6px; background: var(--gold); color: #3d2a00; border-radius: 10px; padding: 0 6px; font-size: 11px; }
+.bottle-pop { animation: pop .6s cubic-bezier(.2,1.6,.4,1); }
+@media (max-width: 520px) { .juice-area { grid-template-columns: 1fr; justify-items: center; } }
+
 /* ---------- Дүр сонгох ---------- */
 .avatars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0; }
 .avatars button { display: grid; place-items: center; gap: 4px; padding: 12px 6px; background: #f0f6ea; border: 3px solid transparent; }

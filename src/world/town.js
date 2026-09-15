@@ -136,6 +136,27 @@ export function buildTown(scene, { textures }) {
   }
   boxColliders.push({ minX: -33, maxX: -23, minZ: 25, maxZ: 29 });
 
+  // ---------- Шүүсний лаборатори (лангуу + миксер) ----------
+  {
+    const jb = P.group('JuiceBar', world, -21, 0, 12);
+    jb.rotation.y = 0.3;
+    const wood = toon(PALETTE.wood, { key: 'wood' }), cream = toon(PALETTE.cream, { key: 'cream' }), red = toon(0xe81e39, { key: 'kagomeRed' });
+    P.box(wood, jb, 0, 0.55, 0, 4, 1.1, 1.3); P.box(cream, jb, 0, 1.13, 0, 4.2, 0.08, 1.5);
+    for (const sx of [-1.9, 1.9]) P.cyl(wood, jb, sx, 1.9, -0.55, 0.06, 2);
+    for (let j = 0; j < 7; j++) P.box(j % 2 ? red : cream, jb, -1.8 + j * 0.6, 2.9, 0, 0.62, 0.08, 2).rotation.x = 0.15;
+    // Миксер
+    P.cyl(toon(0x3a3f4a, { key: 'blenderBase' }), jb, -1.2, 1.35, 0.2, 0.32, 0.35);
+    const jar = P.mesh(new T.CylinderGeometry(0.3, 0.24, 0.8, 12), new T.MeshStandardMaterial({ color: 0xffb04a, transparent: true, opacity: 0.6, roughness: 0.2 }), jb, -1.2, 1.95, 0.2);
+    // Лонхнууд
+    for (let j = 0; j < 4; j++) P.product(PRODUCTS[j], textures[j], jb, 0.1 + j * 0.5, 1.17, 0.25, 0.45);
+    // Жимсний сагс
+    P.cyl(wood, jb, -0.6, 1.3, -0.3, 0.3, 0.25);
+    P.fruit(4, jb, -0.7, 1.55, -0.3, 0.35, { outline: false }); P.fruit(1, jb, -0.45, 1.55, -0.2, 0.35, { outline: false });
+    P.sign(jb, 'ШҮҮСНИЙ ЛАБОРАТОРИ', 0, 3.6, 0.3, { width: 5.5, bg: '#fff8e0', fg: '#b3132a', border: '#e81e39' });
+    P.contactShadow(jb, 2.8, 0, 0, 1.4);
+    boxColliders.push({ minX: -23.2, maxX: -18.8, minZ: 11.2, maxZ: 12.8 });
+  }
+
   // ---------- Логикийн хүрд ----------
   const wheelObj = P.logicWheel(world, 38, 20); addCollider(wheelObj); out.wheel = wheelObj.userData.wheel;
 

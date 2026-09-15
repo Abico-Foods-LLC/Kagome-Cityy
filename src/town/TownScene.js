@@ -7,6 +7,7 @@ import { glow, toon, PALETTE, curveTree } from '../gfx/materials.js';
 import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.js';
 import { createAvatar, AVATARS } from '../world/avatar.js';
 import { Mascot, MASCOTS, ACCESSORIES } from '../world/mascot.js';
+import { JuiceGame } from './juice.js';
 import { bulbMaterial } from '../world/props.js';
 import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
@@ -241,6 +242,8 @@ export class TownScene {
     }
     add({ x: 10, z: 20, r: 3.8, label: 'Жимсэн машинд суух', icon: '🚗', dynamic: () => town.car.position, action: () => this.enterCar() });
     add({ x: -28, z: 25, r: 4, label: 'Kagome маркет — дэлгүүр', icon: '🛍️', action: () => this.shop() });
+    this.juice = new JuiceGame(this);
+    add({ x: -21, z: 14, r: 3.5, label: 'Шүүсний лаборатори — шүүс хийх', icon: '🧃', action: () => this.juice.open() });
     add({ x: 38, z: 20, r: 3.4, label: 'Логикийн хүрд эргүүлэх', icon: '🎡', action: () => this.spinWheel() });
     add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
   }
