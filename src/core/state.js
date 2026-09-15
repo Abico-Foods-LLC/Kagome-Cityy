@@ -59,6 +59,7 @@ export class GameState {
     { id: 'fish', goal: 3, text: '3 загас барь', reward: 30, icon: '🐟' },
     { id: 'farm', goal: 1, text: 'Талбайгаас 1 ургац хураа', reward: 35, icon: '🌱' },
     { id: 'delivery', goal: 2, text: '2 хүргэлт хий', reward: 40, icon: '📬' },
+    { id: 'repair', goal: 2, text: '2 эвдэрсэн зүйл зас', reward: 30, icon: '🔧' },
   ];
   ensureDaily() {
     const today = new Date().toISOString().slice(0, 10);

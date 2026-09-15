@@ -153,7 +153,8 @@ describe('GameState — хадгалалт нийцтэй', () => {
 describe('GameState — өдрийн даалгавар', () => {
   it('fish / farm / delivery id-ууд pool-д байна', () => {
     const ids = GameState.DAILY_POOL.map((q) => q.id);
-    expect(ids).toEqual(expect.arrayContaining(['fish', 'farm', 'delivery']));
+    expect(ids).toEqual(expect.arrayContaining(['fish', 'farm', 'delivery', 'repair']));
+    expect(GameState.DAILY_POOL.find((q) => q.id === 'repair').goal).toBe(2);
     expect(GameState.DAILY_POOL.find((q) => q.id === 'fish').goal).toBe(3);
     expect(GameState.DAILY_POOL.find((q) => q.id === 'farm').goal).toBe(1);
     expect(GameState.DAILY_POOL.find((q) => q.id === 'delivery').goal).toBe(2);

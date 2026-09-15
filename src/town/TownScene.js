@@ -11,10 +11,11 @@ import { JuiceGame } from './juice.js';
 import { FarmPlot } from './farm.js';
 import { FishingGame } from './fishing.js';
 import { DeliveryBoard } from './delivery.js';
+import { Wreckables } from './wreck.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import * as P from '../world/props.js';
 import { bulbMaterial } from '../world/props.js';
-import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
+import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS, CITIZENS, CITIZEN_LINES } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
 
 const WALK = 5.6, RUN = 9.4, SWIM = 3.2, ROLL_SPEED = 12, ROLL_DUR = 0.45, ACCEL = 34, DECEL = 42, AIR_CTRL = 0.45, GRAVITY = 24, JUMP_V = 8.6, COYOTE = 0.12, BUFFER = 0.14;
@@ -156,15 +157,14 @@ export class TownScene {
     const N = { m0: [0, -60], m1: [0, -34], m2: [0, 1], m3: [0, 31], m4: [0, 40], w1: [-50, -34], e1: [50, -34], w2: [-50, 1], e2: [50, 1], w3: [-48, 31], e3: [48, 31] };
     const E = { m0: ['m1'], m1: ['m0', 'm2', 'w1', 'e1'], m2: ['m1', 'm3', 'w2', 'e2'], m3: ['m2', 'm4', 'w3', 'e3'], m4: ['m3'], w1: ['m1'], e1: ['m1'], w2: ['m2'], e2: ['m2'], w3: ['m3'], e3: ['m3'] };
     this.citizens = [];
-    const kinds = ['peach', 'mushroom', 'pumpkin', 'grape', 'orange', 'shiitake'];
-    kinds.forEach((kind, i) => {
+    CITIZENS.forEach(({ kind, name }, i) => {
       const m = new Mascot({ kind, scale: 0.9 });
       m.wear({ hat: ['straw', 'flower', null, 'cap', null, 'party'][i] });
       const start = ['m2', 'm1', 'm3', 'w2', 'e2', 'm2'][i];
       const [x, z] = N[start];
       m.root.position.set(x + (i % 2 ? 2.5 : -2.5), 0, z + (i % 3) * 1.5);
       this.scene.add(m.root);
-      this.citizens.push({ m, node: start, next: null, target: null, wait: i * 1.5, heading: 0, lane: (i % 2 ? 2.5 : -2.5) });
+      this.citizens.push({ m, name, node: start, next: null, target: null, wait: i * 1.5, heading: 0, lane: (i % 2 ? 2.5 : -2.5), knock: null });
     });
     this.roadNodes = N; this.roadEdges = E;
   }
@@ -175,7 +175,7 @@ export class TownScene {
     this.dog = new Dog(0xf2c58a);
     this.dog.root.position.set(5, 0, -9); this.dog.heading = -1;
     scene.add(this.dog.root);
-    this.interactables.push({ x: 5, z: -9, r: 3, label: this.state.pet ? 'Луувсайг илэх' : 'Луувсайг дагуулах', icon: '🐶', dynamic: () => this.dog.root.position, action: () => {
+    this.interactables.push({ x: 5, z: -9, r: 3, low: true, label: this.state.pet ? 'Луувсайг илэх' : 'Луувсайг дагуулах', icon: '🐶', dynamic: () => this.dog.root.position, action: () => {
       if (!this.state.pet) { this.state.pet = true; this.state.save(); toast('Луувсай одооноос чамайг дагана! 🐾', 3000, '🐶'); this.character.cheer(); this.interactables.find((i) => i.icon === '🐶').label = 'Луувсайг илэх'; }
       else { this.character.play('pick', 0.8); this.dog.happy = 2; this.particles.burst(this.dog.root.position.clone().add(new T.Vector3(0, 0.8, 0)), 0xffa7c0, 8, { speed: 1.5, up: 2, size: 0.15, life: 0.7 }); this.audio.tone({ f: 880, f2: 1400, type: 'sine', dur: 0.15, vol: 0.08 }); }
       this.audio.ui();
@@ -212,7 +212,7 @@ export class TownScene {
     for (const c of this.cats) updateCat(c, dt, t);
     // Тариаланч: талбайн мөрөөр алхаж, зогсоод усална
     const F = this.farmer, fr = F.m.root;
-    if (F.wait > 0) {
+    if (this.updateKnock(F, dt)) { /* мөргүүлж унасан */ } else if (F.wait > 0) {
       F.wait -= dt;
       F.m.update(dt, { state: 'idle', speed: 0 });
       if (Math.random() < dt * 14) this.particles.sparkle(new T.Vector3(fr.position.x + Math.sin(F.heading) * 1.2 + (Math.random() - 0.5), 0.6, fr.position.z + Math.cos(F.heading) * 1.2 + (Math.random() - 0.5)), 0x9fe4ff, 1);
@@ -258,6 +258,7 @@ export class TownScene {
     const N = this.roadNodes, E = this.roadEdges, pp = this.player.pos;
     for (const c of this.citizens) {
       const r = c.m.root;
+      if (this.updateKnock(c, dt)) continue;
       if (c.wait > 0) {
         c.wait -= dt;
         const near = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 4;
@@ -284,6 +285,57 @@ export class TownScene {
       const near = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 5;
       c.m.update(dt, { state: 'walk', speed: 0.45, lookAt: near ? new T.Vector3(pp.x, 1.5, pp.z) : null });
     }
+  }
+
+  // ---------------------------------------------------------------- Мөргөлт: иргэн унаж, босно
+  knock(e, dx, dz, speed) {
+    const push = Math.min(9, 3 + Math.abs(speed) * 0.35);
+    e.knock = { t: 1.7, vx: dx * push, vz: dz * push, vy: 4.5 };
+    e.m.play('hurt', 1.7); e.m.roll(0.6);
+    this.audio.hurt(); this.cam.shake = Math.max(this.cam.shake, 0.25);
+    this.particles.dust(e.m.root.position, 6);
+    if (Math.random() < 0.6) toast(['Өө! Болгоомжтой жолоод!', 'Аяа! Хүмүүсийг мөргөж болохгүй!', 'Ёо-ёо… удаан жолоод!'][Math.floor(Math.random() * 3)], 1800, '😵');
+  }
+  /** Унасан байдлыг шинэчилнэ; true = унасан хэвээр (хэвийн логикоо алгасна) */
+  updateKnock(e, dt) {
+    const k = e.knock; if (!k) return false;
+    const r = e.m.root;
+    k.t -= dt;
+    const nx = r.position.x + k.vx * dt, nz = r.position.z + k.vz * dt;
+    if (!this.blocked(nx, nz, 0.4)) { r.position.x = nx; r.position.z = nz; }
+    k.vx *= Math.exp(-dt * 3); k.vz *= Math.exp(-dt * 3);
+    k.vy -= 14 * dt; r.position.y = Math.max(0, r.position.y + k.vy * dt); if (r.position.y === 0) k.vy = 0;
+    // Хэвтэх: эхний 0.3 сек унана, сүүлийн 0.4 сек босно
+    const down = Math.min(1, (1.7 - k.t) / 0.3), up = Math.min(1, Math.max(0, k.t) / 0.4);
+    r.rotation.x = -Math.PI / 2 * Math.min(down, up);
+    e.m.update(dt, { state: 'idle', speed: 0 });
+    if (k.t <= 0) { e.knock = null; r.rotation.x = 0; r.position.y = 0; e.m.setMood('surprised', 1.5); e.wait = 1.2; }
+    return true;
+  }
+  /** Машин иргэн/тариаланчтай мөргөлдөх — хурдтай бол унагана */
+  carHitsPeople(car, fx, fz, speed) {
+    if (Math.abs(speed) < 3) return;
+    for (const e of [...this.citizens, this.farmer]) {
+      if (e.knock) continue;
+      const r = e.m.root;
+      if (Math.hypot(r.position.x - car.position.x, r.position.z - car.position.z) < 2.1) {
+        const dx = r.position.x - car.position.x, dz = r.position.z - car.position.z, d = Math.hypot(dx, dz) || 1;
+        this.knock(e, dx / d * 0.6 + fx * Math.sign(speed) * 0.7, dz / d * 0.6 + fz * Math.sign(speed) * 0.7, speed);
+      }
+    }
+  }
+
+  /** Алхдаг иргэнтэй ярилцах: зогсоод даллана, санамсаргүй яриа */
+  talkCitizen(c) {
+    const r = c.m.root, pp = this.player.pos;
+    c.wait = Math.max(c.wait, 5); c.waved = true;
+    r.rotation.y = c.heading = Math.atan2(pp.x - r.position.x, pp.z - r.position.z);
+    this.player.heading = Math.atan2(r.position.x - pp.x, r.position.z - pp.z);
+    this.character.play('wave', 1.1); c.m.play('wave', 1.4);
+    if (!c.talked) { c.talked = true; this.progress('talk', 1); }
+    const line = CITIZEN_LINES[Math.floor(Math.random() * CITIZEN_LINES.length)];
+    modal(`<div class="npc-head"><div class="reward">${MASCOTS[c.m.kind]?.emoji || '🙂'}</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${c.name}</h2></div></div><p>«${line}»</p><div class="row"><button id="npcBye" class="primary">Баярлалаа!</button></div>`);
+    $('npcBye').onclick = () => closeModal();
   }
 
   hintTexture(icon) {
@@ -348,6 +400,8 @@ export class TownScene {
     this.farm = new FarmPlot(this);
     this.fishing = new FishingGame(this);
     this.delivery = new DeliveryBoard(this);
+    for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ярилцах`, icon: '💬', visible: () => !c.knock, action: () => this.talkCitizen(c) });
+    this.wreck = new Wreckables(this);
   }
 
   setupUI() {
@@ -686,6 +740,7 @@ export class TownScene {
     this.farm.update(dt);
     this.fishing.update(dt);
     this.delivery.update(dt);
+    this.wreck.update(dt);
     this.updateInteractables(active);
     this.updateHudLive();
     this.particles.update(dt, this.camera);
@@ -796,6 +851,8 @@ export class TownScene {
     const fx = -Math.sin(C.heading), fz = -Math.cos(C.heading);
     const nx = car.position.x + fx * C.speed * dt, nz = car.position.z + fz * C.speed * dt;
     const r = 1.6;
+    // Эвдрэх зүйлс: машины урд цэгээр хурдтай мөргөвөл сандал/хашаа эвдэрнэ (collider арилна)
+    if (this.wreck.hit(car.position.x + fx * 1.8, car.position.z + fz * 1.8, fx * Math.sign(C.speed || 1), fz * Math.sign(C.speed || 1), C.speed)) { C.speed *= 0.6; this.audio.hurt(); cam.shake = Math.max(cam.shake, 0.3); this.particles.dust(new T.Vector3(car.position.x + fx * 1.8, 0.3, car.position.z + fz * 1.8), 10, { color: 0xe8d8b0 }); }
     if (!this.blocked(nx, nz, r)) car.position.set(nx, 0, nz);
     else {
       // Мөргөлт: гулсах эсвэл буцах
@@ -804,6 +861,7 @@ export class TownScene {
       else { if (Math.abs(C.speed) > 6) { this.audio.hurt(); cam.shake = 0.4; this.particles.dust(car.position, 8, { color: 0xffffff }); } C.speed *= -0.25; }
     }
     car.rotation.y = C.heading;
+    this.carHitsPeople(car, fx, fz, C.speed);
     // Их биеийн налалт (suspension)
     const accel = (C.speed - (C.prevSpeed || 0)) / Math.max(dt, 0.001); C.prevSpeed = C.speed;
     C.roll += (-C.steer * Math.abs(C.speed) * 0.012 - C.roll) * Math.min(1, dt * 6);
@@ -1008,7 +1066,9 @@ export class TownScene {
         if (it.visible && !it.visible()) continue;
         const pos = it.dynamic ? it.dynamic() : it;
         const d = Math.hypot(pos.x - this.player.pos.x, pos.z - this.player.pos.z);
-        if (d < it.r && d < dBest) { dBest = d; best = it; }
+        // low: дагадаг нохой г.м — бусад зүйл байхгүй үед л сонгогдоно
+        const score = d + (it.low ? 100 : 0);
+        if (d < it.r && score < dBest) { dBest = score; best = it; }
       }
     }
     this.near = best;
