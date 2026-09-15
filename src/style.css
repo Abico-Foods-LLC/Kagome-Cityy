@@ -175,6 +175,11 @@ dialog p { font-size: 16px; line-height: 1.55; }
 #rPowers { position: absolute; top: 160px; right: 20px; display: flex; gap: 8px; }
 #rPowers span { background: rgba(255, 210, 77, .9); color: #3d2a00; border-radius: 12px; padding: 6px 12px; font-weight: 900; font-size: 13px; }
 #rPowers span.cyan { background: rgba(120, 240, 220, .9); color: #0a3a30; }
+#rPowers span.hot { background: rgba(255, 138, 60, .95); color: #3d1a00; }
+.lb { display: grid; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.lb-row { display: grid; grid-template-columns: 28px 1fr 70px 50px; align-items: center; gap: 8px; background: #f0f6ea; border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+.lb-row.me { background: #ffe9a6; }
+.lb-row i { font-style: normal; font-weight: 900; text-align: right; } .lb-row small { color: var(--ink-soft); }
 #rCombo { position: absolute; top: 240px; left: 50%; transform: translateX(-50%) scale(1); color: #ffd24d; font-weight: 900; font-size: 34px; text-shadow: 0 3px 12px rgba(0, 0, 0, .6); opacity: 0; transition: opacity .2s; }
 #rCombo.on { opacity: 1; }
 #ropePrompt { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); background: #ffd24d; color: #3d2a00; padding: 10px 20px; border-radius: 16px; font-weight: 900; animation: pulse .6s ease-in-out infinite alternate; }

@@ -17,6 +17,8 @@ export function modal(html, { onClose = null, closable = true, cls = '' } = {}) 
   d.className = cls;
   d.querySelector('.close').style.display = closable ? '' : 'none';
   d.dataset.closable = closable ? '1' : '0';
+  d.querySelector('.close').onclick = () => d.close();
+  d.oncancel = (e) => { if (!closable) e.preventDefault(); };
   if (!d.open) d.showModal();
   d.onclose = () => { onClose?.(); d.onclose = null; };
   return d;
