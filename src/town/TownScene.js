@@ -280,10 +280,22 @@ export class TownScene {
       const dx = c.target.x - r.position.x, dz = c.target.z - r.position.z, d = Math.hypot(dx, dz);
       const speed = 2.6;
       if (d < 0.3) { c.prev = c.node; c.node = c.next; c.target = null; c.wait = Math.random() < 0.5 ? 1.5 + Math.random() * 4 : 0; continue; }
-      const h = Math.atan2(dx, dz);
+      // Саад тойрох: усан оргилуур, барилга г.м collider-т орохгүй — хажуу тийш зайлж явна
+      let h = Math.atan2(dx, dz);
+      if (c.avoidT > 0) { c.avoidT -= dt; h += c.avoidOff; }
       c.heading += Math.atan2(Math.sin(h - c.heading), Math.cos(h - c.heading)) * Math.min(1, dt * 8);
       r.rotation.y = c.heading;
-      r.position.x += Math.sin(c.heading) * speed * dt; r.position.z += Math.cos(c.heading) * speed * dt;
+      const step = speed * dt;
+      let nx = r.position.x + Math.sin(c.heading) * step, nz = r.position.z + Math.cos(c.heading) * step;
+      if (this.blocked(nx, nz, 0.45)) {
+        let found = false;
+        for (const off of [0.8, -0.8, 1.5, -1.5, 2.4, -2.4]) {
+          const hh = c.heading + off, tx = r.position.x + Math.sin(hh) * step, tz = r.position.z + Math.cos(hh) * step;
+          if (!this.blocked(tx, tz, 0.45)) { nx = tx; nz = tz; c.avoidOff = off; c.avoidT = 0.7; found = true; break; }
+        }
+        if (!found) { c.wait = 0.6; c.target = null; continue; }
+      }
+      r.position.x = nx; r.position.z = nz;
       const near = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 5;
       c.m.update(dt, { state: 'walk', speed: 0.45, lookAt: near ? new T.Vector3(pp.x, 1.5, pp.z) : null });
     }
