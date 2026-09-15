@@ -1,5 +1,6 @@
 // Ертөнцийн барилгын блокууд: мод, жимс, байшин, хашаа, гэрэл, сандал, цэцэг, өвс, чулуу, самбар...
 import * as T from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon, standard, glow, PALETTE, outlineGroup, windSway } from '../gfx/materials.js';
 import { woodTexture, roofTexture, textTexture, stoneTexture } from '../gfx/textures.js';
 import { FRUITS } from '../core/content.js';
@@ -300,53 +301,71 @@ export function sign(parent, text, x, y, z, { width = 6, bg = '#fff8e0', fg = '#
   return p;
 }
 
-// ---- Жимсэн байшин ----
+// ---- Жимсэн байшин: нэг гөлгөр lathe бие + урд талын орц (хаалга), цонх гадаргуу дээр ----
+const houseGeoCache = new Map();
+function houseBodyGeo(type) {
+  if (houseGeoCache.has(type)) return houseGeoCache.get(type);
+  // (r, y) профайл — алим/жүрж маягийн дүүрэн бие, дээд тал бага зэрэг хонхойно
+  const pts = [[0, 0.3], [3.4, 0.3], [4.2, 1.2], [4.55, 2.8], [4.45, 4.6], [3.7, 6.0], [2.3, 6.9], [1.1, 7.1], [0.5, 6.9], [0, 6.85]];
+  const curve = new T.CatmullRomCurve3(pts.map(([r, y]) => new T.Vector3(r, y, 0)));
+  const prof = curve.getPoints(48).map((v) => new T.Vector2(Math.max(0, v.x), v.y));
+  const geo = new T.LatheGeometry(prof, 48);
+  // Хулуу, жүрж, манго: зөөлөн судал (радиусыг өнцгөөр бага зэрэг хэлбэлзүүлнэ)
+  const ribs = type === 7 ? 8 : type === 1 || type === 3 ? 10 : 0;
+  if (ribs) {
+    const pa = geo.attributes.position;
+    for (let i = 0; i < pa.count; i++) {
+      const x = pa.getX(i), z = pa.getZ(i), a = Math.atan2(z, x), r = Math.hypot(x, z);
+      const k = 1 + 0.035 * Math.cos(a * ribs);
+      pa.setXYZ(i, x / (r || 1) * r * k, pa.getY(i), z / (r || 1) * r * k);
+    }
+    geo.computeVertexNormals();
+  }
+  houseGeoCache.set(type, geo);
+  return geo;
+}
+
 export function fruitHouse(parent, x, z, type, label, rot = 0) {
   const def = FRUITS[type];
   const g = group('House_' + label, parent, x, 0, z);
   g.rotation.y = rot;
-  const wall = toon(def.color, { key: 'fruit' + type }), wallD = toon(def.shade, { key: 'fruitD' + type });
-  const cream = toon(PALETTE.cream, { key: 'cream' }), wood = toon(PALETTE.woodDark, { key: 'woodD' });
+  const wall = toon(def.color, { key: 'fruit' + type });
+  const cream = toon(PALETTE.cream, { key: 'cream' }), wood = toon(PALETTE.woodDark, { key: 'woodD' }), glass = toon(0x9fe7f2, { key: 'glass' });
   // Суурь
-  mesh(new T.CylinderGeometry(4.9, 5.2, 0.4, 24), toon(0xe9dcc4, { key: 'plinth' }), g, 0, 0.2, 0);
-  // Бие: доод хэсэг өргөн, дээшээ өндөглөсөн
-  sphere(wall, g, 0, 3.3, 0, 4.4, 3.6, 4.4);
-  sphere(wall, g, 0, 2.6, 0, 4.55, 2.6, 4.55);
-  // Босоо судал (жүрж/хулуу шиг)
-  for (let j = 0; j < 8; j++) {
-    const s = mesh(G.sphere, wallD, g, Math.sin(j / 8 * Math.PI * 2) * 4.2, 3.2, Math.cos(j / 8 * Math.PI * 2) * 4.2, 0.35, 3.4, 0.35);
-    s.rotation.y = j / 8 * Math.PI * 2;
-  }
-  // Навчин дээвэр
-  const lf = mesh(G.sphere, toon(PALETTE.leaf, { key: 'leaf' }), g, 1.2, 7.2, 0, 2.6, 0.5, 1.3); lf.rotation.z = 0.35; lf.rotation.y = 0.4;
-  const lf2 = mesh(G.sphere, toon(PALETTE.leafLight, { key: 'leafL' }), g, -0.9, 7.35, 0.4, 2, 0.4, 1); lf2.rotation.z = -0.3;
-  cyl(wood, g, 0, 7.3, 0, 0.22, 1.6, 0.3);
-  // Хаалга
-  box(wood, g, 0, 1.4, 4.35, 1.7, 2.7, 0.22);
-  box(cream, g, 0, 1.4, 4.42, 1.4, 2.4, 0.1);
-  mesh(new T.CylinderGeometry(0.9, 0.9, 0.24, 16, 1, false, 0, Math.PI), wood, g, 0, 2.75, 4.35).rotation.set(Math.PI / 2, 0, 0);
-  sphere(toon(PALETTE.gold, { key: 'gold' }), g, 0.5, 1.35, 4.55, 0.12);
-  // Цонх
+  mesh(new T.CylinderGeometry(5.0, 5.3, 0.4, 32), toon(0xe9dcc4, { key: 'plinth' }), g, 0, 0.2, 0);
+  // Бие
+  mesh(houseBodyGeo(type), wall, g, 0, 0, 0);
+  // Иш ба навч (жижиг)
+  cyl(wood, g, 0, 7.4, 0, 0.18, 1.0, 0.24);
+  const lf = mesh(G.sphere, toon(PALETTE.leaf, { key: 'leaf' }), g, 0.7, 7.55, 0.1, 1.3, 0.22, 0.6); lf.rotation.z = 0.35; lf.rotation.y = 0.5;
+  // Орц: биеэс урагш цухуйсан дөрвөлжин — хаалга түүн дээр
+  const porch = group('Porch', g, 0, 0, 4.45);   // биеийн гадаргуугаас (r≈4.4) урагш цухуйна
+  mesh(new T.BoxGeometry(2.4, 3.1, 1.6), wall, porch, 0, 1.95, 0);
+  mesh(new T.BoxGeometry(2.7, 0.35, 1.9), cream, porch, 0, 3.6, 0);                        // орцны дээвэр
+  box(wood, porch, 0, 1.55, 0.81, 1.5, 2.5, 0.12);                                              // хаалганы хүрээ
+  box(cream, porch, 0, 1.5, 0.88, 1.2, 2.2, 0.06);                                              // хаалга
+  sphere(toon(PALETTE.gold, { key: 'gold' }), porch, 0.4, 1.45, 0.95, 0.09);                     // бариул
+  box(cream, porch, 0, 0.12, 1.2, 2.2, 0.24, 1.0);                                              // шат
+  // Цонх: гадаргуу дээр яг тулна
   for (const s of [-1, 1]) {
-    const win = group('Win', g, s * 2.6, 3.8, 3.5);
-    win.rotation.y = s * 0.62;
-    sphere(cream, win, 0, 0, 0, 0.95, 0.95, 0.12);
-    sphere(toon(0x9fe7f2, { key: 'glass' }), win, 0, 0, 0.1, 0.72, 0.72, 0.08);
-    box(cream, win, 0, 0, 0.18, 0.1, 1.4, 0.06); box(cream, win, 0, 0, 0.18, 1.4, 0.1, 0.06);
-    box(wood, win, 0, -0.85, 0.15, 1.8, 0.14, 0.4);
-    sphere(toon(0xff6a8a, { key: 'winFlower' }), win, -0.5, -0.65, 0.3, 0.15); sphere(toon(0xfff08a, { key: 'winFlower2' }), win, 0.1, -0.62, 0.32, 0.14); sphere(toon(0xff6a8a, { key: 'winFlower' }), win, 0.55, -0.66, 0.3, 0.13);
+    const a = s * 0.7, R = 4.62, y = 4.0;      // профайлын радиус энэ өндөрт ≈4.5
+    const win = group('Win', g, Math.sin(a) * R, y, Math.cos(a) * R);
+    win.rotation.y = a;
+    mesh(new T.CylinderGeometry(0.95, 0.95, 0.18, 20), cream, win, 0, 0, 0).rotation.x = Math.PI / 2;
+    mesh(new T.CylinderGeometry(0.72, 0.72, 0.2, 20), glass, win, 0, 0, 0.02).rotation.x = Math.PI / 2;
+    box(cream, win, 0, 0, 0.13, 0.1, 1.5, 0.06); box(cream, win, 0, 0, 0.13, 1.5, 0.1, 0.06);
+    box(wood, win, 0, -0.95, 0.2, 1.9, 0.14, 0.5);                                              // цонхны тавцан
+    for (const [fx, c] of [[-0.55, 0xff6a8a], [0, 0xfff08a], [0.55, 0xff6a8a]]) sphere(toon(c, { key: 'winFlower' + c }), win, fx, -0.72, 0.35, 0.15);
   }
-  // Яндан
-  box(toon(0xb15d4e, { key: 'chimney' }), g, -2.3, 6.2, -1.5, 0.7, 1.6, 0.7);
-  sign(label, 0, 5.5, 4.1, { width: 5.2, bg: '#fff8e0', fg: '#1e5c3a', border: def.color });
-  contactShadow(g, 6.2);
-  g.userData.collider = { r: 4.6 };
+  sign(label, 0, 5.45, 4.25, { width: 4.6, bg: '#fff8e0', fg: '#1e5c3a', border: def.color });
+  contactShadow(g, 6.4);
+  g.userData.collider = { r: 4.9 };
   return g;
 
   function sign(text, sx, sy, sz, o) {
     const tex = textTexture(text, { bg: o.bg, fg: o.fg, border: o.border });
     const p = new T.Mesh(new T.PlaneGeometry(o.width, o.width / 4), new T.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false }));
-    p.position.set(sx, sy, sz); p.castShadow = false; g.add(p);
+    p.position.set(sx, sy, sz); p.rotation.x = -0.25; p.castShadow = false; g.add(p);
   }
 }
 
@@ -511,37 +530,53 @@ export function product(def, texture, parent, x = 0, y = 0, z = 0, s = 1) {
   return g;
 }
 
-// ---- Жимсэн машин (buggy) ----
+// ---- Жимсэн машин (buggy): цэвэр дугуйрсан бие, задгай кабин, суудал, жолооны хүрд ----
 export function buggy(parent, x, z) {
   const g = group('Buggy', parent, x, 0, z);
-  const body = toon(0xff9f2e, { key: 'buggyBody' }), bodyD = toon(0xd97612, { key: 'buggyD' }), green = toon(0x3f7d4f, { key: 'buggyGreen' });
+  const body = toon(0xff9f2e, { key: 'buggyBody' }), bodyD = toon(0xe07f16, { key: 'buggyD' }), cream = toon(PALETTE.cream, { key: 'cream' }), green = toon(0x3f7d4f, { key: 'buggyGreen' }), dark = toon(0x2b3335, { key: 'buggyDark' }), red = toon(0xe81e39, { key: 'kagomeRed' });
   const chassis = group('Chassis', g, 0, 0, 0);
-  sphere(body, chassis, 0, 1.05, 0, 1.75, 0.75, 2.3);
-  for (let j = 0; j < 6; j++) { const s = sphere(bodyD, chassis, Math.sin(j / 6 * Math.PI * 2) * 1.5, 1.05, Math.cos(j / 6 * Math.PI * 2) * 2, 0.2, 0.7, 0.2); }
-  box(green, chassis, 0, 1.5, -0.1, 1.9, 0.45, 2.2);            // суудлын хонхорхой
-  box(toon(0x2b4838, { key: 'seat' }), chassis, 0, 1.55, 0.4, 1.7, 0.3, 0.9);
-  box(toon(0x2b4838, { key: 'seat' }), chassis, 0, 2.05, 0.95, 1.7, 0.9, 0.25);
-  const wind = new T.Mesh(new T.BoxGeometry(1.8, 0.85, 0.06), new T.MeshStandardMaterial({ color: 0xa8ecf5, transparent: true, opacity: 0.55, roughness: 0.1 }));
-  wind.position.set(0, 2.05, -0.85); wind.rotation.x = -0.25; chassis.add(wind);
+  // Их бие: доод хэсэг + дээд урд хонгил (hood) + ар тал
+  mesh(new RoundedBoxGeometry(3.0, 0.9, 4.4, 4, 0.3), body, chassis, 0, 1.0, 0);
+  mesh(new RoundedBoxGeometry(2.8, 0.6, 1.5, 4, 0.25), body, chassis, 0, 1.65, -1.35);         // капот
+  mesh(new RoundedBoxGeometry(2.8, 0.7, 1.2, 4, 0.25), body, chassis, 0, 1.7, 1.55);           // ар тал
+  // Хажуугийн улаан судал + K тэмдэг
+  for (const sx of [-1, 1]) { box(red, chassis, sx * 1.51, 1.05, 0, 0.04, 0.2, 3.6); const k = new T.Mesh(new T.CircleGeometry(0.42, 24), new T.MeshBasicMaterial({ map: textTexture('K', { bg: '#fff8e0', fg: '#e81e39', font: '900 200px Arial', w: 256, h: 256, radius: 128 }), toneMapped: false })); k.position.set(sx * 1.52, 1.05, 0.9); k.rotation.y = sx * Math.PI / 2; chassis.add(k); }
+  // Кабин (задгай): дотор ногоон, суудал цайвар
+  mesh(new T.BoxGeometry(2.4, 0.5, 2.2), green, chassis, 0, 1.4, 0.2);
+  mesh(new RoundedBoxGeometry(1.8, 0.35, 0.9, 3, 0.12), cream, chassis, 0, 1.6, 0.5);          // суудал
+  mesh(new RoundedBoxGeometry(1.8, 0.9, 0.3, 3, 0.12), cream, chassis, 0, 2.15, 1.05).rotation.x = -0.15; // түшлэг
+  // Салхины хаалт
+  const wind = new T.Mesh(new T.BoxGeometry(2.3, 0.8, 0.06), new T.MeshStandardMaterial({ color: 0xa8ecf5, transparent: true, opacity: 0.5, roughness: 0.1 }));
+  wind.position.set(0, 2.15, -0.75); wind.rotation.x = -0.35; chassis.add(wind);
+  box(dark, chassis, 0, 1.78, -0.7, 2.4, 0.08, 0.12);                                            // хаалтын суурь
   // Жолооны хүрд
-  const sw = mesh(new T.TorusGeometry(0.28, 0.05, 8, 20), toon(0x222a2a, { key: 'sw' }), chassis, 0, 1.85, -0.35); sw.rotation.x = -1.1;
+  const sw = mesh(new T.TorusGeometry(0.26, 0.05, 8, 20), dark, chassis, 0.45, 1.95, -0.35); sw.rotation.x = -1.0;
   g.userData.wheelSteer = sw;
-  // Навч
-  const lf = leaf(chassis, 0.9, 2.05, -1.2, 3.2, 0.1); lf.rotation.x = -0.4;
-  // Гэрэл
-  for (const s of [-1, 1]) { sphere(glow(0xfff5bb, 1.2), chassis, s * 0.9, 1, -2.25, 0.28, 0.22, 0.18); sphere(glow(0xff4b4b, 1), chassis, s * 0.9, 1, 2.25, 0.22, 0.16, 0.12); }
-  // Дугуй
+  // Гэрэл: урд (гэрэлтдэг), хойд (улаан)
+  for (const sx of [-1, 1]) {
+    mesh(new T.CylinderGeometry(0.22, 0.22, 0.1, 16), cream, chassis, sx * 0.95, 1.4, -2.12).rotation.x = Math.PI / 2;
+    sphere(glow(0xfff5bb, 1.3), chassis, sx * 0.95, 1.4, -2.16, 0.16);
+    box(glow(0xff4b4b, 1.0), chassis, sx * 0.95, 1.5, 2.2, 0.4, 0.16, 0.06);
+  }
+  // Бампер
+  mesh(new RoundedBoxGeometry(2.6, 0.3, 0.3, 3, 0.12), cream, chassis, 0, 0.75, -2.15);
+  mesh(new RoundedBoxGeometry(2.6, 0.3, 0.3, 3, 0.12), cream, chassis, 0, 0.75, 2.15);
+  // Навчин туг (ард)
+  cyl(dark, chassis, -1.1, 2.6, 1.7, 0.03, 1.2);
+  const lf = leaf(chassis, -0.85, 3.15, 1.7, 1.3, 0.15); lf.rotation.x = 0.2; lf.userData.flag = true;
+  // Дугуй + ханын дугуй (fender)
   const wheels = [];
   const tire = toon(0x2d3435, { key: 'tire' }), rim = toon(0xffe9b8, { key: 'rim' });
-  for (const wx of [-1.55, 1.55]) for (const wz of [-1.35, 1.35]) {
-    const w = group('Wheel', g, wx, 0.6, wz);
-    const t = mesh(new T.CylinderGeometry(0.58, 0.58, 0.4, 18), tire, w, 0, 0, 0); t.rotation.z = Math.PI / 2;
-    const r = mesh(new T.CylinderGeometry(0.3, 0.3, 0.42, 8), rim, w, 0, 0, 0); r.rotation.z = Math.PI / 2;
-    for (let j = 0; j < 8; j++) { const nub = box(tire, w, 0, Math.sin(j / 8 * Math.PI * 2) * 0.55, Math.cos(j / 8 * Math.PI * 2) * 0.55, 0.42, 0.14, 0.12); nub.rotation.x = j / 8 * Math.PI * 2; }
+  for (const wx of [-1.45, 1.45]) for (const wz of [-1.45, 1.45]) {
+    const w = group('Wheel', g, wx, 0.58, wz);
+    mesh(new T.CylinderGeometry(0.58, 0.58, 0.42, 20), tire, w, 0, 0, 0).rotation.z = Math.PI / 2;
+    mesh(new T.CylinderGeometry(0.34, 0.34, 0.44, 12), rim, w, 0, 0, 0).rotation.z = Math.PI / 2;
+    sphere(dark, w, wx > 0 ? 0.23 : -0.23, 0, 0, 0.1);
     wheels.push(w);
+    const fender = mesh(new T.TorusGeometry(0.7, 0.16, 8, 20, Math.PI), bodyD, chassis, wx, 0.62, wz); fender.rotation.y = Math.PI / 2;
   }
   g.userData.wheels = wheels;
   g.userData.chassis = chassis;
-  outlineGroup(chassis, 0.03);
+  contactShadow(g, 2.6, 0, 0, 3.0);
   return g;
 }

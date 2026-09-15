@@ -128,7 +128,7 @@ export class TownScene {
     };
     // Жолооч — машинд суух үед харагдах хуулбар
     this.driver = createAvatar(kind, { scale: 0.72 }, this.state.wardrobe.equipped);
-    this.driver.root.position.set(0, 0.85, 0.25);
+    this.driver.root.position.set(0, 1.42, 0.45);
     this.driver.root.rotation.y = Math.PI;
     this.driver.root.visible = !!this.vehicle;
     this.town.car.userData.chassis.add(this.driver.root);
