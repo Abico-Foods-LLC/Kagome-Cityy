@@ -10,6 +10,7 @@ import { Mascot, MASCOTS, ACCESSORIES } from '../world/mascot.js';
 import { JuiceGame } from './juice.js';
 import { FarmPlot } from './farm.js';
 import { FishingGame } from './fishing.js';
+import { DeliveryBoard } from './delivery.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import * as P from '../world/props.js';
 import { bulbMaterial } from '../world/props.js';
@@ -330,7 +331,13 @@ export class TownScene {
       } });
     }
     for (const n of town.npcs) {
-      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => { this.player.heading = Math.atan2(n.x - this.player.pos.x, n.z - this.player.pos.z); this.character.play('wave', 1.1); n.m.play('wave', 1.4); if (!n.talked) { n.talked = true; this.progress('talk', 1); } this.talk(n); } });
+      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => {
+        this.player.heading = Math.atan2(n.x - this.player.pos.x, n.z - this.player.pos.z);
+        if (this.delivery.deliver(n)) return;   // идэвхтэй захиалгын хүлээн авагч бол хүргэлт
+        this.character.play('wave', 1.1); n.m.play('wave', 1.4);
+        if (!n.talked) { n.talked = true; this.progress('talk', 1); }
+        this.talk(n);
+      } });
     }
     add({ x: 10, z: 20, r: 3.8, label: 'Жимсэн машинд суух', icon: '🚗', dynamic: () => town.car.position, action: () => this.enterCar() });
     add({ x: -28, z: 25, r: 4, label: 'Kagome маркет — дэлгүүр', icon: '🛍️', action: () => this.shop() });
@@ -340,6 +347,7 @@ export class TownScene {
     add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
     this.farm = new FarmPlot(this);
     this.fishing = new FishingGame(this);
+    this.delivery = new DeliveryBoard(this);
   }
 
   setupUI() {
@@ -676,6 +684,7 @@ export class TownScene {
     this.updateWorld(dt);
     this.farm.update(dt);
     this.fishing.update(dt);
+    this.delivery.update(dt);
     this.updateInteractables(active);
     this.updateHudLive();
     this.particles.update(dt, this.camera);
