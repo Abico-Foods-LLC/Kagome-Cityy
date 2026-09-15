@@ -8,6 +8,7 @@ import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.
 import { createAvatar, AVATARS } from '../world/avatar.js';
 import { Mascot, MASCOTS, ACCESSORIES } from '../world/mascot.js';
 import { JuiceGame } from './juice.js';
+import { FarmPlot } from './farm.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import * as P from '../world/props.js';
 import { bulbMaterial } from '../world/props.js';
@@ -336,6 +337,7 @@ export class TownScene {
     add({ x: -21, z: 14, r: 3.5, label: 'Шүүсний лаборатори — шүүс хийх', icon: '🧃', action: () => this.juice.open() });
     add({ x: 38, z: 20, r: 3.4, label: 'Логикийн хүрд эргүүлэх', icon: '🎡', action: () => this.spinWheel() });
     add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
+    this.farm = new FarmPlot(this);
   }
 
   setupUI() {
@@ -669,6 +671,7 @@ export class TownScene {
 
     this.updateCamera(dt);
     this.updateWorld(dt);
+    this.farm.update(dt);
     this.updateInteractables(active);
     this.updateHudLive();
     this.particles.update(dt, this.camera);
