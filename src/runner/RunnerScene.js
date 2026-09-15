@@ -2,6 +2,7 @@
 import * as T from 'three';
 import { Runner, LANE_W, ENDLESS, ENDLESS_CONFIG } from './RunnerCore.js';
 import { AVATARS } from '../world/avatar.js';
+import { Mascot, cuteFruitBall } from '../world/mascot.js';
 import { RUNNER_LEVELS, PRODUCTS, FRUITS } from '../core/content.js';
 import { createSky } from '../gfx/sky.js';
 import { Particles } from '../gfx/particles.js';
@@ -316,7 +317,7 @@ export class RunnerScene {
         P.mesh(new T.TorusGeometry(4.8, 0.32, 8, 28, Math.PI), rock, g, 0, 5.6, -d);
         for (let q = 0; q < 3; q++) P.mesh(new T.IcosahedronGeometry(0.5, 0), leaf, g, -3 + q * 3, 6.1 + (q % 2) * 0.4, -d, 1.2, 0.5, 1);
       }
-      if (d % 90 === 63) { const sd = r() < 0.5 ? -1 : 1; P.box(stoneM, g, sd * 6.2, 1.5, -d, 1.6, 3, 1.6); P.fruit(level, g, sd * 6.2, 3.9, -d, 1.4, { face: true, outline: false }); }
+      if (d % 90 === 63) { const sd = r() < 0.5 ? -1 : 1; P.box(stoneM, g, sd * 6.2, 1.5, -d, 1.6, 3, 1.6); const tb = cuteFruitBall(['orange', 'grape', 'mango', 'apple', 'pumpkin'][level % 5], 'happy', 0.9); tb.position.set(sd * 6.2, 3.9, -d); g.add(tb); }
     }
     // Хүрхрээ ба хавцал — энэ chunk-т багтах хавцал л
     for (const gp of gaps) {
@@ -352,8 +353,8 @@ export class RunnerScene {
       else if (o.type === 'monster') { g = this.monster(world, pi, o.id); g.position.set(o.lane * LANE_W, 0, -o.d); }
       else if (o.type === 'rolling') {
         g = new T.Group(); world.add(g); g.position.set(o.lane * LANE_W, 0.7, -o.d);
-        const f = P.fruit(pi % 8, g, 0, 0, 0, 1.15, { face: true, outline: false });
-        for (let q = 0; q < 8; q++) P.sphere(gold, g, Math.sin(q * Math.PI / 4) * 0.72, Math.cos(q * Math.PI / 4) * 0.72, 0, 0.08);
+        const f = cuteFruitBall(['orange', 'grape', 'mango', 'apple', 'pumpkin'][pi % 5], 'surprised', 0.66); g.add(f);
+        for (let q = 0; q < 8; q++) P.sphere(gold, g, Math.sin(q * Math.PI / 4) * 0.74, Math.cos(q * Math.PI / 4) * 0.74, 0, 0.07);
         g.userData.inner = f;
       }
       else if (o.type === 'hurdle') { g = new T.Group(); world.add(g); g.position.set(o.lane * LANE_W, 0, -o.d); P.mesh(new T.CylinderGeometry(0.28, 0.28, 2.1, 10), wood, g, 0, 0.55, 0).rotation.z = Math.PI / 2; for (const x of [-0.8, 0.8]) { P.box(wood, g, x, 0.4, 0, 0.16, 0.9, 0.16); P.mesh(new T.ConeGeometry(0.16, 0.25, 6), gold, g, x, 0.95, 0); } for (let q = 0; q < 3; q++) P.mesh(new T.IcosahedronGeometry(0.3, 0), leaf, g, -0.7 + q * 0.7, 0.9, 0, 1, 0.5, 1); }
@@ -371,24 +372,14 @@ export class RunnerScene {
     }
   }
 
+  /** Мангас: mascot дүр, "ууртай" (focus) нүүртэй, гараа өргөсөн — аймар биш, хөгжилтэй */
   monster(parent, level, seed) {
-    const g = new T.Group(); parent.add(g);
-    const type = [1, 2, 3, 0, 7][level];
-    const body = P.fruit(type, g, 0, 1, 0, 1.6, { face: false, outline: false });
-    // Ууртай нүд, шүд
-    const w = toon(0xffffff, { key: 'eyeW' }), k = toon(0x24302c, { key: 'pupil' }), brow = toon(0x2a1d18, { key: 'brow' });
-    for (const s of [-1, 1]) {
-      P.sphere(w, g, s * 0.38, 1.3, 0.85, 0.2, 0.22, 0.1); P.sphere(k, g, s * 0.36, 1.28, 0.93, 0.1, 0.12, 0.06);
-      const b = P.box(brow, g, s * 0.38, 1.6, 0.9, 0.45, 0.1, 0.08); b.rotation.z = s * -0.45;
-      P.sphere(toon(FRUITS[type].shade, { key: 'fruitD' + type }), g, s * 0.75, 0.35, 0.2, 0.28, 0.4, 0.28); // хөл
-      P.sphere(toon(FRUITS[type].color, { key: 'fruit' + type }), g, s * 0.95, 1.0, 0.1, 0.22, 0.4, 0.22).rotation.z = s * 0.6; // гар
-    }
-    P.box(brow, g, 0, 0.75, 0.9, 0.6, 0.16, 0.08);
-    for (const x of [-0.18, 0.18]) P.box(w, g, x, 0.68, 0.94, 0.12, 0.18, 0.08);
-    const lf = P.leaf(g, 0.2, 2.1, 0, 1.6, -0.5); lf.rotation.x = 0.3;
-    outlineGroup(g, 0.05);
-    g.userData.seed = seed;
-    return g;
+    const kind = ['orange', 'grape', 'mango', 'apple', 'pumpkin'][level % 5];
+    const m = new Mascot({ kind, scale: 1.2 });
+    m.pose('focus', { armsUp: true });
+    m.root.userData.seed = seed;
+    parent.add(m.root);
+    return m.root;
   }
 
   // ---------------------------------------------------------------- Update

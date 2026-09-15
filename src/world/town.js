@@ -5,6 +5,7 @@ import { grassTexture, roadTexture } from '../gfx/textures.js';
 import * as P from './props.js';
 import { FRUITS, PRODUCTS } from '../core/content.js';
 import { mergeStatic } from '../gfx/merge.js';
+import { Mascot, FRUIT_TO_MASCOT } from './mascot.js';
 
 export const ISLAND = { minX: -60, maxX: 60, minZ: -70, maxZ: 45, cx: 0, cz: -12 };
 export const BRIDGES_Z = [1, -34, 31];
@@ -180,7 +181,7 @@ export function buildTown(scene, { textures }) {
   addCollider(P.fountain(world, 0, -15));
   const fWater = new T.Mesh(new T.CircleGeometry(3.7, 24), waterMaterial(0x63d8ec));
   fWater.rotation.x = -Math.PI / 2; fWater.position.set(0, 0.55, -15); world.add(fWater); out.waterMats.push(fWater.material);
-  P.fruit(1, world, 0, 4.2, -15, 1.6, { face: true }).userData.bob = { base: 4.2, amp: 0.1 };
+  const statue = new Mascot({ kind: 'orange', scale: 1.15 }); statue.wear({ hat: 'crown' }); statue.pose('happy', { armsUp: true }); statue.root.position.set(0, 3.6, -15); statue.root.userData.bob = true; world.add(statue.root); out.statue = statue;
   out.fountainJets = [];
   for (let j = 0; j < 8; j++) {
     const jet = P.mesh(new T.CylinderGeometry(0.03, 0.07, 1.1, 6), glow(0xd8f6ff, 0.9), world, Math.sin(j / 8 * Math.PI * 2) * 1.1, 3.3, -15 + Math.cos(j / 8 * Math.PI * 2) * 1.1);
@@ -275,11 +276,15 @@ export function buildTown(scene, { textures }) {
     { type: 6, x: 30, z: -27, name: 'Брокколи Бобо', lines: 'Манай фермд лууван, улаан лооль, брокколи, хулуу ургаж байна. Хүссэн ногоогоо түүгээд цуглуулгаа нээгээрэй.' },
     { type: 7, x: 44, z: -50, name: 'Хулуу Хүслэн', lines: 'Ширэнгийн цаана эртний сүм бий. Тэнд Kagome-ийн бүтээгдэхүүн тарсан гэнэ. Гүйлтэнд бэлэн үү?', quest: 'runner' },
   ];
+  const npcHats = { 'Алим Ану': { hat: 'flower' }, 'Лууван Лулу': { hat: 'cap' }, 'Үзэм Үүлээ': { glasses: 'round' }, 'Манго Мими': { hat: 'straw' }, 'Брокколи Бобо': { extra: 'scarf' }, 'Хулуу Хүслэн': { hat: 'party' } };
   for (const d of npcDefs) {
-    const obj = P.fruit(d.type, world, d.x, 1.1, d.z, 1.4, { face: true });
-    P.sign(world, d.name, d.x, 3.4, d.z, { width: 3.6, bg: '#ffffe9', fg: '#276843' });
+    const m = new Mascot({ kind: FRUIT_TO_MASCOT[d.type], scale: 1.05 });
+    m.wear(npcHats[d.name] || {});
+    m.root.position.set(d.x, 0, d.z);
+    world.add(m.root);
+    P.sign(world, d.name, d.x, 3.6, d.z, { width: 3.6, bg: '#ffffe9', fg: '#276843' });
     colliders.push({ x: d.x, z: d.z, r: 0.9 });
-    out.npcs.push({ ...d, obj });
+    out.npcs.push({ ...d, obj: m.root, m });
   }
 
   // ---------- Хүргэлтийн хаалга ----------

@@ -328,7 +328,7 @@ export class TownScene {
       } });
     }
     for (const n of town.npcs) {
-      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => { this.player.heading = Math.atan2(n.x - this.player.pos.x, n.z - this.player.pos.z); this.character.play('wave', 1.1); if (!n.talked) { n.talked = true; this.progress('talk', 1); } this.talk(n); } });
+      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => { this.player.heading = Math.atan2(n.x - this.player.pos.x, n.z - this.player.pos.z); this.character.play('wave', 1.1); n.m.play('wave', 1.4); if (!n.talked) { n.talked = true; this.progress('talk', 1); } this.talk(n); } });
     }
     add({ x: 10, z: 20, r: 3.8, label: 'Жимсэн машинд суух', icon: '🚗', dynamic: () => town.car.position, action: () => this.enterCar() });
     add({ x: -28, z: 25, r: 4, label: 'Kagome маркет — дэлгүүр', icon: '🛍️', action: () => this.shop() });
@@ -906,7 +906,13 @@ export class TownScene {
     // Хураах жимс / бүтээгдэхүүн хөвнө
     for (const h of town.harvests) if (h.obj.visible) { h.obj.position.y = 1 + Math.sin(t * 2.2 + h.x) * 0.14; h.obj.rotation.y = t * 0.8; const nearH = Math.hypot(h.x - this.player.pos.x, h.z - this.player.pos.z) < 7; h.ring.scale.setScalar(nearH ? 1.15 + Math.sin(t * 6) * 0.25 : 1 + Math.sin(t * 3 + h.z) * 0.08); }
     for (const p of town.packages) if (p.obj.visible) { p.obj.position.y = 0.6 + Math.sin(t * 2 + p.z) * 0.12; p.obj.rotation.y = t * 1.2; if (Math.random() < dt * 2) this.particles.sparkle(p.obj.position, 0xffd24d); }
-    town.npcs.forEach((n, i) => { n.obj.position.y = 1.1 + Math.sin(t * 2.4 + i) * 0.08; n.obj.rotation.y = Math.sin(t * 0.7 + i) * 0.25 + (this.near && this.near.label.startsWith(n.name) ? Math.atan2(this.player.pos.x - n.x, this.player.pos.z - n.z) : 0) * 0.35; });
+    town.npcs.forEach((n, i) => {
+      const near = Math.hypot(this.player.pos.x - n.x, this.player.pos.z - n.z) < 7;
+      if (near) { const h = Math.atan2(this.player.pos.x - n.x, this.player.pos.z - n.z); n.obj.rotation.y += Math.atan2(Math.sin(h - n.obj.rotation.y), Math.cos(h - n.obj.rotation.y)) * Math.min(1, dt * 3); }
+      else n.obj.rotation.y += (Math.sin(t * 0.5 + i) * 0.4 - n.obj.rotation.y) * Math.min(1, dt);
+      n.m.update(dt, { state: 'idle', speed: 0, lookAt: near ? new T.Vector3(this.player.pos.x, 1.5, this.player.pos.z) : null });
+    });
+    if (town.statue) { town.statue.root.position.y = 3.6 + Math.sin(t * 2) * 0.05; town.statue.root.rotation.y = t * 0.3; }
     // Хүргэлтийн хаалга
     town.gates.forEach((g) => { g.obj.visible = this.state.chapter === 4 && g.index >= this.state.counts.drive; g.obj.traverse((o) => { if (o.userData.spin) { o.rotation.y = t * 1.5; o.position.y = 2.6 + Math.sin(t * 2) * 0.2; } }); });
     // Хүрд
