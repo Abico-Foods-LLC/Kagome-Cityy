@@ -155,39 +155,63 @@ function roundRect(x, px, py, w, h, r) {
   x.lineTo(px, py + r); x.quadraticCurveTo(px, py, px + r, py); x.closePath();
 }
 
-/** Дүрийн нүүрний texture: нүд, хөмсөг, инээмсэглэл, сахал. */
-export function faceTexture({ smile = true, blink = false } = {}) {
+/**
+ * Дүрийн нүүрний texture. mood: smile | blink | happy | surprised | focus | hurt | talk
+ */
+export function faceTexture(mood = 'smile') {
   const c = document.createElement('canvas'); c.width = 256; c.height = 256;
   const x = c.getContext('2d');
   x.clearRect(0, 0, 256, 256);
-  // Нүд
-  for (const ex of [88, 168]) {
-    if (blink) {
-      x.strokeStyle = '#2a1d18'; x.lineWidth = 6; x.lineCap = 'round';
-      x.beginPath(); x.moveTo(ex - 16, 116); x.quadraticCurveTo(ex, 124, ex + 16, 116); x.stroke();
-    } else {
-      x.fillStyle = '#fff'; x.beginPath(); x.ellipse(ex, 116, 18, 22, 0, 0, Math.PI * 2); x.fill();
-      x.fillStyle = '#2a1d18'; x.beginPath(); x.ellipse(ex + 2, 119, 11, 14, 0, 0, Math.PI * 2); x.fill();
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  const ink = '#2a1d18';
+  const eyes = (fn) => { for (const ex of [88, 168]) fn(ex, ex < 128 ? -1 : 1); };
+  // ---- Нүд ----
+  if (mood === 'blink') {
+    eyes((ex) => { x.strokeStyle = ink; x.lineWidth = 6; x.beginPath(); x.moveTo(ex - 16, 116); x.quadraticCurveTo(ex, 124, ex + 16, 116); x.stroke(); });
+  } else if (mood === 'happy') {
+    // ^ ^ баяртай нүд
+    eyes((ex) => { x.strokeStyle = ink; x.lineWidth = 7; x.beginPath(); x.moveTo(ex - 17, 122); x.quadraticCurveTo(ex, 96, ex + 17, 122); x.stroke(); });
+  } else if (mood === 'hurt') {
+    // X X нүд
+    eyes((ex) => { x.strokeStyle = ink; x.lineWidth = 6; x.beginPath(); x.moveTo(ex - 13, 104); x.lineTo(ex + 13, 130); x.moveTo(ex + 13, 104); x.lineTo(ex - 13, 130); x.stroke(); });
+  } else {
+    const big = mood === 'surprised';
+    const rx = big ? 21 : 18, ry = big ? 26 : 22, pr = big ? 9 : 11;
+    eyes((ex, side) => {
+      x.fillStyle = '#fff'; x.beginPath(); x.ellipse(ex, 116, rx, ry, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = ink; x.beginPath(); x.ellipse(ex + (mood === 'focus' ? 3 : 2), big ? 118 : 119, pr, pr + 3, 0, 0, Math.PI * 2); x.fill();
       x.fillStyle = '#fff'; x.beginPath(); x.arc(ex + 6, 112, 4, 0, Math.PI * 2); x.fill();
-    }
-    // Хөмсөг
-    x.strokeStyle = '#1a1414'; x.lineWidth = 7; x.lineCap = 'round';
-    x.beginPath(); x.moveTo(ex - 20, 86); x.quadraticCurveTo(ex, 78, ex + 20, 86); x.stroke();
+      if (mood === 'focus') { // зовхи хагас хаагдсан
+        x.fillStyle = '#d9a57b'; x.beginPath(); x.ellipse(ex, 96, rx + 2, 12, 0, 0, Math.PI * 2); x.fill();
+      }
+    });
   }
-  // Хамар
+  // ---- Хөмсөг ----
+  x.strokeStyle = '#1a1414'; x.lineWidth = 7;
+  eyes((ex, side) => {
+    x.beginPath();
+    if (mood === 'focus') { x.moveTo(ex - 20, 80 + side * -6); x.lineTo(ex + 20, 80 + side * 6); }          // дотогш налсан
+    else if (mood === 'surprised') { x.moveTo(ex - 20, 78); x.quadraticCurveTo(ex, 64, ex + 20, 78); }        // дээш өргөгдсөн
+    else if (mood === 'hurt') { x.moveTo(ex - 20, 84 + side * 6); x.lineTo(ex + 20, 84 + side * -6); }      // гадагш налсан
+    else { x.moveTo(ex - 20, 86); x.quadraticCurveTo(ex, 78, ex + 20, 86); }
+    x.stroke();
+  });
+  // ---- Хамар ----
   x.strokeStyle = 'rgba(120,70,50,.6)'; x.lineWidth = 4;
   x.beginPath(); x.moveTo(128, 128); x.lineTo(124, 148); x.lineTo(132, 150); x.stroke();
-  // Сахал (эх зургийн дагуу — нимгэн)
-  x.strokeStyle = '#2a1d18'; x.lineWidth = 5;
+  // ---- Сахал (эх зургийн дагуу — нимгэн) ----
+  x.strokeStyle = ink; x.lineWidth = 5;
   x.beginPath(); x.moveTo(104, 164); x.quadraticCurveTo(128, 158, 152, 164); x.stroke();
-  // Ам
-  x.strokeStyle = '#7a3a30'; x.lineWidth = 6;
+  // ---- Ам ----
+  x.strokeStyle = '#7a3a30'; x.lineWidth = 6; x.fillStyle = '#5a2320';
   x.beginPath();
-  if (smile) { x.moveTo(104, 180); x.quadraticCurveTo(128, 200, 152, 180); }
-  else { x.moveTo(108, 186); x.lineTo(148, 186); }
-  x.stroke();
-  // Хацар
-  x.fillStyle = 'rgba(255,120,110,.35)';
+  if (mood === 'happy' || mood === 'talk') { x.moveTo(100, 176); x.quadraticCurveTo(128, 214, 156, 176); x.closePath(); x.fill(); x.fillStyle = '#ff8a8a'; x.beginPath(); x.ellipse(128, 194, 12, 7, 0, 0, Math.PI); x.fill(); }
+  else if (mood === 'surprised') { x.beginPath(); x.ellipse(128, 186, 11, 14, 0, 0, Math.PI * 2); x.fill(); }
+  else if (mood === 'focus') { x.moveTo(110, 186); x.lineTo(146, 184); x.stroke(); }
+  else if (mood === 'hurt') { x.moveTo(106, 192); x.quadraticCurveTo(128, 176, 150, 192); x.stroke(); }
+  else { x.moveTo(104, 180); x.quadraticCurveTo(128, 200, 152, 180); x.stroke(); }
+  // ---- Хацар ----
+  x.fillStyle = mood === 'happy' ? 'rgba(255,110,100,.5)' : 'rgba(255,120,110,.35)';
   x.beginPath(); x.ellipse(70, 150, 14, 9, 0, 0, Math.PI * 2); x.fill();
   x.beginPath(); x.ellipse(186, 150, 14, 9, 0, 0, Math.PI * 2); x.fill();
   const t = new T.CanvasTexture(c);
