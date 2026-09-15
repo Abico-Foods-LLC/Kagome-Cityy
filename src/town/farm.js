@@ -33,7 +33,7 @@ export class FarmPlot {
   setup() {
     const { scene, town, interactables } = this.scene;
     // Суурь хөрс + тэмдэг
-    P.box(this.mats.soil, scene, CENTER.x, 0.03, CENTER.z, COLS * STEP + 1.2, 0.06, ROWS * STEP + 1.2);
+    P.box(this.mats.soil, scene, CENTER.x, 0.07, CENTER.z, COLS * STEP + 1.2, 0.14, ROWS * STEP + 1.2);   // дээд тал 0.14 — замын гадаргуу (0.06)-аас дээш, z-fighting гарахгүй
     // Хашаа: хойд, урд, зүүн тал (баруун тал — үрийн савтай орц); самбар урд хашааны гадна
     const fx = CENTER.x - COLS * STEP / 2 - 0.6, fz0 = CENTER.z - ROWS * STEP / 2 - 0.6, fz1 = CENTER.z + ROWS * STEP / 2 + 0.6, fl = COLS * STEP + 1.2;
     P.fence(scene, fx, fz0, fl); P.fence(scene, fx, fz1, fl); P.fence(scene, fx + fl, fz0, fz1 - fz0, 'z');
@@ -48,9 +48,9 @@ export class FarmPlot {
     for (let i = 0; i < COLS * ROWS; i++) {
       const { x, z } = this.cellPos(i);
       const g = new T.Group(); g.position.set(x, 0, z); scene.add(g);
-      const soil = P.box(this.mats.soil, g, 0, 0.07, 0, 1.4, 0.14, 1.4);
-      const plant = new T.Group(); g.add(plant);
-      const ring = P.mesh(new T.TorusGeometry(0.55, 0.04, 6, 24), glow(0x9be36a, 1.4), g, 0, 0.16, 0);
+      const soil = P.box(this.mats.soil, g, 0, 0.14, 0, 1.4, 0.24, 1.4);   // дээд тал 0.26
+      const plant = new T.Group(); plant.position.y = 0.12; g.add(plant);
+      const ring = P.mesh(new T.TorusGeometry(0.55, 0.04, 6, 24), glow(0x9be36a, 1.4), g, 0, 0.28, 0);
       ring.rotation.x = Math.PI / 2; ring.castShadow = false; ring.visible = false;
       applyCurve(ring.material);
       this.cells.push({ g, soil, plant, ring, stage: -1, type: null });
