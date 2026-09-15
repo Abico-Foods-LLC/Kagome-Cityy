@@ -36,6 +36,7 @@ export class TownScene {
     this.vehicle = null;
     this.near = null;
     this.goal = null;
+    this.carry = null;   // өргөж яваа иргэн
     this.interactables = [];
     this.cam = { yaw: 0.35, pitch: 0.42, dist: 9.5, targetDist: 9.5, shake: 0, fov: 55, intro: 0 };
     this.player = { pos: new T.Vector3(0, 0, 26), vel: new T.Vector3(), yVel: 0, y: 0, visualY: 0, grounded: true, coyote: 0, buffer: 0, jumps: 0, rollT: 0, wasWater: false, heading: Math.PI, state: 'idle', stepI: 0 };
@@ -212,7 +213,7 @@ export class TownScene {
     for (const c of this.cats) { updateCat(c, dt, t); this.updateCatMove(c, dt); }
     // Тариаланч: талбайн мөрөөр алхаж, зогсоод усална
     const F = this.farmer, fr = F.m.root;
-    if (this.updateKnock(F, dt)) { /* мөргүүлж унасан */ } else if (F.wait > 0) {
+    if (F.carried) { /* тоглогч өргөж яваа */ } else if (this.updateKnock(F, dt)) { /* мөргүүлж унасан */ } else if (F.wait > 0) {
       F.wait -= dt;
       F.m.update(dt, { state: 'idle', speed: 0 });
       if (Math.random() < dt * 14) this.particles.sparkle(new T.Vector3(fr.position.x + Math.sin(F.heading) * 1.2 + (Math.random() - 0.5), 0.6, fr.position.z + Math.cos(F.heading) * 1.2 + (Math.random() - 0.5)), 0x9fe4ff, 1);
@@ -258,6 +259,7 @@ export class TownScene {
     const N = this.roadNodes, E = this.roadEdges, pp = this.player.pos;
     for (const c of this.citizens) {
       const r = c.m.root;
+      if (c.carried) continue;   // тоглогч өргөж яваа — updateCarry байрлуулна
       if (this.updateKnock(c, dt)) continue;
       if (c.wait > 0) {
         c.wait -= dt;
@@ -290,7 +292,7 @@ export class TownScene {
   // ---------------------------------------------------------------- Мөргөлт: иргэн унаж, босно
   knock(e, dx, dz, speed) {
     const push = Math.min(9, 3 + Math.abs(speed) * 0.35);
-    e.knock = { t: 1.7, vx: dx * push, vz: dz * push, vy: 4.5 };
+    e.knock = { t: 1.7, dur: 1.7, vx: dx * push, vz: dz * push, vy: 4.5 };
     e.m.play('hurt', 1.7); e.m.roll(0.6);
     this.audio.hurt(); this.cam.shake = Math.max(this.cam.shake, 0.25);
     this.particles.dust(e.m.root.position, 6);
@@ -306,7 +308,7 @@ export class TownScene {
     k.vx *= Math.exp(-dt * 3); k.vz *= Math.exp(-dt * 3);
     k.vy -= 14 * dt; r.position.y = Math.max(0, r.position.y + k.vy * dt); if (r.position.y === 0) k.vy = 0;
     // Хэвтэх: эхний 0.3 сек унана, сүүлийн 0.4 сек босно
-    const down = Math.min(1, (1.7 - k.t) / 0.3), up = Math.min(1, Math.max(0, k.t) / 0.4);
+    const down = Math.min(1, ((k.dur || 1.7) - k.t) / 0.3), up = Math.min(1, Math.max(0, k.t) / 0.4);
     r.rotation.x = -Math.PI / 2 * Math.min(down, up);
     e.m.update(dt, { state: 'idle', speed: 0 });
     if (k.t <= 0) { e.knock = null; r.rotation.x = 0; r.position.y = 0; e.m.setMood('surprised', 1.5); e.wait = 1.2; }
@@ -362,6 +364,49 @@ export class TownScene {
     const leaf = toon(PALETTE.leaf, { key: 'leaf' }).color.getHex();
     this.particles.burst(new T.Vector3(col.x, 3.2, col.z), leaf, 14, { speed: 2.5, up: 1, size: 0.22, life: 1.2, gravity: 3 });
     this.audio.whoosh();
+  }
+
+  // ---------------------------------------------------------------- Өргөх / шидэх / буулгах (товшилт, Q)
+  clickAction() {
+    if (!this.active || this.vehicle || this.fishing.active) return;
+    if (this.carry) return this.putDown();
+    const pp = this.player.pos; let best = null, bd = 2.4;
+    for (const e of [...this.citizens, this.farmer]) {
+      if (e.knock || e.carried) continue;
+      const d = Math.hypot(e.m.root.position.x - pp.x, e.m.root.position.z - pp.z);
+      if (d < bd) { bd = d; best = e; }
+    }
+    if (!best) return;
+    this.carry = best; best.carried = true; best.target = null;
+    this.character.play('pick', 0.5); this.audio.ui();
+    if (!this.carryHinted) { this.carryHinted = true; toast('Q — шидэх · Товшилт — буулгах', 2800, '🙌'); }
+  }
+  updateCarry(dt, active) {
+    const e = this.carry; if (!e) return;
+    const P = this.player, r = e.m.root;
+    r.position.set(P.pos.x + Math.sin(P.heading) * 0.15, P.visualY + 2.0 + Math.sin(this.clock * 6) * 0.05, P.pos.z + Math.cos(P.heading) * 0.15);
+    r.rotation.set(0, P.heading, 0);
+    e.m.update(dt, { state: 'idle', speed: 0 }); e.m.setMood('surprised', 0.3);
+    if (active && this.input.justPressed('camLeft')) this.throwCarry();
+  }
+  putDown() {
+    const e = this.carry; if (!e) return;
+    this.carry = null; e.carried = false;
+    const P = this.player, x = P.pos.x + Math.sin(P.heading) * 1.3, z = P.pos.z + Math.cos(P.heading) * 1.3;
+    if (!this.blocked(x, z, 0.4)) e.m.root.position.set(x, 0, z); else e.m.root.position.set(P.pos.x, 0, P.pos.z);
+    e.m.root.rotation.set(0, P.heading, 0);
+    e.wait = 1.5; e.target = null; e.m.setMood('happy', 1.5); e.m.play('wave', 1);
+    this.character.play('pick', 0.5); this.audio.ui();
+  }
+  throwCarry() {
+    const e = this.carry; if (!e) return;
+    this.carry = null; e.carried = false;
+    const P = this.player;
+    e.m.root.position.y = 1.8;
+    e.knock = { t: 2.0, dur: 2.0, vx: Math.sin(P.heading) * 9, vz: Math.cos(P.heading) * 9, vy: 5 };
+    e.m.play('hurt', 2); e.m.roll(0.7);
+    this.character.play('pick', 0.5); this.audio.whoosh(); this.cam.shake = Math.max(this.cam.shake, 0.15);
+    toast(['Аяа!', 'Хөөрхий… 😵', 'Өө-өө!'][Math.floor(Math.random() * 3)], 1400, '🙌');
   }
 
   /** Алхдаг иргэнтэй ярилцах: зогсоод даллана, санамсаргүй яриа */
@@ -439,7 +484,7 @@ export class TownScene {
     this.farm = new FarmPlot(this);
     this.fishing = new FishingGame(this);
     this.delivery = new DeliveryBoard(this);
-    for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ярилцах`, icon: '💬', visible: () => !c.knock, action: () => this.talkCitizen(c) });
+    for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ярилцах`, icon: '💬', visible: () => !c.knock && !c.carried, action: () => this.talkCitizen(c) });
     this.wreck = new Wreckables(this);
   }
 
@@ -457,6 +502,7 @@ export class TownScene {
     this.unbind = [
       input.on('jump', () => { if (this.active && !this.vehicle) this.player.buffer = BUFFER; }),
       input.on('interact', () => this.interact()),
+      input.on('click', () => this.clickAction()),
       input.on('pause', () => { if (this.started && !isModalOpen()) this.pauseMenu(); else if ($('panel').open && $('panel').dataset.closable === '1') closeModal(); }),
       input.on('map', () => { if (this.active) this.showMap(); }),
       input.on('emote1', () => this.emote('wave')), input.on('emote2', () => this.emote('cheer')), input.on('emote3', () => this.emote('dance')),
@@ -477,6 +523,7 @@ export class TownScene {
   }
   exit() {
     show('townHud', false);
+    if (this.carry) this.putDown();
     if (this.delivery?.active) { this.delivery.finish(); toast('Хүргэлт цуцлагдлаа — ширэнгэ рүү явлаа', 2500, '📬'); }
     this.audio.engine(false);
     this.audio.stopMusic(); this.audio.stopAmbient();
@@ -704,6 +751,7 @@ export class TownScene {
 
   // ---------------------------------------------------------------- Машин
   enterCar() {
+    if (this.carry) this.putDown();
     const car = this.town.car;
     this.vehicle = car;
     this.car.speed = 0; this.car.heading = car.rotation.y;
@@ -757,7 +805,7 @@ export class TownScene {
     } else if (active) {
       this.cam.yaw -= input.look.dx;
       this.cam.pitch = T.MathUtils.clamp(this.cam.pitch + input.look.dy, 0.12, 1.15);
-      if (input.held('camLeft')) this.cam.yaw += dt * 1.8;
+      if (input.held('camLeft') && !this.carry) this.cam.yaw += dt * 1.8;
       if (input.held('camRight')) this.cam.yaw -= dt * 1.8;
     }
 
@@ -765,6 +813,7 @@ export class TownScene {
     let moving = 0;
     if (this.vehicle) this.updateCar(dt, axis, active);
     else this.updatePlayer(dt, axis, active);
+    this.updateCarry(dt, active);
 
     // Дүр
     const speedNorm = this.vehicle ? 0 : Math.hypot(P.vel.x, P.vel.z) / RUN;

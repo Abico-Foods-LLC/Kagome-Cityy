@@ -166,6 +166,8 @@ export class Input {
     });
     const end = (e) => {
       if (!active || e.pointerId !== active.id) return;
+      // Богино товшилт (чирээгүй) = 'click' үйлдэл (NPC өргөх/буулгах)
+      if (!active.dragging && !swipe && performance.now() - active.t < 350 && Math.hypot(e.clientX - active.sx, e.clientY - active.sy) < 8) { this.press('click'); this.release('click'); }
       if (swipe) {
         const dx = e.clientX - active.sx, dy = e.clientY - active.sy;
         const dt = performance.now() - active.t;
