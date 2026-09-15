@@ -71,7 +71,7 @@ export class RunnerScene {
 
   buildAvatar(kind) {
     if (this.character) this.scene.remove(this.character.root);
-    this.character = createAvatar(kind);
+    this.character = createAvatar(kind, {}, this.state.wardrobe.equipped);
     this.character.root.rotation.y = Math.PI;
     this.scene.add(this.character.root);
     this.character.onStep = () => { if (this.model?.state === 'playing') { this.audio.step(); this.particles.dust(new T.Vector3(this.model.x, 0, 0), 1, { color: 0x9c8b6a, size: 0.3 }); } };
@@ -160,6 +160,8 @@ export class RunnerScene {
     if (win) { this.state.runnerResult(m.level, m.score, m.collected); this.audio.fanfare(); this.character.cheer(); }
     else this.audio.wrong();
     const chapterUp = this.state.progress();
+    const dq = this.state.dailyProgress('runnerScore', m.score);
+    if (dq) toast(`Даалгавар биелэв: ${dq.text} +${dq.reward} од`, 3500, '📅');
     this.state.save();
     const total = m.collected.reduce((a, b) => a + b, 0);
     const best = this.state.runner.best[m.level];

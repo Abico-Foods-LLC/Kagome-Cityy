@@ -6,7 +6,7 @@ import { createSunFlare, createRain, updateRain, createRainbow, updateRainbow, c
 import { glow, toon, PALETTE, curveTree } from '../gfx/materials.js';
 import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.js';
 import { createAvatar, AVATARS } from '../world/avatar.js';
-import { Mascot, MASCOTS } from '../world/mascot.js';
+import { Mascot, MASCOTS, ACCESSORIES } from '../world/mascot.js';
 import { bulbMaterial } from '../world/props.js';
 import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
@@ -109,7 +109,7 @@ export class TownScene {
     const prevVisible = this.character ? this.character.root.visible : true;
     if (this.character) this.scene.remove(this.character.root);
     if (this.driver) this.driver.root.removeFromParent();
-    this.character = createAvatar(kind);
+    this.character = createAvatar(kind, {}, this.state.wardrobe.equipped);
     this.character.root.position.set(this.player.pos.x, this.player.visualY || 0, this.player.pos.z);
     this.character.root.rotation.y = this.player.heading;
     this.character.root.visible = prevVisible;
@@ -121,7 +121,7 @@ export class TownScene {
       if (!onBridge) this.particles.dust(p, this.player.state === 'run' ? 2 : 1);
     };
     // Жолооч — машинд суух үед харагдах хуулбар
-    this.driver = createAvatar(kind, { scale: 0.72 });
+    this.driver = createAvatar(kind, { scale: 0.72 }, this.state.wardrobe.equipped);
     this.driver.root.position.set(0, 0.85, 0.25);
     this.driver.root.rotation.y = Math.PI;
     this.driver.root.visible = !!this.vehicle;
@@ -150,6 +150,7 @@ export class TownScene {
     const kinds = ['peach', 'mushroom', 'pumpkin', 'grape', 'orange', 'shiitake'];
     kinds.forEach((kind, i) => {
       const m = new Mascot({ kind, scale: 0.9 });
+      m.wear({ hat: ['straw', 'flower', null, 'cap', null, 'party'][i] });
       const start = ['m2', 'm1', 'm3', 'w2', 'e2', 'm2'][i];
       const [x, z] = N[start];
       m.root.position.set(x + (i % 2 ? 2.5 : -2.5), 0, z + (i % 3) * 1.5);
@@ -215,6 +216,7 @@ export class TownScene {
           this.particles.burst(new T.Vector3(h.x, 1, h.z), FRUITS[h.type].color, 18);
           this.audio.pickup(h.type);
           toast(FRUITS[h.type].name + ' түүлээ! +5 од', 2200, FRUITS[h.type].emoji);
+          this.progress('harvest', 1);
           pop($('fruitCount'));
           this.commit();
         }
@@ -235,10 +237,10 @@ export class TownScene {
       } });
     }
     for (const n of town.npcs) {
-      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => { this.player.heading = Math.atan2(n.x - this.player.pos.x, n.z - this.player.pos.z); this.character.play('wave', 1.1); this.talk(n); } });
+      add({ x: n.x, z: n.z, r: 3.6, label: n.name + 'тай ярилцах', icon: FRUITS[n.type].emoji, action: () => { this.player.heading = Math.atan2(n.x - this.player.pos.x, n.z - this.player.pos.z); this.character.play('wave', 1.1); if (!n.talked) { n.talked = true; this.progress('talk', 1); } this.talk(n); } });
     }
     add({ x: 10, z: 20, r: 3.8, label: 'Жимсэн машинд суух', icon: '🚗', dynamic: () => town.car.position, action: () => this.enterCar() });
-    add({ x: -28, z: 25, r: 4, label: 'Kagome бүтээгдэхүүнүүд үзэх', icon: '🧃', action: () => this.collection() });
+    add({ x: -28, z: 25, r: 4, label: 'Kagome маркет — дэлгүүр', icon: '🛍️', action: () => this.shop() });
     add({ x: 38, z: 20, r: 3.4, label: 'Логикийн хүрд эргүүлэх', icon: '🎡', action: () => this.spinWheel() });
     add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
   }
@@ -253,6 +255,7 @@ export class TownScene {
     $('mapButton').onclick = () => this.showMap();
     $('collectionButton').onclick = () => this.collection();
     $('pauseButton').onclick = () => this.pauseMenu();
+    $('dailyBtn').onclick = () => this.dailyModal();
     this.unbind = [
       input.on('jump', () => { if (this.active && !this.vehicle) this.player.buffer = BUFFER; }),
       input.on('interact', () => this.interact()),
@@ -309,6 +312,7 @@ export class TownScene {
     const s = this.state, c = s.currentChapter;
     this.hudChapter = s.chapter;
     $('fruitCount').textContent = '🍎 ' + s.counts.harvest;
+    $('dailyCount').textContent = s.dailyDone + '/3';
     $('starCount').textContent = '⭐ ' + s.stars;
     if (c) {
       $('chapter').textContent = `АЯЛАЛ ${s.chapter + 1} / ${CHAPTERS.length}`;
@@ -344,6 +348,7 @@ export class TownScene {
   // ---------------------------------------------------------------- Харилцаа
   emote(kind) {
     if (!this.active || this.vehicle || this.player.state !== 'idle') return;
+    this.progress('emotes', 1);
     if (kind === 'cheer') { this.character.cheer(); this.audio.tone({ f: 660, f2: 990, type: 'triangle', dur: 0.2, vol: 0.08 }); }
     else this.character.play(kind, kind === 'dance' ? 2.6 : 1.2);
     if (kind === 'dance') this.particles.burst(this.player.pos.clone().add(new T.Vector3(0, 1.5, 0)), 0xffd1f0, 12, { speed: 2, up: 2, size: 0.15, life: 0.8, gravity: 1 });
@@ -424,6 +429,46 @@ export class TownScene {
     modal(`<div class="eyebrow">МИНИЙ АЯЛАЛ</div><h2>Ургац ба цуглуулга</h2><div class="row" style="margin:6px 0 14px">${inv}</div><p>Цуглуулсан од: <b>${s.stars}</b> · Дууссан аялал: <b>${s.chapter}/${CHAPTERS.length}</b> · Ширэнгэ: <b>${s.runner.unlocked}/5 үе</b></p><div class="grid">${PRODUCTS.map((p) => `<div class="product ${s.collected.has('package-' + p.sku) ? 'got' : ''}"><img src="${p.src}" alt="Kagome ${p.flavor}" loading="lazy"><small>${p.name}</small><span>${p.size}</span></div>`).join('')}</div><p class="hint" style="margin-top:14px">Хотоос 8 бүтээгдэхүүнийг олоод бүх ★ авбал цуглуулга бүрэн болно. Ширэнгэнд цуглуулсан: ${s.runner.collection.reduce((a, b) => a + b, 0)} ш.</p>`);
   }
 
+  /** Аксессуарын дэлгүүр (Kagome маркет) */
+  shop() {
+    const st = this.state, w = st.wardrobe;
+    const isMascot = st.settings.avatar !== 'suit';
+    const items = Object.entries(ACCESSORIES).map(([k, a]) => {
+      const owned = w.owned.includes(k), on = w.equipped[a.slot] === k;
+      const btn = owned ? `<button data-wear="${k}" class="${on ? 'primary' : ''}">${on ? 'Өмссөн ✓' : 'Өмсөх'}</button>` : `<button data-buy="${k}" ${st.stars < a.price ? 'disabled' : ''}>⭐ ${a.price}</button>`;
+      return `<div class="shop-item ${on ? 'on' : ''}"><span class="em">${a.emoji}</span><small>${a.name}</small>${btn}</div>`;
+    }).join('');
+    modal(`<div class="eyebrow">KAGOME МАРКЕТ</div><h2>Хувцас, аксессуар</h2><p>Од ⭐ <b id="shopStars">${st.stars}</b> · Оддоо цуглуулаад дүрээ гоёорой.${isMascot ? '' : ' <i>(Аксессуар mascot дүрүүдэд л харагдана)</i>'}</p><div class="shop">${items}</div><div class="row"><button id="shopCollection">🧃 Бүтээгдэхүүний цуглуулга</button><button class="ghost" id="shopClose">Хаах</button></div>`);
+    document.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => {
+      const k = b.dataset.buy;
+      if (st.buyAccessory(k, ACCESSORIES[k].price)) { st.equip(k, ACCESSORIES[k].slot); st.save(); this.refreshWear(); this.audio.correct(); toast(ACCESSORIES[k].name + ' авлаа!', 2000, ACCESSORIES[k].emoji); this.updateHUD(); this.shop(); }
+      else this.audio.wrong();
+    });
+    document.querySelectorAll('[data-wear]').forEach((b) => b.onclick = () => { const k = b.dataset.wear; st.equip(k, ACCESSORIES[k].slot); st.save(); this.refreshWear(); this.audio.ui(); this.shop(); });
+    $('shopCollection').onclick = () => this.collection();
+    $('shopClose').onclick = closeModal;
+  }
+
+  refreshWear() {
+    for (const sc of Object.values(this.app.scenes)) { sc.character?.wear?.(this.state.wardrobe.equipped); sc.driver?.wear?.(this.state.wardrobe.equipped); }
+    this.character.cheer?.();
+  }
+
+  /** Өдрийн даалгаврын цонх */
+  dailyModal() {
+    const st = this.state; st.ensureDaily();
+    const rows = st.daily.quests.map((q) => { const d = st.dailyDef(q.id); const p = Math.min(q.goal, Math.round(q.progress)); return `<div class="dq ${q.done ? 'done' : ''}"><span class="em">${d.icon}</span><div><b>${d.text}</b><div class="track"><i style="width:${p / q.goal * 100}%"></i></div><small>${p} / ${q.goal} · ⭐ ${d.reward}</small></div><span class="chk">${q.done ? '✅' : ''}</span></div>`; }).join('');
+    modal(`<div class="eyebrow">ӨДРИЙН ДААЛГАВАР · ${st.daily.date}</div><h2>Өнөөдрийн 3 даалгавар</h2>${rows}<p class="hint">Маргааш шинэ даалгавар гарна. Дуусгасан бүрд од ⭐ шууд нэмэгдэнэ.</p><button class="primary" id="ok">Явлаа!</button>`);
+    $('ok').onclick = closeModal;
+  }
+
+  /** Даалгаврын ахиц + шагналын мэдэгдэл */
+  progress(id, amount = 1) {
+    const done = this.state.dailyProgress(id, amount);
+    if (done) { toast(`Даалгавар биелэв: ${done.text} +${done.reward} од`, 3500, '📅'); this.audio.fanfare(); this.character.cheer(); this.particles.burst(this.player.pos.clone().add(new T.Vector3(0, 1.5, 0)), 0xffdc51, 30, { speed: 5, up: 5 }); this.state.save(); this.updateHUD(); }
+    $('dailyCount').textContent = this.state.dailyDone + '/3';
+  }
+
   pauseMenu() {
     if (!this.started) return;
     const st = this.state.settings;
@@ -434,7 +479,7 @@ export class TownScene {
         <label>Гүний бүдгэрэлт (DoF) <input type="checkbox" id="sDof" ${st.dof !== false ? 'checked' : ''}></label>
         <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>
       </div>
-      <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="pickAvatar">🍅 Дүр солих</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
+      <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="pickAvatar">🍅 Дүр солих</button><button id="shopBtn">🛍️ Хувцас</button><button id="dailyBtn2">📅 Даалгавар</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
     $('sQuality').value = st.quality;
     $('resume').onclick = closeModal;
     $('sSound').onchange = (e) => { st.sound = e.target.checked; this.audio.applySettings(); this.state.save(); };
@@ -444,6 +489,8 @@ export class TownScene {
     $('help').onclick = () => this.help();
     $('gotoRunner').onclick = () => { closeModal(); this.enterJungle(); };
     $('pickAvatar').onclick = () => this.pickAvatar(() => this.pauseMenu());
+    $('shopBtn').onclick = () => this.shop();
+    $('dailyBtn2').onclick = () => this.dailyModal();
     $('reset').onclick = () => { if (confirm('Бүх ахиц устгах уу?')) { this.state.reset(); location.reload(); } };
   }
 
@@ -569,6 +616,7 @@ export class TownScene {
 
     // Чиглэл
     const sp = Math.hypot(P.vel.x, P.vel.z);
+    if (sp > 0.5) { P.walkAcc = (P.walkAcc || 0) + sp * dt; if (P.walkAcc >= 10) { this.progress('walk', 10); P.walkAcc -= 10; } }
     if (sp > 0.3 && !rolling) {
       const target = Math.atan2(P.vel.x, P.vel.z);
       const d = Math.atan2(Math.sin(target - P.heading), Math.cos(target - P.heading));
@@ -577,7 +625,7 @@ export class TownScene {
     } else P.lean = 0;
 
     // Усанд орох / гарах
-    if (water && !P.wasWater) { this.audio.splash(); this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 18, { speed: 2.5, up: 3, size: 0.2, life: 0.6, gravity: 8 }); P.yVel = 0; P.grounded = true; }
+    if (water && !P.wasWater) { this.progress('swim', 1); this.audio.splash(); this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 18, { speed: 2.5, up: 3, size: 0.2, life: 0.6, gravity: 8 }); P.yVel = 0; P.grounded = true; }
     if (!water && P.wasWater) { this.particles.dust(P.pos, 4, { color: 0xbff3ff }); }
     P.wasWater = water;
     if (water && sp > 1 && Math.random() < dt * 10) this.particles.sparkle(new T.Vector3(P.pos.x, -0.3, P.pos.z), 0xe6fbff);
@@ -589,12 +637,12 @@ export class TownScene {
     if (P.buffer > 0 && active && !rolling) {
       if (P.coyote > 0 || (water && P.grounded)) {
         P.yVel = water ? JUMP_V * 0.75 : JUMP_V; P.grounded = false; P.coyote = 0; P.buffer = 0; P.jumps = 1;
-        this.audio.jump();
+        this.audio.jump(); this.progress('jumps', 1);
         if (water) this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 10, { speed: 2, up: 2, size: 0.18, life: 0.5 }); else this.particles.dust(P.pos, 4);
       } else if (P.jumps === 1 && !P.grounded) {
         // Давхар үсрэлт: урагш эргэлт
         P.yVel = JUMP_V * 0.9; P.buffer = 0; P.jumps = 2;
-        ch.flip();
+        ch.flip(); this.progress('flips', 1);
         this.audio.tone({ f: 500, f2: 1000, type: 'triangle', dur: 0.18, vol: 0.09 });
         this.particles.burst(new T.Vector3(P.pos.x, P.y + 0.8, P.pos.z), 0xfff3a8, 10, { speed: 2, up: 1, size: 0.16, life: 0.4, gravity: 2 });
       }
@@ -658,6 +706,7 @@ export class TownScene {
     car.userData.wheelSteer.rotation.z = -C.steer * 1.2;
     // Тоос, дуу
     if (Math.abs(C.speed) > 6 && Math.random() < dt * 25) this.particles.dust(new T.Vector3(car.position.x - fx * 2, 0, car.position.z - fz * 2), 1, { size: 0.5 });
+    C.driveAcc = (C.driveAcc || 0) + Math.abs(C.speed) * dt; if (C.driveAcc >= 10) { this.progress('drive', 10); C.driveAcc -= 10; }
     this.audio.engine(true, C.speed);
     this.player.pos.copy(car.position);
     this.player.heading = C.heading;
@@ -806,6 +855,17 @@ export class TownScene {
     updateBirds(this.birds, dt, t, this.player.pos);
 
     this.updateCitizens(dt);
+    // Жимс дахин ургах: 4 минутын дараа нахиалж буцаад гарна
+    this.regrowT = (this.regrowT || 0) + dt;
+    if (this.regrowT > 1) {
+      this.regrowT = 0;
+      for (const id of this.state.pollRegrow()) {
+        const h = town.harvests.find((x) => x.id === id);
+        if (h) { h.obj.visible = h.ring.visible = true; h.grow = 0; this.particles.burst(new T.Vector3(h.x, 0.8, h.z), 0xb8ec9a, 12, { speed: 2, up: 2, size: 0.18, life: 0.7 }); }
+      }
+      this.state.save();
+    }
+    for (const h of town.harvests) if (h.obj.visible && h.grow !== undefined && h.grow < 1) { h.grow = Math.min(1, h.grow + dt * 0.8); const k = 1 - Math.pow(1 - h.grow, 3); h.obj.scale.setScalar(0.75 * (0.2 + 0.8 * k)); if (h.grow >= 1) h.grow = undefined; }
     // Усны цагираг: сэлж байхад
     for (const rg of this.rings) { if (!rg.m.visible) continue; rg.t += dt * 1.4; const k = Math.min(1, rg.t); rg.m.scale.setScalar(1 + k * 2.2); rg.m.material.opacity = 0.55 * (1 - k); if (k >= 1) rg.m.visible = false; }
     if (this.player.state === 'swim') {

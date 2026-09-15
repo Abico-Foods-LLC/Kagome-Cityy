@@ -163,6 +163,7 @@ export class Mascot {
     const leafAt = (x, y, z, rz = 0, sx = 0.26) => { const l = part(sphereGeo, leaf, head, x, y, z, sx, 0.05, sx * 0.55); l.rotation.z = rz; return l; };
     switch (kind) {
       case 'mushroom': case 'shiitake': {
+        this.hatY = 0.95;
         part(sphereGeo, cream, head, 0, 0.05, 0, 0.66, 0.62, 0.62);
         this.faceRadius = 0.66; this.faceCenter.set(0, 0.05, 0);
         part(sphereGeo, soft(def.cap), head, 0, 0.5, 0, 0.98, 0.56, 0.98);      // малгай — нэг хавтгай бөмбөрцөг
@@ -205,6 +206,7 @@ export class Mascot {
         break;
       }
       case 'carrot': {
+        this.hatY = 1.55;
         part(sphereGeo, headM, head, 0, 0.1, 0, R * 0.95, R * 1.05, R * 0.95);
         part(new T.ConeGeometry(0.5, 1.0, 16), headM, head, 0, 0.95, 0);
         for (let i = 0; i < 4; i++) { const l = part(sphereGeo, leaf, head, (i - 1.5) * 0.12, 1.5, 0, 0.1, 0.32, 0.06); l.rotation.z = (i - 1.5) * 0.35; }
@@ -387,9 +389,117 @@ export class Mascot {
     this.neck.rotation.x = lerp(this.neck.rotation.x, headPitch + this.headPitchLook + T.MathUtils.clamp(this.wobble, -0.3, 0.3), Math.min(1, dt * 10));
     this.head.rotation.z = headRoll + this.lean * 0.12;
     this.head.rotation.y = this.headYaw;
+    // Аксессуарын хөдөлгөөн: далавч дэвэх, шаар хөвөх
+    if (this.accTorso) for (const g of this.accTorso.children) {
+      if (g.userData.wings) for (const w of g.children) w.rotation.y = w.userData.wing * (0.5 + Math.sin(t * 9) * 0.45);
+      if (g.userData.balloon) { g.rotation.z = Math.sin(t * 1.3) * 0.12; g.rotation.x = Math.cos(t * 1.1) * 0.1; }
+    }
     // Squash & stretch
     const st = squash + (this.state === 'jump' ? 0.06 : this.state === 'fall' ? -0.03 : 0);
     this.root.scale.set(this.scale * (1 - st * 0.7), this.scale * (1 + st), this.scale * (1 - st * 0.7));
     this.shadow.scale.setScalar(1 / (1 - st * 0.7));
   }
 }
+
+// ---------- Аксессуар (wardrobe) ----------
+export const ACCESSORIES = {
+  cap: { name: 'Kagome малгай', emoji: '🧢', slot: 'hat', price: 50 },
+  straw: { name: 'Сүрлэн малгай', emoji: '👒', slot: 'hat', price: 80 },
+  crown: { name: 'Титэм', emoji: '👑', slot: 'hat', price: 150 },
+  party: { name: 'Баярын малгай', emoji: '🎉', slot: 'hat', price: 60 },
+  flower: { name: 'Цэцэг', emoji: '🌸', slot: 'hat', price: 40 },
+  headphones: { name: 'Чихэвч', emoji: '🎧', slot: 'hat', price: 90 },
+  sun: { name: 'Нарны шил', emoji: '🕶️', slot: 'glasses', price: 70 },
+  round: { name: 'Дугуй шил', emoji: '👓', slot: 'glasses', price: 60 },
+  scarf: { name: 'Ороолт', emoji: '🧣', slot: 'extra', price: 50 },
+  wings: { name: 'Эрвээхийн далавч', emoji: '🦋', slot: 'extra', price: 200 },
+  balloon: { name: 'Шаар', emoji: '🎈', slot: 'extra', price: 120 },
+  bag: { name: 'Цүнх', emoji: '🎒', slot: 'extra', price: 60 },
+};
+
+const acc = {
+  cap(h, y, R) {
+    const red = soft(0xe81e39), white = soft(0xfff6ee);
+    part(sphereGeo, red, h, 0, y - 0.05, 0, R * 0.78, R * 0.5, R * 0.78);
+    const brim = part(new T.CylinderGeometry(R * 0.7, R * 0.7, 0.06, 20, 1, false, 0, Math.PI), red, h, 0, y - 0.02, R * 0.15); brim.rotation.y = -Math.PI / 2; brim.scale.z = 1.4;
+    part(new T.CylinderGeometry(0.16, 0.16, 0.04, 16), white, h, 0, y + 0.02, R * 0.6).rotation.x = Math.PI / 2 - 0.5;
+    part(sphereGeo, white, h, 0, y + R * 0.45, 0, 0.06);
+  },
+  straw(h, y, R) {
+    const m = soft(0xf2d27a);
+    part(new T.CylinderGeometry(R * 1.35, R * 1.45, 0.06, 24), m, h, 0, y - 0.02, 0);
+    part(new T.CylinderGeometry(R * 0.7, R * 0.78, 0.36, 20), m, h, 0, y + 0.16, 0);
+    part(new T.CylinderGeometry(R * 0.79, R * 0.79, 0.1, 20), soft(0xe83a4a), h, 0, y + 0.06, 0);
+  },
+  crown(h, y, R) {
+    const g = soft(0xffd24d);
+    part(new T.CylinderGeometry(R * 0.6, R * 0.55, 0.28, 12), g, h, 0, y + 0.1, 0);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; part(new T.ConeGeometry(0.09, 0.22, 6), g, h, Math.sin(a) * R * 0.58, y + 0.34, Math.cos(a) * R * 0.58); part(sphereGeo, soft([0xff4d6d, 0x4dd2ff, 0x7dff6f][i % 3]), h, Math.sin(a) * R * 0.6, y + 0.14, Math.cos(a) * R * 0.6, 0.05); }
+  },
+  party(h, y, R) {
+    const c = part(new T.ConeGeometry(0.32, 0.9, 16), soft(0x5cb8ff), h, 0, y + 0.42, 0);
+    for (let i = 0; i < 3; i++) part(new T.TorusGeometry(0.32 - i * 0.09, 0.03, 6, 20), soft(0xfff05a), h, 0, y + 0.18 + i * 0.25, 0).rotation.x = Math.PI / 2;
+    part(sphereGeo, soft(0xff6fb0), h, 0, y + 0.9, 0, 0.08);
+    c.rotation.z = 0.12;
+  },
+  flower(h, y, R) {
+    const p = soft(0xff8fc0);
+    for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2; part(sphereGeo, p, h, R * 0.55 + Math.sin(a) * 0.14, y - 0.05 + Math.cos(a) * 0.14, R * 0.45, 0.09, 0.09, 0.04); }
+    part(sphereGeo, soft(0xfff05a), h, R * 0.55, y - 0.05, R * 0.47, 0.06);
+  },
+  headphones(h, y, R) {
+    const d = soft(0x2a2f3a), c = soft(0xff5a7a);
+    part(new T.TorusGeometry(R * 0.98, 0.05, 8, 24, Math.PI), d, h, 0, 0.1, 0);
+    for (const s of [-1, 1]) { part(new T.CylinderGeometry(0.2, 0.2, 0.12, 16), c, h, s * R * 1.0, 0.1, 0).rotation.z = Math.PI / 2; }
+  },
+  sun(h, y, R, fc) {
+    const d = soft(0x1a1a22, { glow: 0.05 });
+    for (const s of [-1, 1]) part(new T.BoxGeometry(0.34, 0.2, 0.06), d, h, fc.x + s * 0.24, fc.y + 0.05, fc.z + R * 0.98);
+    part(new T.BoxGeometry(0.12, 0.04, 0.04), d, h, fc.x, fc.y + 0.08, fc.z + R * 0.98);
+  },
+  round(h, y, R, fc) {
+    const g = soft(0x6a4a2a);
+    for (const s of [-1, 1]) part(new T.TorusGeometry(0.15, 0.025, 6, 20), g, h, fc.x + s * 0.24, fc.y + 0.05, fc.z + R * 0.98);
+    part(new T.BoxGeometry(0.16, 0.03, 0.03), g, h, fc.x, fc.y + 0.06, fc.z + R * 0.98);
+  },
+  scarf(t) {
+    const r = soft(0xe83a4a);
+    part(new T.TorusGeometry(0.5, 0.13, 8, 24), r, t, 0, 0.5, 0).rotation.x = Math.PI / 2;
+    part(new T.BoxGeometry(0.2, 0.55, 0.08), r, t, 0.25, 0.22, 0.42).rotation.z = 0.2;
+  },
+  wings(t) {
+    const m = new T.MeshStandardMaterial({ color: 0xbfe9ff, emissive: 0x88c8ff, emissiveIntensity: 0.35, transparent: true, opacity: 0.85, side: T.DoubleSide, roughness: 0.6 });
+    const g = new T.Group(); g.position.set(0, 0.25, -0.5); t.add(g);
+    for (const s of [-1, 1]) { const w = new T.Mesh(new T.CircleGeometry(0.5, 20), m); w.scale.set(1, 1.6, 1); w.position.set(s * 0.45, 0.2, 0); w.rotation.y = s * 0.5; w.userData.wing = s; g.add(w); const w2 = new T.Mesh(new T.CircleGeometry(0.3, 16), m); w2.position.set(s * 0.35, -0.35, 0); w2.rotation.y = s * 0.5; w2.userData.wing = s; g.add(w2); }
+    g.userData.wings = true;
+  },
+  balloon(t) {
+    const g = new T.Group(); g.position.set(0.55, 0.5, -0.2); t.add(g);
+    part(new T.CylinderGeometry(0.01, 0.01, 1.6, 4), soft(0xffffff), g, 0, 0.8, 0);
+    part(sphereGeo, soft(0xff4d6d), g, 0, 1.85, 0, 0.32, 0.38, 0.32);
+    part(new T.ConeGeometry(0.05, 0.08, 6), soft(0xff4d6d), g, 0, 1.45, 0).rotation.x = Math.PI;
+    g.userData.balloon = true;
+  },
+  bag(t) {
+    const b = soft(0x5cb8ff), d = soft(0x3a86c8);
+    part(new T.BoxGeometry(0.5, 0.5, 0.22), b, t, 0, 0.1, -0.62);
+    part(new T.BoxGeometry(0.52, 0.16, 0.24), d, t, 0, 0.3, -0.62);
+    for (const s of [-1, 1]) part(new T.BoxGeometry(0.07, 0.6, 0.06), d, t, s * 0.28, 0.2, -0.45).rotation.x = 0.3;
+  },
+};
+
+/** Аксессуар өмсгөх: equipped = { hat, glasses, extra } */
+Mascot.prototype.wear = function (equipped = {}) {
+  if (this.accGroup) this.accGroup.removeFromParent();
+  if (this.accTorso) this.accTorso.removeFromParent();
+  this.accGroup = new T.Group(); this.head.add(this.accGroup);
+  this.accTorso = new T.Group(); this.torso.add(this.accTorso);
+  const R = this.faceRadius, fc = this.faceCenter;
+  const hatY = this.hatY ?? (fc.y + R * 0.95);
+  for (const key of Object.values(equipped)) {
+    const fn = acc[key]; if (!fn) continue;
+    const slot = ACCESSORIES[key].slot;
+    if (slot === 'hat' || slot === 'glasses') fn(this.accGroup, hatY, R, fc); else fn(this.accTorso);
+  }
+  this.equipped = { ...equipped };
+};
