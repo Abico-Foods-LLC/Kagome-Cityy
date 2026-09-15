@@ -2,9 +2,11 @@
 import * as T from 'three';
 import { createSky, createClouds, updateClouds } from '../gfx/sky.js';
 import { Particles } from '../gfx/particles.js';
-import { glow, toon, PALETTE } from '../gfx/materials.js';
+import { createSunFlare, createRain, updateRain, createRainbow, updateRainbow, createLeaves, updateLeaves, createButterflies, updateButterflies, createBirds, updateBirds } from '../gfx/effects.js';
+import { glow, toon, PALETTE, curveTree } from '../gfx/materials.js';
 import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.js';
 import { createAvatar, AVATARS } from '../world/avatar.js';
+import { Mascot, MASCOTS } from '../world/mascot.js';
 import { bulbMaterial } from '../world/props.js';
 import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
@@ -62,6 +64,28 @@ export class TownScene {
 
     this.particles = new Particles(scene, 500);
 
+    // ---- Атмосферийн эффектүүд ----
+    this.flare = createSunFlare(); scene.add(this.flare);
+    this.rain = createRain(900); scene.add(this.rain);
+    this.rainbow = createRainbow(130); scene.add(this.rainbow);
+    this.leaves = createLeaves(60, { colors: [0xffb3c6, 0xfff0a8, 0xb8ec9a], area: 44 }); scene.add(this.leaves);
+    this.butterflies = createButterflies(this.town.flowerSpots, 14); scene.add(this.butterflies);
+    this.birds = createBirds(7); scene.add(this.birds);
+    this.weather = { rain: 0, target: 0, timer: 90 + Math.random() * 120, rainbow: 0 };
+
+    // Харилцах зүйлийн дээр хөвөх icon
+    this.hintSprites = new Map();
+    this.hint = new T.Sprite(new T.SpriteMaterial({ transparent: true, depthWrite: false, toneMapped: false }));
+    this.hint.scale.set(1.3, 1.3, 1); this.hint.visible = false; this.hint.userData.noCurve = true;
+    scene.add(this.hint);
+    // Усны цагираг pool
+    this.rings = [];
+    const ringGeo = new T.RingGeometry(0.6, 0.72, 32);
+    for (let i = 0; i < 10; i++) { const m = new T.Mesh(ringGeo, new T.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.visible = false; scene.add(m); this.rings.push({ m, t: 1 }); }
+    this.ringTimer = 0;
+    // Хотын иргэд: замаар алхдаг mascot-ууд
+    this.buildCitizens();
+
     // Зорилгын тэмдэг
     const g = new T.Group();
     g.name = 'Goal';
@@ -76,6 +100,8 @@ export class TownScene {
     this.setupUI();
     this.updateHUD();
     this.setGoalForChapter();
+    this.sky.mesh.userData.noCurve = true;
+    curveTree(scene);
   }
 
   /** Дүрийг (дахин) үүсгэнэ — тоглогч болон машины жолооч хоёулаа */
@@ -100,6 +126,7 @@ export class TownScene {
     this.driver.root.rotation.y = Math.PI;
     this.driver.root.visible = !!this.vehicle;
     this.town.car.userData.chassis.add(this.driver.root);
+    curveTree(this.character.root); curveTree(this.driver.root);
   }
 
   /** Дүр сонгох цонх */
@@ -113,6 +140,67 @@ export class TownScene {
       this.character.cheer();
     });
     $('avOk').onclick = () => { closeModal(); onDone?.(); };
+  }
+
+  buildCitizens() {
+    // Замын сүлжээний зангилаанууд ба холбоосууд
+    const N = { m0: [0, -60], m1: [0, -34], m2: [0, 1], m3: [0, 31], m4: [0, 40], w1: [-50, -34], e1: [50, -34], w2: [-50, 1], e2: [50, 1], w3: [-48, 31], e3: [48, 31] };
+    const E = { m0: ['m1'], m1: ['m0', 'm2', 'w1', 'e1'], m2: ['m1', 'm3', 'w2', 'e2'], m3: ['m2', 'm4', 'w3', 'e3'], m4: ['m3'], w1: ['m1'], e1: ['m1'], w2: ['m2'], e2: ['m2'], w3: ['m3'], e3: ['m3'] };
+    this.citizens = [];
+    const kinds = ['peach', 'mushroom', 'pumpkin', 'grape', 'orange', 'shiitake'];
+    kinds.forEach((kind, i) => {
+      const m = new Mascot({ kind, scale: 0.9 });
+      const start = ['m2', 'm1', 'm3', 'w2', 'e2', 'm2'][i];
+      const [x, z] = N[start];
+      m.root.position.set(x + (i % 2 ? 2.5 : -2.5), 0, z + (i % 3) * 1.5);
+      this.scene.add(m.root);
+      this.citizens.push({ m, node: start, next: null, target: null, wait: i * 1.5, heading: 0, lane: (i % 2 ? 2.5 : -2.5) });
+    });
+    this.roadNodes = N; this.roadEdges = E;
+  }
+
+  updateCitizens(dt) {
+    const N = this.roadNodes, E = this.roadEdges, pp = this.player.pos;
+    for (const c of this.citizens) {
+      const r = c.m.root;
+      if (c.wait > 0) {
+        c.wait -= dt;
+        const near = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 4;
+        c.m.update(dt, { state: 'idle', speed: 0, lookAt: near ? new T.Vector3(pp.x, 1.5, pp.z) : null });
+        if (near && !c.waved && !c.m.busy) { c.m.play('wave', 1.2); c.waved = true; }
+        continue;
+      }
+      if (!c.target) {
+        const opts = E[c.node].filter((n) => n !== c.prev);
+        c.next = opts[Math.floor(Math.random() * opts.length)] || E[c.node][0];
+        const [x, z] = N[c.next];
+        // Замын хажуу эгнээгээр явна
+        const vertical = N[c.node][0] === x;
+        c.target = new T.Vector3(x + (vertical ? c.lane : 0), 0, z + (vertical ? 0 : c.lane));
+        c.waved = false;
+      }
+      const dx = c.target.x - r.position.x, dz = c.target.z - r.position.z, d = Math.hypot(dx, dz);
+      const speed = 2.6;
+      if (d < 0.3) { c.prev = c.node; c.node = c.next; c.target = null; c.wait = Math.random() < 0.5 ? 1.5 + Math.random() * 4 : 0; continue; }
+      const h = Math.atan2(dx, dz);
+      c.heading += Math.atan2(Math.sin(h - c.heading), Math.cos(h - c.heading)) * Math.min(1, dt * 8);
+      r.rotation.y = c.heading;
+      r.position.x += Math.sin(c.heading) * speed * dt; r.position.z += Math.cos(c.heading) * speed * dt;
+      const near = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 5;
+      c.m.update(dt, { state: 'walk', speed: 0.45, lookAt: near ? new T.Vector3(pp.x, 1.5, pp.z) : null });
+    }
+  }
+
+  hintTexture(icon) {
+    if (this.hintSprites.has(icon)) return this.hintSprites.get(icon);
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const x = c.getContext('2d');
+    x.fillStyle = 'rgba(255,255,255,.92)'; x.beginPath(); x.arc(64, 58, 44, 0, Math.PI * 2); x.fill();
+    x.fillStyle = 'rgba(255,255,255,.92)'; x.beginPath(); x.moveTo(50, 92); x.lineTo(78, 92); x.lineTo(64, 112); x.closePath(); x.fill();
+    x.font = '56px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(icon, 64, 62);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
+    this.hintSprites.set(icon, t);
+    return t;
   }
 
   setupInteractables() {
@@ -343,6 +431,7 @@ export class TownScene {
       <div class="settings">
         <label>Дуу <input type="checkbox" id="sSound" ${st.sound ? 'checked' : ''}></label>
         <label>Хөгжим <input type="checkbox" id="sMusic" ${st.music ? 'checked' : ''}></label>
+        <label>Гүний бүдгэрэлт (DoF) <input type="checkbox" id="sDof" ${st.dof !== false ? 'checked' : ''}></label>
         <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>
       </div>
       <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="pickAvatar">🍅 Дүр солих</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
@@ -351,6 +440,7 @@ export class TownScene {
     $('sSound').onchange = (e) => { st.sound = e.target.checked; this.audio.applySettings(); this.state.save(); };
     $('sMusic').onchange = (e) => { st.music = e.target.checked; this.audio.applySettings(); this.state.save(); };
     $('sQuality').onchange = (e) => { st.quality = e.target.value; this.state.save(); this.app.applyQuality(); };
+    $('sDof').onchange = (e) => { st.dof = e.target.checked; this.state.save(); this.app.applyQuality(); };
     $('help').onclick = () => this.help();
     $('gotoRunner').onclick = () => { closeModal(); this.enterJungle(); };
     $('pickAvatar').onclick = () => this.pickAvatar(() => this.pauseMenu());
@@ -672,7 +762,7 @@ export class TownScene {
     updateClouds(this.clouds, dt);
 
     // Хураах жимс / бүтээгдэхүүн хөвнө
-    for (const h of town.harvests) if (h.obj.visible) { h.obj.position.y = 1 + Math.sin(t * 2.2 + h.x) * 0.14; h.obj.rotation.y = t * 0.8; h.ring.scale.setScalar(1 + Math.sin(t * 3 + h.z) * 0.08); }
+    for (const h of town.harvests) if (h.obj.visible) { h.obj.position.y = 1 + Math.sin(t * 2.2 + h.x) * 0.14; h.obj.rotation.y = t * 0.8; const nearH = Math.hypot(h.x - this.player.pos.x, h.z - this.player.pos.z) < 7; h.ring.scale.setScalar(nearH ? 1.15 + Math.sin(t * 6) * 0.25 : 1 + Math.sin(t * 3 + h.z) * 0.08); }
     for (const p of town.packages) if (p.obj.visible) { p.obj.position.y = 0.6 + Math.sin(t * 2 + p.z) * 0.12; p.obj.rotation.y = t * 1.2; if (Math.random() < dt * 2) this.particles.sparkle(p.obj.position, 0xffd24d); }
     town.npcs.forEach((n, i) => { n.obj.position.y = 1.1 + Math.sin(t * 2.4 + i) * 0.08; n.obj.rotation.y = Math.sin(t * 0.7 + i) * 0.25 + (this.near && this.near.label.startsWith(n.name) ? Math.atan2(this.player.pos.x - n.x, this.player.pos.z - n.z) : 0) * 0.35; });
     // Хүргэлтийн хаалга
@@ -684,6 +774,45 @@ export class TownScene {
     if (Math.random() < dt * 14) this.particles.sparkle(new T.Vector3(Math.sin(t * 3) * 2, 2.6, -15 + Math.cos(t * 3) * 2), 0xd8f6ff);
     // Лянхуа хөвнө
     town.world.children.forEach((o) => { if (o.userData.float) o.position.y = (o.geometry.type === 'CircleGeometry' ? -0.3 : -0.15) + Math.sin(t * 1.5 + o.position.z) * 0.05; });
+    // ---- Цаг агаар: хааяа бороо, дараа нь солонго ----
+    const W = this.weather;
+    W.timer -= dt;
+    if (W.timer <= 0) {
+      if (W.target === 0) { W.target = 1; W.timer = 40 + Math.random() * 30; toast('Бороо орж эхэллээ…', 2500, '🌧️'); }
+      else { W.target = 0; W.timer = 150 + Math.random() * 200; W.rainbow = 45; toast('Солонго татлаа!', 2500, '🌈'); }
+    }
+    W.rain += (W.target - W.rain) * Math.min(1, dt * 0.4);
+    W.rainbow = Math.max(0, W.rainbow - dt);
+    this.rain.userData.target = W.target * (0.85 - night * 0.3);
+    updateRain(this.rain, dt, this.player.pos);
+    this.audio.rain(W.rain);
+    this.rainbow.userData.target = W.rainbow > 0 && W.rain < 0.3 ? Math.min(1, W.rainbow / 8) : 0;
+    this.rainbow.position.set(this.player.pos.x - this.sunDir.x * 60, -8, this.player.pos.z - this.sunDir.z * 60 - 40);
+    this.rainbow.rotation.y = Math.atan2(-this.sunDir.x, -this.sunDir.z);
+    updateRainbow(this.rainbow, dt);
+    // Бороонд тэнгэр бүрхэг, гэрэл сул
+    if (W.rain > 0.01) {
+      const grey = new T.Color(0x9fb0bd);
+      this.sky.uniforms.uTop.value.lerp(grey, W.rain * 0.7); this.sky.uniforms.uHorizon.value.lerp(new T.Color(0xc5d0d8), W.rain * 0.7);
+      this.scene.fog.color.copy(this.sky.uniforms.uHorizon.value);
+      this.sun.intensity *= 1 - W.rain * 0.55; this.hemi.intensity *= 1 - W.rain * 0.25;
+      if (Math.random() < dt * 40 * W.rain) this.particles.sparkle(new T.Vector3(this.player.pos.x + (Math.random() - 0.5) * 14, 0.05, this.player.pos.z + (Math.random() - 0.5) * 14), 0xd8f0ff, 1);
+    }
+    this.flare.position.copy(this.camera.position).addScaledVector(this.sunDir, 380);
+    this.flare.visible = day > 0.15 && W.rain < 0.5;
+    this.leaves.material.opacity = 0.9 * (1 - W.rain);
+    updateLeaves(this.leaves, dt, t, this.player.pos);
+    updateButterflies(this.butterflies, dt, t); this.butterflies.visible = W.rain < 0.5 && day > 0.3;
+    updateBirds(this.birds, dt, t, this.player.pos);
+
+    this.updateCitizens(dt);
+    // Усны цагираг: сэлж байхад
+    for (const rg of this.rings) { if (!rg.m.visible) continue; rg.t += dt * 1.4; const k = Math.min(1, rg.t); rg.m.scale.setScalar(1 + k * 2.2); rg.m.material.opacity = 0.55 * (1 - k); if (k >= 1) rg.m.visible = false; }
+    if (this.player.state === 'swim') {
+      this.ringTimer -= dt;
+      if (this.ringTimer <= 0) { this.ringTimer = 0.45; const rg = this.rings.find((q) => !q.m.visible); if (rg) { rg.t = 0; rg.m.visible = true; rg.m.position.set(this.player.pos.x, -0.3, this.player.pos.z); rg.m.scale.setScalar(1); } }
+    }
+
     // Зорилгын тэмдэг
     if (this.goalMarker.visible) {
       this.goalMarker.children[0].rotation.z = t;
@@ -704,6 +833,14 @@ export class TownScene {
       }
     }
     this.near = best;
+    // Хөвөх icon + цагираг pulse
+    if (best && !this.vehicle) {
+      const pos = best.dynamic ? best.dynamic() : best;
+      this.hint.visible = true;
+      this.hint.material.map = this.hintTexture(best.icon || '✨'); this.hint.material.needsUpdate = true;
+      this.hint.position.set(pos.x, (best.hintY ?? 2.6) + Math.sin(this.clock * 4) * 0.12, pos.z);
+      this.hint.scale.setScalar(1.25 + Math.sin(this.clock * 4) * 0.08);
+    } else this.hint.visible = false;
     const pr = $('prompt');
     const showP = active && (best || this.vehicle);
     pr.classList.toggle('on', !!showP);
@@ -770,5 +907,5 @@ export class TownScene {
     ctx.restore();
   }
 
-  render() { this.app.post.render(); }
+  render() { this.app.post.setFocus(this.camera.position.distanceTo(this.vehicle ? this.vehicle.position : this.player.pos) + 1); this.app.post.render(); }
 }

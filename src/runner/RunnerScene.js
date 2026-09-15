@@ -4,11 +4,12 @@ import { Runner, LANE_W } from './RunnerCore.js';
 import { RUNNER_LEVELS, PRODUCTS, FRUITS } from '../core/content.js';
 import { createSky } from '../gfx/sky.js';
 import { Particles } from '../gfx/particles.js';
-import { toon, glow, standard, waterMaterial, PALETTE, outlineGroup } from '../gfx/materials.js';
+import { toon, glow, standard, waterMaterial, PALETTE, outlineGroup, curveTree } from '../gfx/materials.js';
 import { stoneTexture } from '../gfx/textures.js';
 import * as P from '../world/props.js';
 import { createAvatar } from '../world/avatar.js';
 import { mergeStatic } from '../gfx/merge.js';
+import { createLightShafts, createLeaves, updateLeaves } from '../gfx/effects.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop } from '../core/ui.js';
 
 const GAPS = [154, 298];
@@ -74,6 +75,7 @@ export class RunnerScene {
     this.character.root.rotation.y = Math.PI;
     this.scene.add(this.character.root);
     this.character.onStep = () => { if (this.model?.state === 'playing') { this.audio.step(); this.particles.dust(new T.Vector3(this.model.x, 0, 0), 1, { color: 0x9c8b6a, size: 0.3 }); } };
+    curveTree(this.character.root);
   }
 
   rebuildSpeedLines(len) {
@@ -271,6 +273,12 @@ export class RunnerScene {
     }
     const dyn = new Set(this.objects.values());
     mergeStatic(world, (o) => dyn.has(o) || o.userData.fall !== undefined || o.userData.flame);
+    // Гэрлийн туяа (модны завсраар) ба хөвөх навч
+    this.shafts = createLightShafts(14, { length: conf.length + 60, color: conf.glow, spread: 16 }); world.add(this.shafts);
+    if (level === 1) this.shafts.userData.mat.opacity = 0.18;
+    if (!this.leaves) { this.leaves = createLeaves(50, { colors: [0xb8ec9a, 0xfff0a8, 0xffb3c6], area: 30 }); this.scene.add(this.leaves); }
+    this.sky.mesh.userData.noCurve = true;
+    curveTree(this.scene);
     this.sync();
   }
 
@@ -344,6 +352,9 @@ export class RunnerScene {
       if (o.userData.fall !== undefined) { o.scale.x = 1 + Math.sin(this.elapsed * 6 + o.userData.fall) * 0.25; o.material.opacity = 0.5 + Math.sin(this.elapsed * 9 + o.userData.fall * 2) * 0.15; }
       if (o.userData.flame) { o.scale.y = 0.32 + Math.sin(this.elapsed * 12 + o.position.x) * 0.06; }
     });
+    // Гэрлийн туяа амьсгална, навч унана
+    if (this.shafts) for (const sh of this.shafts.children) sh.scale.x = 0.8 + Math.sin(this.elapsed * 0.6 + sh.userData.phase) * 0.25;
+    if (this.leaves) updateLeaves(this.leaves, dt, this.elapsed, new T.Vector3(0, 0, -12));
     // Ширхэг, хурдны зураас
     const pa = this.motes.geometry.attributes.position.array;
     for (let i = 0; i < pa.length; i += 3) { pa[i + 1] += (this.level === 2 ? -0.9 : 0.15) * dt; if (pa[i + 1] < 0) pa[i + 1] = 10; if (pa[i + 1] > 11) pa[i + 1] = 0.5; pa[i + 2] += (playing ? m.speed * 0.6 : 1) * dt; if (pa[i + 2] > 6) pa[i + 2] = -70; }
@@ -408,5 +419,5 @@ export class RunnerScene {
     $('rProgress').style.width = Math.min(100, m.distance / m.config.length * 100) + '%';
   }
 
-  render() { this.app.post.render(); }
+  render() { this.app.post.setFocus(9.5); this.app.post.render(); }
 }

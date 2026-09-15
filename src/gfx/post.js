@@ -5,6 +5,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 
 const GradeShader = {
   uniforms: {
@@ -37,16 +38,21 @@ export function createPost(renderer, scene, camera, { bloom = true } = {}) {
     bloomPass = new UnrealBloomPass(new T.Vector2(innerWidth, innerHeight), 0.28, 0.5, 0.86);
     composer.addPass(bloomPass);
   }
+  // Depth of field: дүрээс хол зүйлс зөөлөн бүдгэрнэ (diorama мэдрэмж). Өндөр чанарт л асна.
+  const bokeh = new BokehPass(scene, camera, { focus: 10, aperture: 0.00018, maxblur: 0.006 });
+  bokeh.enabled = false;
+  composer.addPass(bokeh);
   const grade = new ShaderPass(GradeShader);
   composer.addPass(grade);
   composer.addPass(new OutputPass());
 
   return {
-    composer, grade, bloomPass,
+    composer, grade, bloomPass, bokeh,
+    setFocus(d) { bokeh.uniforms.focus.value += (d - bokeh.uniforms.focus.value) * 0.1; },
     setSize(w, h) { composer.setSize(w, h); bloomPass?.setSize(w, h); },
     render() { composer.render(); },
     flash(color, amt) { grade.uniforms.uFlash.value.set(color); grade.uniforms.uFlashAmt.value = amt; },
-    setCamera(cam) { composer.passes[0].camera = cam; },
-    setScene(sc) { composer.passes[0].scene = sc; },
+    setCamera(cam) { composer.passes[0].camera = cam; bokeh.camera = cam; },
+    setScene(sc) { composer.passes[0].scene = sc; bokeh.scene = sc; },
   };
 }

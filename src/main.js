@@ -81,6 +81,7 @@ class App {
     r.setPixelRatio(ratio);
     r.shadowMap.enabled = q !== 'low';
     if (this.post.bloomPass) this.post.bloomPass.enabled = q === 'high';
+    this.post.bokeh.enabled = q === 'high' && this.state.settings.dof !== false;
     this.post.setSize(innerWidth, innerHeight);
     for (const s of Object.values(this.scenes)) if (s.sun) { s.sun.castShadow = q !== 'low'; s.sun.shadow.mapSize.setScalar(q === 'high' ? 2048 : 1024); if (s.sun.shadow.map) { s.sun.shadow.map.dispose(); s.sun.shadow.map = null; } }
   }
@@ -129,13 +130,15 @@ class App {
     this.current.update(dt);
     this.current.render();
     this.input.endFrame();
-    // Автомат чанар: FPS удаан бол бууруулна
-    if (this.state.settings.quality === 'auto' && dt > 0) {
+    // Автомат чанар: тоглоом эхэлснээс 8 сек-ийн дараа, 3 сек дараалан удаан бол бууруулна
+    this.runTime = (this.runTime || 0) + dt;
+    if (this.state.settings.quality === 'auto' && dt > 0 && this.runTime > 8 && !document.getElementById('panel').open) {
       this.fpsSamples.push(1 / dt);
-      if (this.fpsSamples.length >= 120) {
-        const avg = this.fpsSamples.reduce((a, b) => a + b, 0) / this.fpsSamples.length;
+      if (this.fpsSamples.length >= 180) {
+        const sorted = [...this.fpsSamples].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
         this.fpsSamples.length = 0;
-        const next = avg < 30 ? (this.autoQuality === 'high' ? 'medium' : 'low') : this.autoQuality;
+        const next = median < 34 ? (this.autoQuality === 'high' ? 'medium' : 'low') : this.autoQuality;
         if (next !== this.autoQuality) { this.autoQuality = next; this.applyQuality(); }
       }
     }

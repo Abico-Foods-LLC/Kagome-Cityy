@@ -139,6 +139,24 @@ export class AudioSystem {
     bird();
   }
 
+  /** Борооны шуугиан (0..1) */
+  rain(level) {
+    if (!this.ctx) return;
+    if (level > 0 && !this.rainNode) {
+      const n = this.ctx.sampleRate * 2, buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1);
+      const src = this.ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 0.5;
+      const g = this.ctx.createGain(); g.gain.value = 0;
+      src.connect(f); f.connect(g); g.connect(this.ambBus); src.start();
+      this.rainNode = { src, g };
+    }
+    if (this.rainNode) {
+      this.rainNode.g.gain.setTargetAtTime(level * 0.25, this.ctx.currentTime, 0.5);
+      if (level <= 0) { const r = this.rainNode; this.rainNode = null; setTimeout(() => { try { r.src.stop(); } catch (e) { /* */ } }, 2000); }
+    }
+  }
+
   stopAmbient() {
     if (!this.ambient) return;
     try { this.ambient.src.stop(); } catch (e) { /* */ }

@@ -206,6 +206,7 @@ export function buildTown(scene, { textures }) {
     if (!freeSpot(x, z)) continue;
     (i % 3 === 0 ? flowers : tufts).push([x, z]);
   }
+  out.flowerSpots = flowers.filter((_, i) => i % 5 === 0).slice(0, 40);
   for (const m of P.flowerField(world, flowers)) swayMats.add(m.material);
   swayMats.add(P.grassTufts(world, tufts).material);
   swayMats.add(P.grassTufts(world, tufts.slice(0, 120), { color: 0x5fb64c }).material);

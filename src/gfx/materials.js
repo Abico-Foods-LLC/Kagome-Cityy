@@ -123,3 +123,47 @@ export const PALETTE = {
   suit: 0x2c3646, suitLight: 0x3f4c60, shirt: 0xf8f4ec, tie: 0x8a1c25, skin: 0xd9a57b, skinDark: 0xb98262, hair: 0x1a1717,
   gold: 0xffd24d, cream: 0xfff8e6,
 };
+
+// ---------- Дугуй хязгаар (Animal Crossing маяг): алсын зүйлс доош нугарна ----------
+export const curveUniforms = { uCurve: { value: 0.0007 }, uCurveStart: { value: 22 } };
+
+/** Материалын vertex shader-т муруйлт нэмнэ (нэг удаа). */
+export function applyCurve(material) {
+  if (!material || material.userData.curved || material.isShaderMaterial) return material;
+  material.userData.curved = true;
+  const prev = material.onBeforeCompile;
+  const prevKey = material.customProgramCacheKey ? material.customProgramCacheKey.bind(material) : null;
+  const prevSrc = prev ? prev.toString() : '';
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prev) prev(shader, renderer);
+    shader.uniforms.uCurve = curveUniforms.uCurve;
+    shader.uniforms.uCurveStart = curveUniforms.uCurveStart;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uCurve, uCurveStart;')
+      .replace('#include <project_vertex>', `
+        vec4 mvPosition = vec4( transformed, 1.0 );
+        #ifdef USE_BATCHING
+          mvPosition = batchingMatrix * mvPosition;
+        #endif
+        #ifdef USE_INSTANCING
+          mvPosition = instanceMatrix * mvPosition;
+        #endif
+        mvPosition = modelViewMatrix * mvPosition;
+        {
+          float dz = max(0.0, -mvPosition.z - uCurveStart);
+          mvPosition.y -= dz * dz * uCurve;
+        }
+        gl_Position = projectionMatrix * mvPosition;`);
+  };
+  material.customProgramCacheKey = () => (prevKey ? prevKey() : prevSrc) + '|curve';
+  return material;
+}
+
+/** Модны бүх материалд муруйлт нэмнэ. */
+export function curveTree(root) {
+  root.traverse((o) => {
+    if (o.userData.noCurve) return;
+    const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (const m of mats) applyCurve(m);
+  });
+}

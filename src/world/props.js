@@ -33,6 +33,27 @@ export function group(name, parent, x = 0, y = 0, z = 0) {
 
 function seeded(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 
+// ---- Contact shadow: объектын ёроолд зөөлөн бараан толбо (хуурамч AO) ----
+let shadowMat = null;
+function getShadowMat() {
+  if (shadowMat) return shadowMat;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d'); const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(10,40,20,.55)'); g.addColorStop(0.55, 'rgba(10,40,20,.28)'); g.addColorStop(1, 'rgba(10,40,20,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  const t = new T.CanvasTexture(c);
+  shadowMat = new T.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false });
+  return shadowMat;
+}
+const shadowGeo = new T.CircleGeometry(1, 20);
+export function contactShadow(parent, r, x = 0, z = 0, sz = r) {
+  const m = new T.Mesh(shadowGeo, getShadowMat());
+  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.025, z); m.scale.set(r, sz, 1);
+  m.castShadow = false; m.receiveShadow = false; m.renderOrder = 1;
+  parent.add(m);
+  return m;
+}
+
 // ---- Навч (жимсний дээрх) ----
 export function leaf(parent, x, y, z, s = 1, rot = 0) {
   const l = mesh(G.sphereLow, toon(PALETTE.leaf, { key: 'leaf' }), parent, x, y, z, 0.5 * s, 0.09 * s, 0.24 * s);
@@ -117,6 +138,7 @@ export function tree(parent, x, z, { type = 0, s = 1, seed = 1, fruits = true } 
     const a = j * 1.3 + r();
     fruit(type, g, Math.sin(a) * 1.35 * s, 3.1 + Math.cos(j * 2) * 0.6, Math.cos(a) * 1.35 * s, 0.5, { outline: false });
   }
+  contactShadow(g, 1.6 * s);
   g.userData.collider = { r: 0.6 };
   return g;
 }
@@ -140,6 +162,7 @@ export function palm(parent, x, z, { s = 1, seed = 1 } = {}) {
     lf.scale.set(0.9, 1, 0.25);
   }
   for (let j = 0; j < 3; j++) sphere(toon(0x6a4a2a, { key: 'coco' }), g, top.x + Math.sin(j * 2.1) * 0.35, top.y - 0.15, top.z + Math.cos(j * 2.1) * 0.35, 0.28 * s);
+  contactShadow(g, 1.1 * s);
   g.userData.collider = { r: 0.5 };
   return g;
 }
@@ -154,6 +177,7 @@ export function bush(parent, x, z, { s = 1, seed = 1, flowers = 0 } = {}) {
     const fm = toon(flowers, { key: 'bushFlower' + flowers });
     for (let j = 0; j < 6; j++) sphere(fm, g, (r() - 0.5) * 1.4 * s, 0.7 * s + r() * 0.5, (r() - 0.5) * 1.4 * s, 0.12);
   }
+  contactShadow(g, 1.2 * s);
   return g;
 }
 
@@ -163,6 +187,7 @@ export function rock(parent, x, z, { s = 1, seed = 1, color = PALETTE.stone } = 
   const g = group('Rock', parent, x, 0, z);
   mesh(G.ico0, toon(color, { key: 'rock' + color }), g, 0, 0.3 * s, 0, s, 0.6 * s, 0.8 * s).rotation.set(r(), r() * 3, r() * 0.3);
   mesh(G.ico0, toon(PALETTE.stoneDark, { key: 'rockD' }), g, 0.4 * s, 0.2 * s, 0.3 * s, 0.5 * s, 0.35 * s, 0.5 * s).rotation.y = r() * 3;
+  contactShadow(g, 1.3 * s, 0.1 * s, 0.1 * s);
   return g;
 }
 
@@ -238,6 +263,7 @@ export function lamp(parent, x, z) {
   mesh(new T.ConeGeometry(0.35, 0.3, 8), m, g, 0.8, 3.65, 0);
   const bulb = mesh(new T.SphereGeometry(0.16, 10, 8), bulbMaterial(), g, 0.8, 3.45, 0);
   bulb.castShadow = false; bulb.userData.bulb = true;
+  contactShadow(g, 0.6);
   return g;
 }
 
@@ -250,6 +276,7 @@ export function bench(parent, x, z, rot = 0) {
   box(w, g, 0, 0.5, 0.18, 1.8, 0.08, 0.2);
   for (const dy of [0, 0.24]) box(w, g, 0, 0.85 + dy, -0.4, 1.8, 0.16, 0.06);
   for (const s of [-1, 1]) { box(iron, g, s * 0.8, 0.25, 0, 0.08, 0.5, 0.55); box(iron, g, s * 0.8, 0.8, -0.38, 0.08, 0.6, 0.08); }
+  contactShadow(g, 1.4, 0, 0, 0.9);
   return g;
 }
 
@@ -312,6 +339,7 @@ export function fruitHouse(parent, x, z, type, label, rot = 0) {
   // Яндан
   box(toon(0xb15d4e, { key: 'chimney' }), g, -2.3, 6.2, -1.5, 0.7, 1.6, 0.7);
   sign(label, 0, 5.5, 4.1, { width: 5.2, bg: '#fff8e0', fg: '#1e5c3a', border: def.color });
+  contactShadow(g, 6.2);
   g.userData.collider = { r: 4.6 };
   return g;
 
@@ -341,6 +369,7 @@ export function pavilion(parent, x, z, name, color, rot = 0) {
   // Дээврийн ирмэгийн тууз
   mesh(new T.TorusGeometry(5.4, 0.12, 6, 8), cream, g, 0, 4.5, 0).rotation.x = Math.PI / 2;
   sign(g, name, 0, 3.6, 4.3, { width: 7, bg: '#fffbea', fg: '#28643f', border: '#' + color.toString(16).padStart(6, '0') });
+  contactShadow(g, 6.5);
   return g;
 }
 
@@ -355,6 +384,7 @@ export function stall(parent, x, z, color, rot = 0) {
   // Судалтай тент
   for (let j = 0; j < 6; j++) box(j % 2 ? cm : cream, g, -1.5 + j * 0.6, 2.9, 0.1, 0.62, 0.08, 2.2).rotation.x = 0.15;
   for (let j = 0; j < 6; j++) sphere(j % 2 ? cm : cream, g, -1.5 + j * 0.6, 2.7, 1.15, 0.3, 0.2, 0.1);
+  contactShadow(g, 2.6, 0, 0.2, 1.4);
   return g;
 }
 
@@ -367,6 +397,7 @@ export function fountain(parent, x, z) {
   mesh(new T.CylinderGeometry(0.7, 1.1, 2.2, 12), stone, g, 0, 1.6, 0);
   mesh(new T.CylinderGeometry(1.8, 1.4, 0.3, 16), stone, g, 0, 2.7, 0);
   mesh(new T.CylinderGeometry(0.3, 0.5, 0.8, 10), stone, g, 0, 3.2, 0);
+  contactShadow(g, 5.6);
   g.userData.collider = { r: 4.4 };
   return g;
 }
