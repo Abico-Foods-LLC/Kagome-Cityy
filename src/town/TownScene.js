@@ -519,7 +519,7 @@ export class TownScene {
   collection() {
     const s = this.state;
     const inv = FRUITS.map((t, i) => `<span class="stat" style="font-size:15px">${t.emoji} ${s.inventory[i] || 0}</span>`).join(' ');
-    modal(`<div class="eyebrow">МИНИЙ АЯЛАЛ</div><h2>Ургац ба цуглуулга</h2><div class="row" style="margin:6px 0 14px">${inv}</div><p>Цуглуулсан од: <b>${s.stars}</b> · Дууссан аялал: <b>${s.chapter}/${CHAPTERS.length}</b> · Ширэнгэ: <b>${s.runner.unlocked}/5 үе</b></p><div class="grid">${PRODUCTS.map((p) => `<div class="product ${s.collected.has('package-' + p.sku) ? 'got' : ''}"><img src="${p.src}" alt="Kagome ${p.flavor}" loading="lazy"><small>${p.name}</small><span>${p.size}</span></div>`).join('')}</div><p class="hint" style="margin-top:14px">Хотоос 8 бүтээгдэхүүнийг олоод бүх ★ авбал цуглуулга бүрэн болно. Ширэнгэнд цуглуулсан: ${s.runner.collection.reduce((a, b) => a + b, 0)} ш.</p>`);
+    modal(`<div class="eyebrow">МИНИЙ АЯЛАЛ</div><h2>Ургац ба цуглуулга</h2><div class="row" style="margin:6px 0 14px">${inv}</div><p>Цуглуулсан од: <b>${s.stars}</b> · Дууссан аялал: <b>${s.chapter}/${CHAPTERS.length}</b> · Ширэнгэ: <b>${s.runner.unlocked}/5 үе</b></p><p>🐟 Загас: <b>${s.counts.fish}</b> · 🌱 Талбайн ургац: <b>${s.counts.farm}</b> · 📬 Хүргэлт: <b>${s.counts.delivery}</b></p><div class="grid">${PRODUCTS.map((p) => `<div class="product ${s.collected.has('package-' + p.sku) ? 'got' : ''}"><img src="${p.src}" alt="Kagome ${p.flavor}" loading="lazy"><small>${p.name}</small><span>${p.size}</span></div>`).join('')}</div><p class="hint" style="margin-top:14px">Хотоос 8 бүтээгдэхүүнийг олоод бүх ★ авбал цуглуулга бүрэн болно. Ширэнгэнд цуглуулсан: ${s.runner.collection.reduce((a, b) => a + b, 0)} ш.</p>`);
   }
 
   /** Аксессуарын дэлгүүр (Kagome маркет) */
@@ -999,7 +999,8 @@ export class TownScene {
     if (best && !this.vehicle) {
       const pos = best.dynamic ? best.dynamic() : best;
       this.hint.visible = true;
-      this.hint.material.map = this.hintTexture(best.icon || '✨'); this.hint.material.needsUpdate = true;
+      const icon = typeof best.icon === 'function' ? best.icon() : best.icon;
+      this.hint.material.map = this.hintTexture(icon || '✨'); this.hint.material.needsUpdate = true;
       this.hint.position.set(pos.x, (best.hintY ?? 2.6) + Math.sin(this.clock * 4) * 0.12, pos.z);
       this.hint.scale.setScalar(1.25 + Math.sin(this.clock * 4) * 0.08);
     } else this.hint.visible = false;
@@ -1007,7 +1008,8 @@ export class TownScene {
     const showP = active && (best || this.vehicle);
     pr.classList.toggle('on', !!showP);
     if (showP) {
-      $('promptText').textContent = this.vehicle ? 'Машинаас буух' + (this.state.chapter === 4 ? ' · Алтан хаалгаар дарааллаар яв' : '') : best.icon + ' ' + best.label;
+      const icon = typeof best?.icon === 'function' ? best.icon() : best?.icon, label = typeof best?.label === 'function' ? best.label() : best?.label;
+      $('promptText').textContent = this.vehicle ? 'Машинаас буух' + (this.state.chapter === 4 ? ' · Алтан хаалгаар дарааллаар яв' : '') : icon + ' ' + label;
     }
   }
 

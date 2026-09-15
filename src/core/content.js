@@ -65,6 +65,8 @@ export const LANDMARKS = [
   { name: 'Kagome маркет', emoji: '🧃', x: -28, z: 24, color: '#e34d67' },
   { name: 'Ширэнгийн хаалга', emoji: '🌴', x: 46, z: -56, color: '#1f8a5a' },
   { name: 'Хотын төв', emoji: '⛲', x: 0, z: -15, color: '#2ea6c9' },
+  { name: 'Захиалгын самбар', emoji: '📬', x: 5, z: -19, color: '#e07a3f' },
+  { name: 'Миний талбай', emoji: '🌱', x: 56, z: -38, color: '#61a148' },
 ];
 
 export const RUNNER_LEVELS = [
