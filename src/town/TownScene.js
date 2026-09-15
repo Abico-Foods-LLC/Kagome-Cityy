@@ -21,7 +21,7 @@ export class TownScene {
     this.input = app.input;
     this.audio = app.audio;
     this.scene = new T.Scene();
-    this.camera = new T.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 700);
+    this.camera = new T.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 700);   // near 0.5 → depth нарийвчлал сайн, z-fighting бага
     this.clock = 0;
     this.dayTime = 0.38; // 0..1 (0.25 = нар мандах, 0.5 = үд)
     this.started = false;
@@ -496,7 +496,7 @@ export class TownScene {
 
   help() {
     modal(`<div class="eyebrow">АЯЛЛЫН ХӨТӨЧ</div><h2>Удирдлага</h2>
-      <p><kbd>W A S D</kbd> / сум — камерын чиглэлд алхана<br><kbd>Shift</kbd> — гүйнэ<br><kbd>Space</kbd> — үсэрнэ, агаарт дахин дарвал давхар үсрэлт (эргэлт)<br><kbd>C</kbd> — өнхрөх · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> — даллах / баярлах / бүжиглэх<br>Суваг руу орвол сэлнэ (гүүр хэрэггүй!)<br><kbd>E</kbd> — жимс түүх, ярилцах, машинд суух / буух<br><kbd>M</kbd> — газрын зураг · <kbd>Esc</kbd> — цэс<br>Хулгана чирэх / <kbd>Q</kbd> <kbd>R</kbd> — камер эргүүлэх<br><b>Машинд:</b> W урагш, S ухрах, A/D жолоодох, Shift — турбо</p>
+      <p><kbd>W A S D</kbd> / сум — камерын чиглэлд алхана<br><kbd>Shift</kbd> — гүйнэ<br><kbd>Space</kbd> — үсэрнэ, агаарт дахин дарвал давхар үсрэлт (эргэлт)<br><kbd>C</kbd> — өнхрөх · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> — даллах / баярлах / бүжиглэх<br>Суваг руу орвол сэлнэ (гүүр хэрэггүй!)<br><kbd>E</kbd> — жимс түүх, ярилцах, машинд суух / буух<br><kbd>M</kbd> — газрын зураг · <kbd>Esc</kbd> — цэс · <kbd>Дугуй</kbd> — zoom<br>Хулгана чирэх / <kbd>Q</kbd> <kbd>R</kbd> — камер эргүүлэх<br><b>Машинд:</b> W урагш, S ухрах, A/D жолоодох, Shift — турбо</p>
       <p class="hint">Утсан дээр зүүн дугуй удирдлагыг чирж, баруун товчнуудаар үйлдэл хийнэ. Дэлгэцийг чирж камер эргүүлнэ. Gamepad дэмжигдэнэ.</p>
       <button class="primary" id="ok">Ойлголоо</button>`);
     $('ok').onclick = () => this.pauseMenu();
@@ -511,7 +511,6 @@ export class TownScene {
     this.driver.root.visible = true;
     this.audio.carIn();
     this.audio.engine(true, 0);
-    this.cam.targetDist = 13;
     show('speedo', true);
     toast('W/S урагш-ухрах · A/D жолоодох · Shift турбо · E буух', 3200, '🚗');
   }
@@ -528,7 +527,6 @@ export class TownScene {
     this.driver.root.visible = false;
     this.vehicle = null;
     this.audio.engine(false);
-    this.cam.targetDist = 9.5;
     show('speedo', false);
   }
 
@@ -549,6 +547,8 @@ export class TownScene {
 
     // Камерын эргүүлэлт (танилцуулгын үед автомат)
     const cam = this.cam;
+    if (active && input.zoom) { cam.zoomLevel = T.MathUtils.clamp((cam.zoomLevel ?? 0) + input.zoom * 0.6, -4.5, 8); }
+    cam.targetDist = (this.vehicle ? 13 : 9.5) + (cam.zoomLevel ?? 0);
     cam.dist += (cam.targetDist - cam.dist) * Math.min(1, dt * (cam.intro > 0 ? 1.1 : 4));
     if (cam.intro > 0) {
       cam.intro -= dt;

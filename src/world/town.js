@@ -27,6 +27,7 @@ export function buildTown(scene, { textures }) {
   const grassTex = grassTexture();
   const groundMat = new T.MeshToonMaterial({ color: 0xffffff, map: grassTex, gradientMap: toon(0xffffff).gradientMap, vertexColors: true, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
   const cliffMat = toon(0x8a6a48, { key: 'cliff' });
+  cliffMat.polygonOffset = true; cliffMat.polygonOffsetFactor = 6; cliffMat.polygonOffsetUnits = 6;   // дээд тал нь газартай z-fight хийхгүй
   const r0 = seeded(4);
   const groundPiece = (x0, x1) => {
     const w = x1 - x0, h = ISLAND.maxZ - ISLAND.minZ + 8, cx = (x0 + x1) / 2;
@@ -44,7 +45,7 @@ export function buildTown(scene, { textures }) {
     g.rotation.x = -Math.PI / 2; g.position.set(cx, 0, ISLAND.cz); g.receiveShadow = true; g.name = 'Ground';
     world.add(g);
     const cliff = new T.Mesh(new T.BoxGeometry(w, 3, h), cliffMat);
-    cliff.position.set(cx, -1.55, ISLAND.cz); world.add(cliff);
+    cliff.position.set(cx, -1.62, ISLAND.cz); world.add(cliff);
   };
   groundPiece(ISLAND.minX - 4, CANAL.x - CANAL.halfW - 0.6);
   groundPiece(CANAL.x + CANAL.halfW + 0.6, ISLAND.maxX + 4);
@@ -65,7 +66,8 @@ export function buildTown(scene, { textures }) {
   }
   // ---------- Зам ----------
   const roadTex = roadTexture();
-  const roadMat = new T.MeshToonMaterial({ color: 0xffffff, map: roadTex, gradientMap: groundMat.gradientMap, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  // Замд сөрөг offset өгөхгүй — халиад харахад зам алга болдог (depth 0-ээс доош clamp). Газар нь эерэг offset-оор ард нь байна.
+  const roadMat = new T.MeshToonMaterial({ color: 0xffffff, map: roadTex, gradientMap: groundMat.gradientMap });
   const road = (x, z, w, h, y = 0.03) => {
     const geo = new T.PlaneGeometry(w, h);
     const uv = geo.attributes.uv;

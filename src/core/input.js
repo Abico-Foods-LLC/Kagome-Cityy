@@ -16,6 +16,7 @@ export class Input {
     this.stick = { x: 0, y: 0, active: false };
     this.look = { dx: 0, dy: 0 };
     this.swipe = null;              // 'left' | 'right' | 'up' | 'down'
+    this.zoom = 0;                  // энэ frame-ийн zoom (+ = холдох)
     this.enabled = true;
     this.isTouch = matchMedia('(pointer: coarse)').matches;
     this.gamepadIndex = null;
@@ -96,6 +97,7 @@ export class Input {
     this.releasedNow.clear();
     this.look.dx = this.look.dy = 0;
     this.swipe = null;
+    this.zoom = 0;
     // Gamepad товчийг гар товч шиг хувиргана
     const gp = this.gamepad();
     if (gp) {
@@ -138,6 +140,13 @@ export class Input {
   /** Canvas дээр чирэх = камер эргүүлэх, богино swipe = runner-ийн үйлдэл. */
   bindPointer(canvas, { swipe = false } = {}) {
     let active = null;
+    // Хулганы дугуй = zoom
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.zoom += Math.sign(e.deltaY) * 1.2; }, { passive: false });
+    // Хоёр хуруугаар чимхэх = zoom
+    const touches = new Map(); let pinchD = 0;
+    canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') { touches.set(e.pointerId, [e.clientX, e.clientY]); if (touches.size === 2) { const [a, b] = [...touches.values()]; pinchD = Math.hypot(a[0] - b[0], a[1] - b[1]); } } });
+    canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'touch' && touches.has(e.pointerId)) { touches.set(e.pointerId, [e.clientX, e.clientY]); if (touches.size === 2) { const [a, b] = [...touches.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinchD) this.zoom += (pinchD - d) * 0.02; pinchD = d; active = null; } } });
+    for (const ev of ['pointerup', 'pointercancel']) canvas.addEventListener(ev, (e) => { touches.delete(e.pointerId); pinchD = 0; });
     canvas.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       active = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now() };
