@@ -2,7 +2,7 @@
 // Төлөв: idle → cast → wait → bite → caught | missed → cast …
 import * as T from 'three';
 import * as P from '../world/props.js';
-import { toon, applyCurve, PALETTE } from '../gfx/materials.js';
+import { toon, applyCurve } from '../gfx/materials.js';
 import { $, toast, pop } from '../core/ui.js';
 
 const SPOT = { x: 16, z: -25, r: 3 };       // эрэг дээрх зогсох цэг (загасчны хажууд)
@@ -39,7 +39,7 @@ export class FishingGame {
 
   // ---------- Төлөв ----------
   start() {
-    if (this.active) return;
+    if (this.active || this.scene.inWater(this.scene.player.pos.x, this.scene.player.pos.z)) return;
     this.active = true;
     this.scene.player.heading = Math.PI / 2;   // суваг руу (+x) харна
     this.cast();
@@ -87,7 +87,7 @@ export class FishingGame {
     if (!this.active) return;
     const sc = this.scene, pl = sc.player, fl = this.float.position;
     // Хөдөлбөл / үсэрвэл / машинд суувал / цэс нээгдвэл / цэгээс холдвол зогсоно
-    if (sc.vehicle || !sc.active || !pl.grounded || Math.hypot(pl.vel.x, pl.vel.z) > 0.5 || Math.hypot(pl.pos.x - SPOT.x, pl.pos.z - SPOT.z) > SPOT.r + 0.5) { this.cancel(); return; }
+    if (sc.vehicle || sc.inWater(pl.pos.x, pl.pos.z) || !sc.active || !pl.grounded || Math.hypot(pl.vel.x, pl.vel.z) > 0.5 || Math.hypot(pl.pos.x - SPOT.x, pl.pos.z - SPOT.z) > SPOT.r + 0.5) { this.cancel(); return; }
     this.t += dt;
     if (this.phase === 'cast') {
       const k = Math.min(1, this.t / CAST_DUR);

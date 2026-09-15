@@ -87,6 +87,13 @@ describe('GameState — талбай', () => {
     expect(s.farmHarvest(0)).toBe(false);
   });
 
+  it('farmTick: хол өнгөрсөн since ч нэг л шат ахина', () => {
+    const s = new GameState({ stars: 50 });
+    s.plant(0, 4); s.water(0, 0);
+    expect(s.farmTick(10 * MIN)).toEqual([0]);
+    expect(s.farm[0]).toEqual({ type: 4, stage: 2, since: null });
+  });
+
   it('farmHarvest: ургац 2, од 15, тоолуур, нүх хоосорно', () => {
     const s = new GameState({ farm: [{ type: 5, stage: 4, since: null }] });
     expect(s.farmHarvest(0)).toBe(true);
@@ -119,6 +126,12 @@ describe('GameState — хадгалалт нийцтэй', () => {
     expect(s.counts.harvest).toBe(3);
     expect(s.farm).toHaveLength(6);
     expect(s.delivery).toEqual({ done: 0 });
+  });
+
+  it('эвдэрсэн нүх (type байхгүй) хоослогдоно', () => {
+    const s = new GameState({ farm: [{ stage: 2, since: 5 }, { type: 4, stage: 2, since: null }] });
+    expect(s.farm[0]).toEqual({ type: null, stage: 0, since: null });
+    expect(s.farm[1]).toEqual({ type: 4, stage: 2, since: null });
   });
 
   it('toJSON → шинэ GameState тойрог хадгална', () => {

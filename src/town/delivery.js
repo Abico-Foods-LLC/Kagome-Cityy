@@ -112,7 +112,8 @@ export class DeliveryBoard {
   // ---------- HUD ----------
   render() {
     const a = this.active, l = this.left();
-    this.hud.textContent = `📬 ${a.npc.name} · ${FRUITS[a.type].emoji}×${a.count} · ${this.fmtLeft()}${l < 0 ? ' · хоцорч байна' : ''}`;
+    const txt = `📬 ${a.npc.name} · ${FRUITS[a.type].emoji}×${a.count} · ${this.fmtLeft()}${l < 0 ? ' · хоцорч байна' : ''}`;
+    if (this.hud.textContent !== txt) this.hud.textContent = txt;
     this.hud.classList.toggle('urgent', l <= 10);
   }
 

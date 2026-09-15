@@ -384,6 +384,7 @@ export class TownScene {
   }
   exit() {
     show('townHud', false);
+    if (this.delivery?.active) { this.delivery.finish(); toast('Хүргэлт цуцлагдлаа — ширэнгэ рүү явлаа', 2500, '📬'); }
     this.audio.engine(false);
     this.audio.stopMusic(); this.audio.stopAmbient();
   }
@@ -996,7 +997,7 @@ export class TownScene {
       this.goalMarker.children[0].rotation.z = t;
       this.goalMarker.children[1].position.y = 5 + Math.sin(t * 3) * 0.35;
       this.goalMarker.children[1].rotation.y = t * 1.5;
-      if (this.goal && Math.hypot(this.goal.x - this.player.pos.x, this.goal.z - this.player.pos.z) < 6 && this.state.currentChapter && LANDMARKS[this.state.currentChapter.landmark] !== this.goal) this.setGoal(null);
+      if (this.goal && !this.delivery?.active && Math.hypot(this.goal.x - this.player.pos.x, this.goal.z - this.player.pos.z) < 6 && this.state.currentChapter && LANDMARKS[this.state.currentChapter.landmark] !== this.goal) this.setGoal(null);
     }
   }
 
@@ -1011,7 +1012,7 @@ export class TownScene {
       }
     }
     this.near = best;
-    const ov = this.fishing?.active ? this.fishing.promptText : null;   // загас барих үед prompt-ыг дарна, hint нуугдана
+    const ov = this.fishing.active ? this.fishing.promptText : null;   // загас барих үед prompt-ыг дарна, hint нуугдана
     // Хөвөх icon + цагираг pulse
     if (best && !this.vehicle && !ov) {
       const pos = best.dynamic ? best.dynamic() : best;
@@ -1024,6 +1025,7 @@ export class TownScene {
     const pr = $('prompt');
     const showP = active && (best || this.vehicle || ov);
     pr.classList.toggle('on', !!showP);
+    pr.classList.toggle('urgent', !!ov && this.fishing.phase === 'bite');
     if (showP) {
       const icon = typeof best?.icon === 'function' ? best.icon() : best?.icon, label = typeof best?.label === 'function' ? best.label() : best?.label;
       $('promptText').textContent = ov ?? (this.vehicle ? 'Машинаас буух' + (this.state.chapter === 4 ? ' · Алтан хаалгаар дарааллаар яв' : '') : icon + ' ' + label);

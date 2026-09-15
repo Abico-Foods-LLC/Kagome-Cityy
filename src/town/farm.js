@@ -48,6 +48,7 @@ export class FarmPlot {
       const plant = new T.Group(); g.add(plant);
       const ring = P.mesh(new T.TorusGeometry(0.55, 0.04, 6, 24), glow(0x9be36a, 1.4), g, 0, 0.16, 0);
       ring.rotation.x = Math.PI / 2; ring.castShadow = false; ring.visible = false;
+      applyCurve(ring.material);
       this.cells.push({ g, soil, plant, ring, stage: -1, type: null });
       interactables.push({ x, z, r: 1.4, hintY: 1.9, label: () => this.label(i), icon: () => this.icon(i), action: () => this.act(i) });
       this.rebuild(i);
@@ -143,12 +144,15 @@ export class FarmPlot {
     if (!changed.length) return;
     for (const i of changed) {
       this.rebuild(i);
-      const c = this.state.farm[i], { g } = this.cells[i];
+      const { g } = this.cells[i];
       this.scene.particles.burst(new T.Vector3(g.position.x, 0.6, g.position.z), 0x9be36a, 10, { speed: 1.5, up: 2, size: 0.18, life: 0.7 });
-      if (c.stage >= GameState.RIPE) toast(`${FRUITS[c.type].name} ургац бэлэн боллоо! Талбай руу яв`, 3200, '🌱');
-      else toast(`${FRUITS[c.type].name} ургалаа — дахин услаарай`, 2600, '💧');
     }
-    this.scene.audio.pickup(0);
+    const ripe = changed.filter((i) => this.state.farm[i].stage >= GameState.RIPE);
+    if (this.scene.started) {
+      if (ripe.length) toast(ripe.length === 1 ? `${FRUITS[this.state.farm[ripe[0]].type].name} ургац бэлэн боллоо! Талбай руу яв` : `${ripe.length} нүхний ургац бэлэн боллоо! Талбай руу яв`, 3200, '🌱');
+      else toast(changed.length === 1 ? `${FRUITS[this.state.farm[changed[0]].type].name} ургалаа — дахин услаарай` : `${changed.length} нүх ургалаа — дахин услаарай`, 2600, '💧');
+      this.scene.audio.pickup(0);
+    }
     this.state.save();
   }
 }

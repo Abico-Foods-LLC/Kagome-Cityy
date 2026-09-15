@@ -25,6 +25,7 @@ export class GameState {
     this.juice = data.juice || { made: {}, stockDate: '', stock: {} };
     this.pet = !!data.pet;
     this.farm = Array.from({ length: 6 }, (_, i) => ({ type: null, stage: 0, since: null, ...((data.farm || [])[i] || {}) }));
+    for (const c of this.farm) if (c.stage > 0 && !(Number.isInteger(c.type) && c.type >= 0 && c.type < 8)) { c.type = null; c.stage = 0; c.since = null; }   // эвдэрсэн save
     this.delivery = { done: 0, ...(data.delivery || {}) };
     this.ensureDaily();
     this.applyRegrow();
