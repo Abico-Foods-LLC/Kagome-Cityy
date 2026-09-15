@@ -92,7 +92,7 @@ export class FishingGame {
     this.tugT = 0.5; this.tugForce = 0; this.fishPhase = Math.random() * 6;
     this.castPos = this.float.position.clone();
     this.shorePos = new T.Vector3(SHORE_X, -0.35, this.castPos.z);
-    this.promptText = '🎣 E барь — заагчийг ногоонд байлга!';
+    this.promptText = '🎣 E барь — ногоонд байлга!';
     this.ui.bar.classList.remove('hidden');
     this.scene.audio.ui();
   }

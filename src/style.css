@@ -231,13 +231,14 @@ dialog p { font-size: 16px; line-height: 1.55; }
   #touch { display: block; position: absolute; bottom: max(28px, env(safe-area-inset-bottom)); left: 22px; right: 22px; pointer-events: none; }
   #stick { width: 124px; height: 124px; background: rgba(255, 255, 255, .35); border: 3px solid rgba(255, 255, 255, .7); border-radius: 50%; touch-action: none; pointer-events: auto; position: relative; }
   #knob { width: 52px; height: 52px; background: rgba(255, 255, 255, .92); border-radius: 50%; position: absolute; left: 33px; top: 33px; box-shadow: 0 4px 0 rgba(23, 67, 46, .3); }
-  .actions { position: absolute; bottom: 0; right: 0; display: flex; gap: 12px; align-items: flex-end; pointer-events: auto; }
+  .actions { position: absolute; bottom: 0; right: 0; display: grid; grid-template-columns: auto auto; gap: 10px; justify-items: end; align-items: end; pointer-events: auto; }
   .act { border-radius: 50%; width: 62px; height: 62px; padding: 6px; font-size: 20px; touch-action: none; background: rgba(255, 249, 209, .92); display: grid; place-items: center; line-height: 1; }
   .act.big { width: 76px; height: 76px; font-size: 24px; }
   .act small { display: block; font-size: 9px; }
   dialog { padding: 24px 20px; border-radius: 24px; } dialog h1 { font-size: 30px; } dialog h2 { font-size: 20px; }
   .grid { grid-template-columns: repeat(2, 1fr); } .map-grid { grid-template-columns: 1fr; }
-  #toast { top: auto; bottom: 250px; font-size: 14px; padding: 10px 14px; }
+  #toast { top: auto; bottom: 310px; font-size: 14px; padding: 10px 14px; }
+  #reelBar { bottom: 248px; width: 240px; }
   #rLevel { top: 66px; left: 12px; width: 170px; padding: 8px 12px; } #rLevel strong { font-size: 14px; }
   #rStats { top: 66px; right: 12px; gap: 5px; } #rStats span { min-width: 60px; padding: 6px 8px; } #rStats b { font-size: 16px; }
   #rPowers { top: 128px; right: 12px; }
@@ -257,4 +258,39 @@ dialog p { font-size: 16px; line-height: 1.55; }
   #minimap { width: 96px; height: 96px; right: 10px; bottom: 210px; border-width: 4px; }
   #rLevel { width: 150px; } #rStats span { min-width: 52px; padding: 5px 6px; } #rStats b { font-size: 14px; } #rStats small { font-size: 8px; letter-spacing: 1px; }
   #rZone { font-size: 20px; top: 160px; }
+  #touch { left: 14px; right: 14px; }
+  #stick { width: 108px; height: 108px; } #knob { width: 46px; height: 46px; left: 28px; top: 28px; }
+  .act { width: 52px; height: 52px; font-size: 18px; } .act.big { width: 66px; height: 66px; font-size: 22px; } .act small { font-size: 8px; }
+  #reelBar { width: 220px; bottom: 270px; }
+  #toast { bottom: 335px; }
+  #minimap { bottom: 320px; }
+  #deliveryHud { top: 200px; max-width: 48vw; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* ---------- Богино дэлгэц (хэвтээ утас, жижиг цонх) ---------- */
+@media (max-height: 520px) {
+  .hud header { top: max(8px, env(safe-area-inset-top)); left: 12px; right: 12px; }
+  .brand { padding: 7px 12px; } .brand strong { font-size: 20px; } .brand span { display: none; }
+  .stat { font-size: 14px; padding: 8px 11px; } button.icon { width: 38px; height: 38px; font-size: 16px; }
+  #quest { top: 58px; left: 12px; width: 200px; padding: 8px 12px; border-radius: 16px; }
+  #quest h2 { font-size: 13px; margin: 3px 0; } #quest p, #questHint { display: none; } #quest small { font-size: 9px; }
+  #quest .daily { display: flex; padding: 5px 8px; font-size: 11px; margin-top: 6px; }
+  #location { top: 58px; right: 12px; font-size: 11px; padding: 6px 10px; }
+  #compass { top: 92px; right: 12px; font-size: 11px; padding: 6px 9px; }
+  #deliveryHud { top: 126px; right: 12px; font-size: 12px; padding: 7px 10px; }
+  #minimap { width: 90px; height: 90px; bottom: 14px; left: 20px; right: auto; border-width: 4px; }
+  .keys { display: none; }
+  #prompt { bottom: 96px; font-size: 13px; padding: 8px 12px 8px 8px; }
+  #reelBar { bottom: 152px; width: 220px; }
+  #speedo { bottom: 100px; }
+  #toast { top: auto; bottom: 210px; font-size: 13px; padding: 9px 12px; }
+  #touch { bottom: max(12px, env(safe-area-inset-bottom)); left: 14px; right: 14px; }
+  #stick { width: 96px; height: 96px; } #knob { width: 42px; height: 42px; left: 24px; top: 24px; }
+  .act { width: 48px; height: 48px; font-size: 17px; } .act.big { width: 60px; height: 60px; font-size: 20px; } .act small { font-size: 8px; }
+  #rLevel { top: 56px; } #rStats { top: 56px; } #rPowers { top: 112px; }
+  #rControls { bottom: max(10px, env(safe-area-inset-bottom)); } #rControls button { width: 50px; height: 50px; font-size: 19px; }
+  dialog { padding: 16px 16px; max-height: 92dvh; overflow: auto; } dialog h1 { font-size: 24px; } dialog h2 { font-size: 18px; }
+}
+@media (max-height: 520px) and (pointer: coarse) {
+  #minimap { left: 124px; }   /* joystick-ийн баруун талд */
 }
