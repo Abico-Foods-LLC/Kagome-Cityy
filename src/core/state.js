@@ -5,7 +5,7 @@ const KEY = 'kagome-city-v2';
 
 export class GameState {
   constructor(data = {}) {
-    this.counts = { harvest: 0, math: 0, read: 0, logic: 0, drive: 0, runner: 0, ...(data.counts || {}) };
+    this.counts = { harvest: 0, math: 0, read: 0, logic: 0, drive: 0, runner: 0, fish: 0, farm: 0, delivery: 0, ...(data.counts || {}) };
     this.stars = Number(data.stars) || 0;
     this.inventory = { ...(data.inventory || {}) };
     this.solved = new Set(data.solved || []);
@@ -24,6 +24,8 @@ export class GameState {
     this.daily = data.daily || null;                     // { date, quests: [{id, goal, progress, done}] }
     this.juice = data.juice || { made: {}, stockDate: '', stock: {} };
     this.pet = !!data.pet;
+    this.farm = Array.from({ length: 6 }, (_, i) => ({ type: null, stage: 0, since: null, ...((data.farm || [])[i] || {}) }));
+    this.delivery = { done: 0, ...(data.delivery || {}) };
     this.ensureDaily();
     this.applyRegrow();
   }
@@ -53,6 +55,9 @@ export class GameState {
     { id: 'drive', goal: 200, text: 'Машинаар 200 метр яв', reward: 30, icon: '🚗' },
     { id: 'flips', goal: 5, text: '5 удаа давхар үсрэлт хий', reward: 25, icon: '🔄' },
     { id: 'juice', goal: 2, text: 'Лабораторид 2 шүүс хий', reward: 40, icon: '🧃' },
+    { id: 'fish', goal: 3, text: '3 загас барь', reward: 30, icon: '🐟' },
+    { id: 'farm', goal: 1, text: 'Талбайгаас 1 ургац хураа', reward: 35, icon: '🌱' },
+    { id: 'delivery', goal: 2, text: '2 хүргэлт хий', reward: 40, icon: '📬' },
   ];
   ensureDaily() {
     const today = new Date().toISOString().slice(0, 10);
@@ -77,6 +82,47 @@ export class GameState {
     return null;
   }
   get dailyDone() { return this.daily ? this.daily.quests.filter((q) => q.done).length : 0; }
+
+  // ---------- Загас ----------
+  fishCaught() { this.counts.fish++; this.stars += 8; }
+
+  // ---------- Миний талбай ----------
+  static SEED_PRICE = 10;
+  static STAGE_MS = 60 * 1000;   // нэг шат (услах бүрт)
+  static RIPE = 4;               // stage 0 хоосон · 1 тарьсан · 2 соёо · 3 навч · 4 ургац
+  plant(i, type) {
+    const c = this.farm[i];
+    if (!c || c.stage !== 0 || this.stars < GameState.SEED_PRICE) return false;
+    this.stars -= GameState.SEED_PRICE;
+    c.type = type; c.stage = 1; c.since = null;
+    return true;
+  }
+  water(i, now = Date.now()) {
+    const c = this.farm[i];
+    if (!c || c.stage < 1 || c.stage >= GameState.RIPE || c.since !== null) return false;
+    c.since = now;
+    return true;
+  }
+  /** Услаад STAGE_MS өнгөрсөн нүхнүүдийг нэг шат ахиулна; ахисан индексүүдийг буцаана (дүрслэл шинэчлэхэд) */
+  farmTick(now = Date.now()) {
+    const changed = [];
+    this.farm.forEach((c, i) => {
+      if (c.stage < 1 || c.stage >= GameState.RIPE || c.since === null) return;
+      if (now - c.since >= GameState.STAGE_MS) { c.stage++; c.since = null; changed.push(i); }
+    });
+    return changed;
+  }
+  farmHarvest(i) {
+    const c = this.farm[i];
+    if (!c || c.stage !== GameState.RIPE) return false;
+    this.inventory[c.type] = (this.inventory[c.type] || 0) + 2;
+    this.counts.farm++; this.counts.harvest += 2; this.stars += 15;
+    c.type = null; c.stage = 0; c.since = null;
+    return true;
+  }
+
+  // ---------- Хүргэлт ----------
+  deliveryDone(onTime) { this.delivery.done++; this.counts.delivery++; this.stars += onTime ? 30 : 15; }
 
   // ---------- Хувцас ----------
   buyAccessory(key, price) {
@@ -111,6 +157,7 @@ export class GameState {
       solved: [...this.solved], collected: [...this.collected], chapter: this.chapter,
       runner: this.runner, settings: this.settings, playtime: this.playtime,
       wardrobe: this.wardrobe, regrow: this.regrow, daily: this.daily, juice: this.juice, pet: this.pet,
+      farm: this.farm, delivery: this.delivery,
     };
   }
 
