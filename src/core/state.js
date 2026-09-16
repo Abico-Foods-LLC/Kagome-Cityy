@@ -29,6 +29,7 @@ export class GameState {
     this.delivery = { done: 0, ...(data.delivery || {}) };
     this.carrots = new Set(data.carrots || []);          // олсон алтан лувангийн id
     this.requests = data.requests || null;                 // { date, list: [{ c, type, fruit, n, done }] }
+    this.defense = data.defense || { best: 0, wavesBest: 0 }; // Хортон хамгаалалтын рекорд
     this.ensureDaily();
     this.applyRegrow();
   }
@@ -63,6 +64,7 @@ export class GameState {
     { id: 'delivery', goal: 2, text: '2 хүргэлт хий', reward: 40, icon: '📬' },
     { id: 'repair', goal: 2, text: '2 эвдэрсэн зүйл зас', reward: 30, icon: '🔧' },
     { id: 'request', goal: 1, text: 'Иргэний 1 хүсэлт биелүүл', reward: 35, icon: '❗' },
+    { id: 'defense', goal: 3, text: 'Хортон хамгаалалтад 3 давалгаа дав', reward: 50, icon: '🎃', max: true },
   ];
   ensureDaily() {
     const today = new Date().toISOString().slice(0, 10);
@@ -207,7 +209,7 @@ export class GameState {
       solved: [...this.solved], collected: [...this.collected], chapter: this.chapter,
       runner: this.runner, settings: this.settings, playtime: this.playtime,
       wardrobe: this.wardrobe, regrow: this.regrow, daily: this.daily, juice: this.juice, pet: this.pet,
-      farm: this.farm, delivery: this.delivery, carrots: [...this.carrots], requests: this.requests,
+      farm: this.farm, delivery: this.delivery, carrots: [...this.carrots], requests: this.requests, defense: this.defense,
     };
   }
 
