@@ -5,7 +5,7 @@ const KEYMAP = {
   KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down',
   KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
   Space: 'jump', KeyE: 'interact', Enter: 'interact', ShiftLeft: 'run', ShiftRight: 'run',
-  Escape: 'pause', KeyP: 'photo', KeyF: 'ball', KeyT: 'chat', KeyM: 'map', KeyQ: 'camLeft', KeyR: 'camRight', Tab: 'map', KeyC: 'roll', ControlLeft: 'roll', Digit1: 'emote1', Digit2: 'emote2', Digit3: 'emote3',
+  Escape: 'pause', KeyP: 'photo', KeyF: 'ball', KeyT: 'chat', KeyB: 'shop', KeyN: 'nextWave', KeyM: 'map', KeyQ: 'camLeft', KeyR: 'camRight', Tab: 'map', KeyC: 'roll', ControlLeft: 'roll', Digit1: 'emote1', Digit2: 'emote2', Digit3: 'emote3',
 };
 
 export class Input {

@@ -74,6 +74,8 @@ export class DefenseScene {
     document.addEventListener('pointerlockchange', () => { if (this.entered) $('crosshair').classList.toggle('locked', document.pointerLockElement === canvas); });
     $('defStart').onclick = () => this.startWave();
     $('defShopBtn').onclick = () => this.shopModal();
+    this.input.on('shop', () => { if (this.entered && !this.over) { if (isModalOpen()) closeModal(); else this.shopModal(); } });
+    this.input.on('nextWave', () => { if (this.entered && !this.over) this.startWave(); });
     $('defExit').onclick = () => this.leave();
   }
 
@@ -86,7 +88,7 @@ export class DefenseScene {
     for (const id of this.remote.map.keys()) this.remote.get(id).st = null;   // хуучин байрлал үлдээхгүй
     this.newGame();
     if (this.net.active) { this.net.sendEvent({ t: 'defJoin', at: this.defAt }); toast('Өрөөнийхөн энэ хаалгаар орвол хамт хамгаална 👥', 3000, '🎃'); }
-    toast(this.input.isTouch ? 'Дэлгэц чирж чиглүүл, 🚿 барьж бууд, 🔍 зум, ↑ үсрэх' : 'Товшоод хулганаа түгж (Esc гарна) · Зүүн товч бууд · Баруун товч зум · Space үсрэх · Shift гүйх', 4500, '🚿');
+    toast(this.input.isTouch ? 'Дэлгэц чирж чиглүүл, 🚿 барьж бууд, 🔍 зум, ↑ үсрэх' : 'Товшоод хулганаа түгж · Зүүн товч бууд · Баруун товч зум · B дэлгүүр · N давалгаа · Esc хулгана чөлөөлөх', 5000, '🚿');
   }
   exit() { document.exitPointerLock?.(); this.firing = false; if (this.net.active) this.net.sendEvent({ t: 'defLeave' }); this.defPeers.clear(); this.entered = false; show('defHud', false); show('touchHud', false); document.body.classList.remove('defense'); $('actionBtn').innerHTML = 'E<small>Үйлдэл</small>'; this.audio.stopMusic(); closeModal(); }
   resize() { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
@@ -106,8 +108,10 @@ export class DefenseScene {
   startWave() { if (this.core.phase !== 'prep') return; if (!this.isHost) { this.net.sendEvent({ t: 'defStart' }); closeModal(); return; } this.core.startWave(); this.audio.gate(); closeModal(); }
   shopModal() {
     const c = this.core; if (c.phase === 'over') return;
+    document.exitPointerLock?.(); this.firing = false;
+    const hint = c.phase === 'prep' ? `<p class="hint">Давалгаа ${c.wave + 1} ${Math.ceil(c.prepT)}с-ийн дараа өөрөө эхэлнэ · N — эрт эхлэх · B — дэлгүүр · Хаагаад дэлгэц товшвол хулгана дахин түгжинэ</p>` : '';
     const items = Object.entries(SHOP).map(([k, it]) => `<div class="shop-item"><span class="em">${it.emoji}</span><small>${it.label}</small><span class="hint" style="font-size:11px">${it.desc}</span><button data-def="${k}" ${c.coins < it.price ? 'disabled' : ''}>🧃 ${it.price}</button></div>`).join('');
-    modal(`<div class="eyebrow">ХОРТОН ХАМГААЛАЛТ · ДЭЛГҮҮР</div><h2>🧃 ${c.coins} зоос · ❤️ ${c.base.hp}/${c.base.max}</h2><p>Хашаа ${c.structures.filter((s) => s.kind === 'FENCE').length}/8 · Цацуур ${c.structures.filter((s) => s.kind === 'SPRAYER').length}/8 · Хамгаалагч ${c.guards.length}/4 · Хүч ${c.power}/2</p><div class="shop">${items}</div><div class="row">${c.phase === 'prep' ? '<button id="defGo" class="primary">▶ Давалгаа эхлэх</button>' : ''}<button id="defClose" class="ghost">Хаах</button></div>`);
+    modal(`<div class="eyebrow">ХОРТОН ХАМГААЛАЛТ · ДЭЛГҮҮР</div><h2>🧃 ${c.coins} зоос · ❤️ ${c.base.hp}/${c.base.max}</h2><p>Хашаа ${c.structures.filter((s) => s.kind === 'FENCE').length}/8 · Цацуур ${c.structures.filter((s) => s.kind === 'SPRAYER').length}/8 · Хамгаалагч ${c.guards.length}/4 · Хүч ${c.power}/2</p><div class="shop">${items}</div>${hint}<div class="row">${c.phase === 'prep' && this.isHost ? '<button id="defGo" class="primary">▶ Давалгаа эхлэх (N)</button>' : ''}<button id="defClose" class="ghost">Хаах (B)</button></div>`);
     document.querySelectorAll('[data-def]').forEach((b) => b.onclick = () => {
       const r = this.buy(b.dataset.def);
       if (!r.ok) { this.audio.wrong(); toast({ coins: 'Зоос хүрэхгүй', slot: 'Байрлал дүүрсэн', max: 'Дээд түвшин', full: 'Base бүтэн', over: 'Тоглолт дууссан' }[r.reason] || 'Болохгүй', 1600, '⚠️'); return; }
@@ -282,7 +286,7 @@ export class DefenseScene {
     for (const g of c.guards) if (!this.guards.has(g.id)) { const m = createGuard(); m.root.position.set(g.x, 0, g.z); this.scene.add(m.root); curveTree(m.root); this.guards.set(g.id, { m }); }
     if (c.base.hp < prev.base.hp) { this.audio.hurt(); this.shake = 0.3; setBaseMood(this.world, c.base.hp, c.base.max); }
     if (c.wave > prev.wave) { toast(`🌊 Давалгаа ${c.wave}!`, 2000, '🐛'); this.audio.gate(); }
-    if (c.phase === 'prep' && prev.phase === 'wave') { toast(`Давалгаа ${c.wave} давлаа! Дэлгүүр нээгдлээ`, 2600, '🎉'); this.audio.fanfare(); }
+    if (c.phase === 'prep' && prev.phase === 'wave') { toast(`Давалгаа ${c.wave} давлаа!`, 2600, '🎉'); this.audio.fanfare(); setTimeout(() => { if (this.entered && this.core.phase === 'prep') this.shopModal(); }, 700); }
     if (c.phase === 'over' && !this.over) this.gameOver(c.result());
   }
 
@@ -302,7 +306,7 @@ export class DefenseScene {
         case 'guard': { const m = createGuard(); m.root.position.set(e.x, 0, e.z); this.scene.add(m.root); curveTree(m.root); this.guards.set(e.id, { m }); break; }
         case 'shot': { const dx = e.tx - e.x, dz = e.tz - e.z, l = Math.hypot(dx, dz) || 1; this.spawnBlob(e.x, e.guard ? 1.0 : 1.6, e.z, dx / l, dz / l, 0x9fe4ff, 0, l / BLOB_SPEED + 0.02); this.particles.burst(new T.Vector3(e.tx, 0.7, e.tz), 0x9fe4ff, 5, { speed: 2, up: 1.5, size: 0.1, life: 0.3, gravity: 6 }); if (!e.guard) { const g = this.structs.get(e.from); if (g?.userData.head) g.userData.head.rotation.y = Math.atan2(dx, dz); } break; }
         case 'buy': { if (e.kind === 'REPAIR') { setBaseMood(this.world, c.base.hp, c.base.max); this.particles.burst(new T.Vector3(0, 2.5, 0), 0x9df5b3, 14, { speed: 2, up: 3, size: 0.18, life: 0.8 }); } break; }
-        case 'waveClear': toast(`Давалгаа ${e.wave} давлаа! +${e.bonus} зоос — дэлгүүр нээгдлээ`, 3200, '🎉'); this.audio.fanfare(); this.character.cheer?.(); this.onWaveClear?.(); break;
+        case 'waveClear': toast(`Давалгаа ${e.wave} давлаа! +${e.bonus} зоос`, 3200, '🎉'); this.audio.fanfare(); this.character.cheer?.(); setTimeout(() => { if (this.entered && this.core.phase === 'prep') this.shopModal(); }, 700); break;
         case 'over': this.gameOver(e); break;
       }
     }

@@ -49,7 +49,7 @@ describe('DefenseCore', () => {
     const c = new DefenseCore({ rand: () => 0.5 }); c.startWave();
     run(c, 6); c.pests.length = 0; c.queue.length = 0; const coins = c.coins; c.tick(0.05);
     expect(c.phase).toBe('prep'); expect(c.coins).toBe(coins + 25);
-    run(c, 16); expect(c.phase).toBe('wave'); expect(c.wave).toBe(2);
+    run(c, 20); expect(c.phase).toBe('wave'); expect(c.wave).toBe(2);
   });
   it('base 0 → over, од = score/25', () => { const c = new DefenseCore(); c.phase = 'wave'; c.score = 260; c.base.hp = 4; c.spawn('WORM', 0, 1); c.tick(0.05); expect(c.phase).toBe('over'); expect(c.result().stars).toBe(Math.floor(260 / STARS_DIV)); });
   it('snapshot/load round-trip', () => {

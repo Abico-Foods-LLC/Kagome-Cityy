@@ -9,6 +9,7 @@ describe('net proto', () => {
     expect(u.anim).toBe('run'); expect(u.inCar).toBe(true); expect(u.runner).toBe(false);
     expect(Array.isArray(packState(p))).toBe(true);
   });
+  it('zone round-trip', () => { const u = unpackState(packState({ anim: 'idle', zone: 2 })); expect(u.zone).toBe(2); expect(u.runner).toBe(true); expect(unpackState(packState({ anim: 'idle' })).zone).toBe(0); });
   it('тодорхойгүй anim → idle', () => { expect(unpackState(packState({ anim: 'zzz' })).anim).toBe('idle'); expect(ANIMS).toContain('carried'); });
   it('pickHost: хамгийн эрт нэгдсэн, тэнцвэл id үсгээр', () => {
     expect(pickHost([{ id: 'b', joinedAt: 5 }, { id: 'a', joinedAt: 3 }])).toBe('a');
