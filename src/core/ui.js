@@ -50,3 +50,15 @@ export function pop(el) {
 }
 
 export function fmt(n) { return Math.round(n).toLocaleString('mn-MN'); }
+
+// Fullscreen асах/унтрахад нээлттэй dialog top layer-т доор нь орж халхлагддаг тул дахин нээж дээш гаргана
+document.addEventListener('fullscreenchange', () => {
+  for (const id of ['panel', 'welcome']) {
+    const d = $(id);
+    if (!d || !d.open) continue;
+    // onclose-ийг түр салгана (close event async тул дараа нь сэргээнэ) — үгүй бол callback ажиллаж цонх алга болно
+    const oc = d.onclose; d.onclose = null;
+    try { d.close(); d.showModal(); } catch (e) { /* аль хэдийн хаагдсан */ }
+    setTimeout(() => { d.onclose = oc; }, 50);
+  }
+});

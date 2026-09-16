@@ -78,8 +78,12 @@ class App {
   /** Утсан дээр: бүтэн дэлгэц + хэвтээ орчил (Android Chrome дэмжинэ; iOS дээр зөвхөн #rotate overlay сануулна) */
   async lockLandscape() {
     if (!this.input.isTouch) return;
-    try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* дэмжихгүй */ }
-    try { await screen.orientation?.lock?.('landscape'); } catch (e) { /* iOS / зөвшөөрөөгүй — overlay сануулна */ }
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await Promise.race([document.documentElement.requestFullscreen({ navigationUI: 'hide' }), new Promise((r) => setTimeout(r, 800))]);
+      }
+    } catch (e) { /* дэмжихгүй */ }
+    try { await Promise.race([screen.orientation?.lock?.('landscape'), new Promise((r) => setTimeout(r, 800))]); } catch (e) { /* iOS / зөвшөөрөөгүй — overlay сануулна */ }
   }
 
   /** Одоо ажиллаж буй чанарын түвшин ('high'|'medium'|'low') */
@@ -118,8 +122,8 @@ class App {
       $('welcomeSave').textContent = `Хадгалсан аялал: ${this.state.chapter}/6 бүлэг · ⭐ ${this.state.stars} од · Ширэнгэ ${this.state.runner.unlocked}/5 үе`;
     } else $('welcomeSave').textContent = 'Алхах · Машин унах · Бодох · Гүйх · Судлах';
     d.showModal();
-    $('start').onclick = () => { this.audio.unlock(); this.audio.ui(); this.lockLandscape(); d.close(); if (hasSave) this.scenes.town.start(); else this.scenes.town.pickAvatar(() => this.scenes.town.start()); };
-    $('startRunner').onclick = async () => { this.audio.unlock(); this.audio.ui(); this.lockLandscape(); d.close(); this.scenes.town.started = true; await this.switchTo('runner'); };
+    $('start').onclick = async () => { this.audio.unlock(); this.audio.ui(); d.close(); await this.lockLandscape(); if (hasSave) this.scenes.town.start(); else this.scenes.town.pickAvatar(() => this.scenes.town.start()); };
+    $('startRunner').onclick = async () => { this.audio.unlock(); this.audio.ui(); d.close(); await this.lockLandscape(); this.scenes.town.started = true; await this.switchTo('runner'); };
     d.addEventListener('cancel', (e) => e.preventDefault());
   }
 
