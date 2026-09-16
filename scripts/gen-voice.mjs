@@ -6,7 +6,9 @@ import { writeFile, readFile, mkdir, access } from 'node:fs/promises';
 import { CITIZEN_LINES, CITIZEN_CHAT, NPC_DEFS, LINES, FRUITS, CHAT_PHRASES as PHRASES } from '../src/core/content.js';
 import { normalizeLine, lineHash } from '../src/core/voiceHash.js';
 
-const KEY = process.env.AZURE_SPEECH_KEY, REGION = process.env.AZURE_SPEECH_REGION || 'eastus';
+// Түлхүүр: env эсвэл .azure-speech.json ({ key, region }) — gitignore-д орсон, repo-д орохгүй
+let cfg = {}; try { cfg = JSON.parse(await readFile(new URL('../.azure-speech.json', import.meta.url), 'utf8')); } catch { /* env ашиглана */ }
+const KEY = process.env.AZURE_SPEECH_KEY || cfg.key, REGION = process.env.AZURE_SPEECH_REGION || cfg.region || 'eastus';
 const args = process.argv.slice(2), force = args.includes('--force');
 const voice = 'mn-MN-' + (args.includes('--voice') ? args[args.indexOf('--voice') + 1] : 'Yesui') + 'Neural';
 const OUT = new URL('../public/assets/voice/', import.meta.url);
