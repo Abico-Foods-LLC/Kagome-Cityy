@@ -1,6 +1,6 @@
 // Иргэдийн өдрийн хүсэлт: өдөр бүр 2 иргэн жимс эсвэл Луувсайтай уулзахыг хүснэ (❗). Логик GameState.ensureRequests/fulfillRequest.
 import * as T from 'three';
-import { FRUITS } from '../core/content.js';
+import { FRUITS, LINES } from '../core/content.js';
 import { GameState } from '../core/state.js';
 import { $, modal, closeModal, toast } from '../core/ui.js';
 
@@ -13,8 +13,8 @@ export class CitizenRequests {
   of(c) { return this.scene.state.requestFor(this.scene.citizens.indexOf(c)); }
 
   text(req) {
-    if (req.type === 'fruit') { const f = FRUITS[req.fruit]; return `${f.emoji} ${f.name} ${req.n} ширхэг олж өгөөч!`; }
-    return 'Луувсайтай уулзмаар байна, дагуулж ирээч!';
+    if (req.type === 'fruit') { const f = FRUITS[req.fruit]; return LINES.requestFruit(f.emoji, f.name, req.n); }
+    return LINES.requestDog;
   }
 
   update(dt) {
@@ -62,7 +62,7 @@ export class CitizenRequests {
     sc.bubbles.show(c.m.root, '❤️', { dur: 2 });
     sc.particles.burst(c.m.root.position.clone().add(new T.Vector3(0, 1.8, 0)), 0xffa7c0, 16, { speed: 2.5, up: 3, size: 0.18, life: 0.9, gravity: 3 });
     sc.audio.correct();
-    toast(`${c.name}: «Баярлалаа!» +${GameState.REQUEST_REWARD} од`, 3000, '❤️'); sc.say?.(c.m.root, 'Баярлалаа! Чи үнэхээр сайн найз юм!', 1.6);
+    toast(`${c.name}: «Баярлалаа!» +${GameState.REQUEST_REWARD} од`, 3000, '❤️'); sc.say?.(c.m.root, LINES.thanks, 1.6);
     sc.progress('request', 1);
     sc.state.save(); sc.updateHUD();
   }

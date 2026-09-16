@@ -29,7 +29,7 @@ import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/anim
 import { Bubbles } from '../world/bubble.js';
 import * as P from '../world/props.js';
 import { bulbMaterial } from '../world/props.js';
-import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS, CITIZENS, CITIZEN_LINES, CITIZEN_CHAT, SHOP_BY_ID } from '../core/content.js';
+import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS, CITIZENS, CITIZEN_LINES, CITIZEN_CHAT, LINES, SHOP_BY_ID } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
 
 const WALK = 5.6, RUN = 9.4, SWIM = 3.2, ROLL_SPEED = 12, ROLL_DUR = 0.45, ACCEL = 34, DECEL = 42, AIR_CTRL = 0.45, GRAVITY = 24, JUMP_V = 8.6, COYOTE = 0.12, BUFFER = 0.14;
@@ -287,11 +287,11 @@ export class TownScene {
       const v = this.app.voice; if (!v || v.speaking) return;
       // Ойрхон иргэн мэндэлнэ (иргэн бүр 25с-д нэг удаа)
       const c = this.citizens.find((x) => !x.knock && !x.carried && !x.upset && near(x.m.root.position, 5) && this.clock - (x.saidAt || -99) > 25);
-      if (c) { c.saidAt = this.clock; const line = ['Сайн уу!', 'Өдрийн мэнд!', 'Сайхан аялаарай!', 'Хөөе, найзаа!'][Math.floor(Math.random() * 4)]; this.bubbles.showText(c.m.root, line, { dur: 2 }); v.speak(line, { pitch: voicePitch(c.m.kind), interrupt: false }); return; }
+      if (c) { c.saidAt = this.clock; const line = LINES.greet[Math.floor(Math.random() * LINES.greet.length)]; this.bubbles.showText(c.m.root, line, { dur: 2 }); v.speak(line, { pitch: voicePitch(c.m.kind), interrupt: false }); return; }
       const F = this.farmer.m.root, V = this.vendor.root, Fi = this.fisher.root;
-      if (near(F.position, 6) && this.clock - (this.farmerSaid || -99) > 30) { this.farmerSaid = this.clock; const line = ['Ургац сайн байна!', 'Лууван ус хэрэгтэй!', 'Талбай минь…'][Math.floor(Math.random() * 3)]; this.bubbles.showText(F, line, { dur: 2 }); v.speak(line, { pitch: 1.35, interrupt: false }); }
-      else if (near(V.position, 6) && this.clock - (this.vendorSaid || -99) > 30) { this.vendorSaid = this.clock; const line = ['Шүүс аваарай!', 'Kagome шүүс — амттай!', 'Хямдрал байна!'][Math.floor(Math.random() * 3)]; this.bubbles.showText(V, line, { dur: 2 }); v.speak(line, { pitch: 1.45, interrupt: false }); }
-      else if (near(Fi.position, 6) && this.clock - (this.fisherSaid || -99) > 30) { this.fisherSaid = this.clock; const line = ['Чшш… загас ирж байна.', 'Өнөөдөр гурвыг барилаа.', 'Тэвчээр хэрэгтэй!'][Math.floor(Math.random() * 3)]; this.bubbles.showText(Fi, line, { dur: 2 }); v.speak(line, { pitch: 1.3, rate: 0.95, interrupt: false }); }
+      if (near(F.position, 6) && this.clock - (this.farmerSaid || -99) > 30) { this.farmerSaid = this.clock; const line = LINES.farmer[Math.floor(Math.random() * 3)]; this.bubbles.showText(F, line, { dur: 2 }); v.speak(line, { pitch: 1.35, interrupt: false }); }
+      else if (near(V.position, 6) && this.clock - (this.vendorSaid || -99) > 30) { this.vendorSaid = this.clock; const line = LINES.vendor[Math.floor(Math.random() * 3)]; this.bubbles.showText(V, line, { dur: 2 }); v.speak(line, { pitch: 1.45, interrupt: false }); }
+      else if (near(Fi.position, 6) && this.clock - (this.fisherSaid || -99) > 30) { this.fisherSaid = this.clock; const line = LINES.fisher[Math.floor(Math.random() * 3)]; this.bubbles.showText(Fi, line, { dur: 2 }); v.speak(line, { pitch: 1.3, rate: 0.95, interrupt: false }); }
     }
   }
 
@@ -488,7 +488,7 @@ export class TownScene {
     this.particles.burst(c.m.root.position.clone().add(new T.Vector3(0, 1.8, 0)), 0xffa7c0, 12, { speed: 2, up: 2.5, size: 0.16, life: 0.8, gravity: 3 });
     this.audio.tone({ f: 660, f2: 990, type: 'sine', dur: 0.2, vol: 0.08 });
     closeModal();
-    toast(`${c.name}: «Зүгээр, дараа болгоомжтой байгаарай!»`, 2600, '🙂'); this.say(c.m.root, 'Зүгээр, дараа болгоомжтой байгаарай!', voicePitch(c.m.kind));
+    toast(`${c.name}: «Зүгээр, дараа болгоомжтой байгаарай!»`, 2600, '🙂'); this.say(c.m.root, LINES.forgive, voicePitch(c.m.kind));
   }
   /** Машин хурдтай урдаас нь ирж байвал иргэн хажуу тийш үсрэн зайлна; true = зайлж байна */
   updateDodge(c, dt) {
@@ -673,7 +673,7 @@ export class TownScene {
     e.carryT = (e.carryT || 0) + dt;
     const joy = Math.max(0, Math.min(1, (e.carryT - 4) / 0.6));
     e.m.update(dt, { state: 'carried', speed: 0, joy }); e.m.setMood(joy > 0.5 ? 'happy' : 'surprised', 0.3);
-    if (e.carryT >= 4 && !e.joyed) { e.joyed = true; this.bubbles.show(r, '😄', { dur: 1.8 }); toast(`${e.name}: «Хөөх, өндөр юм!»`, 2000, '🙌'); this.say(r, 'Хөөх, өндөр юм!', voicePitch(e.m.kind) * 1.05); this.audio.tone({ f: 660, f2: 1100, type: 'sine', dur: 0.18, vol: 0.08 }); }
+    if (e.carryT >= 4 && !e.joyed) { e.joyed = true; this.bubbles.show(r, '😄', { dur: 1.8 }); toast(`${e.name}: «Хөөх, өндөр юм!»`, 2000, '🙌'); this.say(r, LINES.carryJoy, voicePitch(e.m.kind) * 1.05); this.audio.tone({ f: 660, f2: 1100, type: 'sine', dur: 0.18, vol: 0.08 }); }
     else if (e.carryT > 5.5 && e.carryT - (e.lastBubble || 0) > 3) { e.lastBubble = e.carryT; this.bubbles.show(r, ['😄', '🎉', '☀️'][Math.floor(Math.random() * 3)], { dur: 1.5 }); }
     if (active && this.input.justPressed('camLeft')) this.throwCarry();
   }
@@ -746,7 +746,7 @@ export class TownScene {
     if (c.upset) {
       // Гомдсон: уучлалт гуйх хүртэл ярилцахгүй
       c.m.setMood('hurt', 3); this.bubbles.show(r, '😠', { dur: 1.5 });
-      this.say(r, 'Өө… чи намайг мөргөчихсөн шүү дээ. Өвдлөө…', voicePitch(c.m.kind) * 0.95);
+      this.say(r, LINES.upset, voicePitch(c.m.kind) * 0.95);
       const fruits = FRUITS.map((f, i) => (this.state.inventory[i] || 0) > 0 ? `<button data-gift="${i}">${f.emoji} бэлэглэх</button>` : '').join('');
       modal(`<div class="npc-head"><div class="reward">😠</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${c.name}</h2></div></div><p>«Өө… чи намайг мөргөчихсөн шүү дээ. Өвдлөө…»</p><div class="row"><button id="npcSorry" class="primary">Уучлаарай 🙏</button>${fruits}<button id="npcBye" class="ghost">Дараа</button></div>`);
       $('npcSorry').onclick = () => this.apologize(c);
@@ -974,7 +974,7 @@ export class TownScene {
     this.progress('emotes', 1);
     if (kind === 'cheer') { this.character.cheer(); this.audio.tone({ f: 660, f2: 990, type: 'triangle', dur: 0.2, vol: 0.08 }); }
     else this.character.play(kind, kind === 'dance' ? 2.6 : 1.2);
-    this.say(this.character.root, { wave: 'Сайн уу!', cheer: 'Ура!', dance: 'Ла-ла-ла!' }[kind] || '', voicePitch(this.state.settings.avatar));
+    this.say(this.character.root, LINES.emote[kind] || '', voicePitch(this.state.settings.avatar));
     if (kind === 'dance') this.particles.burst(this.player.pos.clone().add(new T.Vector3(0, 1.5, 0)), 0xffd1f0, 12, { speed: 2, up: 2, size: 0.15, life: 0.8, gravity: 1 });
   }
 
@@ -1198,7 +1198,7 @@ export class TownScene {
       <div class="settings">
         <label>Дуу <input type="checkbox" id="sSound" ${st.sound ? 'checked' : ''}></label>
         <label>Хөгжим <input type="checkbox" id="sMusic" ${st.music ? 'checked' : ''}></label>
-        <label>Дүрүүд ярих ${{ mn: '(монгол хоолой)', ru: '(орос хоолойгоор монголоор)', babble: '(хүүхдийн дуу хоолой)' }[this.app.voice?.mode || 'babble']} <input type="checkbox" id="sVoice" ${st.voice !== false ? 'checked' : ''}></label>
+        <label>Дүрүүд ярих ${{ clip: '(монгол хүүхдийн хоолой)', mn: '(монгол хоолой)', ru: '(орос хоолойгоор монголоор)', babble: '(хүүхдийн дуу хоолой)' }[this.app.voice?.mode || 'babble']} <input type="checkbox" id="sVoice" ${st.voice !== false ? 'checked' : ''}></label>
         <label>Гүний бүдгэрэлт (DoF) <input type="checkbox" id="sDof" ${st.dof !== false ? 'checked' : ''}></label>
         <label>Сорилын түвшин <select id="sLevel"><option value="1">Бага (6–8 нас)</option><option value="2">Ахлах (9–12 нас)</option></select></label>
         <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>
@@ -1209,7 +1209,7 @@ export class TownScene {
     $('resume').onclick = closeModal;
     $('sSound').onchange = (e) => { st.sound = e.target.checked; this.audio.applySettings(); this.state.save(); };
     $('sMusic').onchange = (e) => { st.music = e.target.checked; this.audio.applySettings(); this.state.save(); };
-    $('sVoice').onchange = (e) => { st.voice = e.target.checked; this.state.save(); if (!e.target.checked) this.app.voice?.stop(); else this.say(this.character.root, 'Сайн уу! Би ярьж чадна!', voicePitch(st.avatar)); };
+    $('sVoice').onchange = (e) => { st.voice = e.target.checked; this.state.save(); if (!e.target.checked) this.app.voice?.stop(); else this.say(this.character.root, LINES.voiceTest, voicePitch(st.avatar)); };
     $('sQuality').onchange = (e) => { st.quality = e.target.value; this.state.save(); this.app.applyQuality(); };
     $('sDof').onchange = (e) => { st.dof = e.target.checked; this.state.save(); this.app.applyQuality(); };
     $('help').onclick = () => this.help();

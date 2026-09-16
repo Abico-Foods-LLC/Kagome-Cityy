@@ -1,8 +1,8 @@
 // Чат: бэлэн үг + emoji (чөлөөт бичихгүй — хүүхдэд аюулгүй). T / 💬 → цонх; сонгоход бүгдэд бөмбөлөг + лог.
 import { $ } from '../core/ui.js';
 
-export const PHRASES = ['Сайн уу! 👋', 'Ирээрэй!', 'Хөөх! 😮', 'Баярлалаа 🙏', 'Хамт машинаар явъя 🚗', 'Намайг өргөөч 🙌', 'Буулгаач! 😅', 'Загас барья 🎣', 'Талбай руу 🌱', 'Ширэнгэ рүү 🌴', 'Баяртай 👋', 'Ха-ха 😂'];
-export const EMOJIS = ['😀', '😂', '😮', '😍', '😎', '🎉', '👍', '👋', '❤️', '🥕', '🍎', '🐶'];
+import { CHAT_PHRASES as PHRASES, CHAT_EMOJIS as EMOJIS } from '../core/content.js';
+export { PHRASES, EMOJIS };
 const ALLOWED = new Set([...PHRASES, ...EMOJIS]);
 
 export class Chat {

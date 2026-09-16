@@ -3,7 +3,7 @@ import * as T from 'three';
 import { toon, standard, waterMaterial, PALETTE, glow, hitSway } from '../gfx/materials.js';
 import { grassTexture, roadTexture } from '../gfx/textures.js';
 import * as P from './props.js';
-import { FRUITS, PRODUCTS } from '../core/content.js';
+import { FRUITS, PRODUCTS, NPC_DEFS } from '../core/content.js';
 import { mergeStatic } from '../gfx/merge.js';
 import { Mascot, FRUIT_TO_MASCOT } from './mascot.js';
 
@@ -271,14 +271,8 @@ export function buildTown(scene, { textures }) {
   });
 
   // ---------- NPC ----------
-  const npcDefs = [
-    { type: 0, x: -10, z: 12, name: 'Алим Ану', lines: 'Сайн уу, аялагч аа! Би Ану. Цэцэрлэгийн доогуур гялалзах жимснүүдийг E дарж түүгээрэй. M товчоор газрын зураг нээгдэнэ.' },
-    { type: 4, x: -27, z: -14.5, name: 'Лууван Лулу', lines: 'Манай захад тавтай морил! Ургацаа тоолоход туслаад од аваарай.', quest: 'math' },
-    { type: 2, x: 37, z: -16, name: 'Үзэм Үүлээ', lines: 'Эхийг анхааралтай уншаарай. Яарах хэрэггүй, хариултаа эх дотроос олоорой.', quest: 'read' },
-    { type: 3, x: 34, z: 23, name: 'Манго Мими', lines: 'Хүрдээ эргүүлээд зүй тогтол, тоон дарааллын таавруудыг тайлцгаая!', quest: 'logic' },
-    { type: 6, x: 30, z: -27, name: 'Брокколи Бобо', lines: 'Манай фермд лууван, улаан лооль, брокколи, хулуу ургаж байна. Фермийн зүүн талд чиний өөрийн талбай бий — үрийн савнаас үр аваад тарь, услаад ургацаа хураагаарай!' },
-    { type: 7, x: 44, z: -50, name: 'Хулуу Хүслэн', lines: 'Ширэнгийн цаана эртний сүм бий. Тэнд Kagome-ийн бүтээгдэхүүн тарсан гэнэ. Гүйлтэнд бэлэн үү?', quest: 'runner' },
-  ];
+  const npcDefs = NPC_DEFS;
+
   const npcHats = { 'Алим Ану': { hat: 'flower' }, 'Лууван Лулу': { hat: 'cap' }, 'Үзэм Үүлээ': { glasses: 'round' }, 'Манго Мими': { hat: 'straw' }, 'Брокколи Бобо': { extra: 'scarf' }, 'Хулуу Хүслэн': { hat: 'party' } };
   for (const d of npcDefs) {
     const m = new Mascot({ kind: FRUIT_TO_MASCOT[d.type], scale: 1.05 });
