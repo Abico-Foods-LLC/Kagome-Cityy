@@ -558,7 +558,7 @@ export class TownScene {
 
   // ---------------------------------------------------------------- Өргөх / шидэх / буулгах (товшилт, Q)
   clickAction() {
-    if (!this.active || this.vehicle || this.fishing.active) return;
+    if (!this.active || this.vehicle || this.fishing.active || this.player.carriedBy || this.player.flung) return;
     if (this.carry) return this.putDown();
     const pp = this.player.pos; let best = null, bd = 2.4;
     for (const e of [...this.citizens, this.farmer]) {
@@ -571,7 +571,20 @@ export class TownScene {
       const d = Math.hypot(this.dog.root.position.x - pp.x, this.dog.root.position.z - pp.z);
       if (d < bd) { bd = d; best = { dog: true, root: this.dog.root, name: 'Луувсай' }; }
     }
+    // Бусад тоглогч (өрөөнд)
+    if (this.net.active) {
+      const id = this.remote.nearest(pp, bd);
+      if (id) { best = { remote: id, name: this.remote.get(id).name }; }
+    }
     if (!best) return;
+    if (best.remote) {
+      this.carry = best; this.remote.get(best.remote).carriedBy = this.net.selfId;
+      this.net.sendEvent({ t: 'carry', target: best.remote });
+      this.bubbles.show(this.remote.get(best.remote).avatar.root, '😮', { dur: 1.4 });
+      this.character.play('pick', 0.5); this.audio.ui();
+      if (!this.carryHinted) { this.carryHinted = true; toast('Q — шидэх · Товшилт — буулгах', 2800, '🙌'); }
+      return;
+    }
     if (best.dog) {
       this.carry = best; this.dog.happy = 2;
       this.bubbles.show(this.dog.root, '❤️', { dur: 1.4, y: 1.3, size: 0.7 });
@@ -586,6 +599,12 @@ export class TownScene {
   updateCarry(dt, active) {
     const e = this.carry; if (!e) return;
     const P = this.player;
+    if (e.remote) {
+      // Remote тоглогч: remote.js толгой дээр байрлуулна; Q → шидэх
+      if (!this.remote.get(e.remote)) { this.carry = null; return; }
+      if (active && this.input.justPressed('camLeft')) this.throwCarry();
+      return;
+    }
     if (e.dog) {
       // Нохой толгой дээр: сүүл савчина, баярлана
       const d = this.dog;
@@ -610,6 +629,12 @@ export class TownScene {
   putDown() {
     const e = this.carry; if (!e) return;
     const P = this.player, x = P.pos.x + Math.sin(P.heading) * 1.3, z = P.pos.z + Math.cos(P.heading) * 1.3;
+    if (e.remote) {
+      this.carry = null; const r = this.remote.get(e.remote); if (r) { r.carriedBy = null; this.bubbles.show(r.avatar.root, '❤️', { dur: 1.5 }); }
+      this.net.sendEvent({ t: 'drop', target: e.remote, x, z, h: P.heading });
+      this.character.play('pick', 0.5); this.audio.ui();
+      return;
+    }
     if (e.dog) {
       this.carry = null;
       this.dog.root.position.set(this.blocked(x, z, 0.3) ? P.pos.x : x, 0, this.blocked(x, z, 0.3) ? P.pos.z : z);
@@ -627,6 +652,12 @@ export class TownScene {
   throwCarry() {
     const e = this.carry; if (!e) return;
     const P = this.player;
+    if (e.remote) {
+      this.carry = null; const r = this.remote.get(e.remote); if (r) { r.carriedBy = null; this.bubbles.show(r.avatar.root, '😵', { dur: 1.6 }); }
+      this.net.sendEvent({ t: 'throw', target: e.remote, vx: Math.sin(P.heading) * 9, vz: Math.cos(P.heading) * 9, vy: 5 });
+      this.character.play('pick', 0.5); this.audio.whoosh(); this.cam.shake = Math.max(this.cam.shake, 0.15);
+      return;
+    }
     if (e.dog) {
       this.carry = null;
       this.dog.knock = { t: 1.0, vx: Math.sin(P.heading) * 8, vz: Math.cos(P.heading) * 8, vy: 4.5 };
@@ -752,7 +783,8 @@ export class TownScene {
     this.remote = new RemotePlayers(this);
     this.net.on('hello', (id, p) => this.remote.add(id, p))
       .on('state', (id, arr) => this.remote.onState(id, arr))
-      .on('peerLeave', (id) => { this.remote.remove(id); if (this.carry?.remote === id) this.carry = null; if (this.player.carriedBy === id) this.player.carriedBy = null; });
+      .on('peerLeave', (id) => { this.remote.remove(id); if (this.carry?.remote === id) this.carry = null; if (this.player.carriedBy === id) this.player.carriedBy = null; })
+      .on('event', (d, from) => this.onNetEvent(d, from));
     $('netButton').onclick = () => this.net.roomModal();
   }
 
@@ -956,6 +988,52 @@ export class TownScene {
 
   /** Аксессуарын дэлгүүр (Kagome маркет) */
   shop(cat) { this.shopUI.open(cat); }
+  /** Намайг өөр тоглогч өргөсөн / шидсэн: хөдөлгөөн хаагдаж, өргөгчийг дагана эсвэл ниснэ */
+  updateSelfCarried(dt) {
+    const P = this.player, ch = this.character;
+    if (P.carriedBy) {
+      const h = this.remote.carrierHead(P.carriedBy);
+      if (!h) { P.carriedBy = null; return; }
+      P.pos.set(h.x, 0, h.z); P.y = h.y; P.visualY = h.y + Math.sin(this.clock * 6) * 0.05; P.heading = h.h; P.vel.set(0, 0, 0); P.state = 'carried';
+      P.carryT = (P.carryT || 0) + dt; P.carryJoy = Math.max(0, Math.min(1, (P.carryT - 4) / 0.6));
+      if (P.carryT >= 4 && !P.joyed) { P.joyed = true; this.bubbles.show(ch.root, '😄', { dur: 1.8 }); toast('Хөөх, өндөр юм! 🙌', 1800, '😄'); }
+      ch.shadow.material.opacity = 0;
+      return;
+    }
+    const f = P.flung; f.t -= dt;
+    const nx = P.pos.x + f.vx * dt, nz = P.pos.z + f.vz * dt;
+    if (!this.blocked(nx, nz, 0.45, { canal: false })) { P.pos.x = nx; P.pos.z = nz; } else { f.vx *= -0.3; f.vz *= -0.3; }
+    f.vx *= Math.exp(-dt * 2.5); f.vz *= Math.exp(-dt * 2.5);
+    f.vy -= GRAVITY * dt; P.y = Math.max(0, P.y + f.vy * dt);
+    if (P.y === 0 && f.vy < 0) { f.vy = 0; if (!f.landed) { f.landed = true; this.particles.dust(P.pos, 6); this.bubbles.show(ch.root, '😵', { dur: 1.4 }); this.cam.shake = 0.3; this.audio.hurt(); } }
+    P.visualY = P.y; P.state = f.landed ? 'idle' : 'fall'; P.vel.set(0, 0, 0);
+    ch.shadow.material.opacity = 0.22 * Math.max(0.2, 1 - P.y * 0.18);
+    if (f.t <= 0) { P.flung = null; P.grounded = true; P.yVel = 0; ch.setMood('surprised', 1.2); }
+  }
+
+  /** Бусад тоглогчоос ирсэн event */
+  onNetEvent(d, from) {
+    const P = this.player, me = this.net.selfId;
+    switch (d.t) {
+      case 'carry': {
+        if (d.target === me) { if (this.carry) this.putDown(); P.carriedBy = from; P.carryT = 0; P.joyed = false; P.carryJoy = 0; if (this.vehicle) this.exitCar(); this.bubbles.show(this.character.root, '😮', { dur: 1.4 }); toast(`${this.net.peers.get(from)?.name || 'Тоглогч'} чамайг өргөлөө!`, 2000, '🙌'); }
+        else { const r = this.remote.get(d.target); if (r) r.carriedBy = from; }
+        break;
+      }
+      case 'drop': {
+        if (d.target === me && P.carriedBy === from) { P.carriedBy = null; P.carryJoy = 0; if (!this.blocked(d.x, d.z, 0.45, { canal: false })) P.pos.set(d.x, 0, d.z); P.y = 0; P.visualY = 0; P.heading = d.h; this.bubbles.show(this.character.root, '❤️', { dur: 1.5 }); }
+        else { const r = this.remote.get(d.target); if (r && r.carriedBy === from) r.carriedBy = null; }
+        break;
+      }
+      case 'throw': {
+        if (d.target === me && P.carriedBy === from) { P.carriedBy = null; P.carryJoy = 0; P.y = 1.8; P.flung = { vx: d.vx, vz: d.vz, vy: d.vy, t: 1.8, landed: false }; this.character.roll(0.7); this.audio.whoosh(); }
+        else { const r = this.remote.get(d.target); if (r && r.carriedBy === from) r.carriedBy = null; }
+        break;
+      }
+      default: this.sync?.onEvent?.(d, from);
+    }
+  }
+
   /** Сүлжээ: өөрийн төлөвийг 15Hz илгээж, бусдыг шинэчилнэ */
   netSync(dt) {
     if (!this.net.active) return;
@@ -1116,13 +1194,14 @@ export class TownScene {
     let axis = active ? input.axis() : { x: 0, y: 0 };
     let moving = 0;
     if (this.vehicle) this.updateCar(dt, axis, active);
+    else if (P.carriedBy || P.flung) this.updateSelfCarried(dt);
     else this.updatePlayer(dt, axis, active);
     this.updateCarry(dt, active);
 
     // Дүр
     const speedNorm = this.vehicle ? 0 : Math.hypot(P.vel.x, P.vel.z) / RUN;
     const look = !this.vehicle && this.near ? new T.Vector3((this.near.dynamic ? this.near.dynamic() : this.near).x, 1.2, (this.near.dynamic ? this.near.dynamic() : this.near).z) : null;
-    this.character.update(dt, { state: P.state, speed: speedNorm, lean: this.vehicle ? 0 : P.lean || 0, lookAt: look });
+    this.character.update(dt, { state: P.state, speed: speedNorm, lean: this.vehicle ? 0 : P.lean || 0, lookAt: look, joy: P.carryJoy || 0 });
     this.character.root.position.set(P.pos.x, P.visualY, P.pos.z);
     this.character.root.rotation.y = P.heading;
     if (this.vehicle) this.driver.update(dt, { state: 'sit', speed: 0, lean: -this.car.steer * 0.3 });
