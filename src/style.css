@@ -315,3 +315,12 @@ body.photo #townHud > *:not(#photoBar) { display: none !important; }
 @media (max-height: 520px) and (pointer: coarse) {
   #minimap { left: 124px; }   /* joystick-ийн баруун талд */
 }
+
+/* Утас босоо байвал: хэвтээ болгохыг хүснэ (зөвхөн мэдрэгч дэлгэц) */
+#rotate { display: none; }
+@media (pointer: coarse) and (orientation: portrait) {
+  #rotate { display: grid; place-items: center; align-content: center; gap: 8px; position: fixed; inset: 0; z-index: 200; background: linear-gradient(160deg, #fff7d7, #dff3e2); text-align: center; padding: 24px; color: #1e6b45; }
+  #rotate .rotIcon { font-size: 72px; animation: rot 1.6s ease-in-out infinite; }
+  #rotate h2 { margin: 0; font-size: 24px; } #rotate p { margin: 0; font-weight: 600; opacity: .8; }
+  @keyframes rot { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+}

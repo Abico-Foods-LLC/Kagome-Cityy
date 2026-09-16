@@ -75,6 +75,13 @@ class App {
     })));
   }
 
+  /** Утсан дээр: бүтэн дэлгэц + хэвтээ орчил (Android Chrome дэмжинэ; iOS дээр зөвхөн #rotate overlay сануулна) */
+  async lockLandscape() {
+    if (!this.input.isTouch) return;
+    try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* дэмжихгүй */ }
+    try { await screen.orientation?.lock?.('landscape'); } catch (e) { /* iOS / зөвшөөрөөгүй — overlay сануулна */ }
+  }
+
   /** Одоо ажиллаж буй чанарын түвшин ('high'|'medium'|'low') */
   get quality() { return this.state.settings.quality === 'auto' ? this.autoQuality : this.state.settings.quality; }
 
@@ -111,8 +118,8 @@ class App {
       $('welcomeSave').textContent = `Хадгалсан аялал: ${this.state.chapter}/6 бүлэг · ⭐ ${this.state.stars} од · Ширэнгэ ${this.state.runner.unlocked}/5 үе`;
     } else $('welcomeSave').textContent = 'Алхах · Машин унах · Бодох · Гүйх · Судлах';
     d.showModal();
-    $('start').onclick = () => { this.audio.unlock(); this.audio.ui(); d.close(); if (hasSave) this.scenes.town.start(); else this.scenes.town.pickAvatar(() => this.scenes.town.start()); };
-    $('startRunner').onclick = async () => { this.audio.unlock(); this.audio.ui(); d.close(); this.scenes.town.started = true; await this.switchTo('runner'); };
+    $('start').onclick = () => { this.audio.unlock(); this.audio.ui(); this.lockLandscape(); d.close(); if (hasSave) this.scenes.town.start(); else this.scenes.town.pickAvatar(() => this.scenes.town.start()); };
+    $('startRunner').onclick = async () => { this.audio.unlock(); this.audio.ui(); this.lockLandscape(); d.close(); this.scenes.town.started = true; await this.switchTo('runner'); };
     d.addEventListener('cancel', (e) => e.preventDefault());
   }
 
@@ -132,6 +139,7 @@ class App {
     const dt = Math.min(0.05, (now - this.last) / 1000 || 0) * this.timeScale;
     this.last = now;
     if (!this.current) return;
+    if (this.current !== this.scenes.town) this.scenes.town.netIdle?.(dt);   // runner-т байхад өрөөний холболт үргэлжилнэ
     this.current.update(dt);
     this.current.render();
     this.input.endFrame();

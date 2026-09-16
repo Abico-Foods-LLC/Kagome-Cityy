@@ -1065,8 +1065,22 @@ export class TownScene {
   /** Амжилтаа өрөөний бусдад мэдэгдэнэ (toast) */
   feat(text, icon = '🎉') { if (this.net.active) this.net.sendEvent({ t: 'feat', text, icon }); }
 
+  /** Runner-т байхад: state-ээ (runner:true) 2Hz илгээж, host бол иргэдийг үргэлжлүүлэн симуляцилж түгээнэ */
+  netIdle(dt) {
+    if (!this.net.active) return;
+    this.inRunner = true;
+    this.net.update(dt); this.remote.update(dt);
+    if (this.net.isHost) { this.clock += dt; this.updateCitizens(dt); this.sync.update(dt); this.bubbles.update(dt); }
+    this.netTick = (this.netTick || 0) + dt;
+    if (this.netTick < 0.5) return;
+    this.netTick = 0;
+    const P = this.player;
+    this.net.sendState(packState({ x: P.pos.x, y: 0, z: P.pos.z, h: P.heading, anim: 'idle', speed: 0, inCar: false, runner: true }));
+  }
+
   /** Сүлжээ: өөрийн төлөвийг 15Hz илгээж, бусдыг шинэчилнэ */
   netSync(dt) {
+    this.inRunner = false;
     if (!this.net.active) return;
     this.remote.update(dt);
     this.netTick = (this.netTick || 0) + dt;
