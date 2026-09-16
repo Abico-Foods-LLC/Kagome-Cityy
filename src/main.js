@@ -74,6 +74,9 @@ class App {
     })));
   }
 
+  /** Одоо ажиллаж буй чанарын түвшин ('high'|'medium'|'low') */
+  get quality() { return this.state.settings.quality === 'auto' ? this.autoQuality : this.state.settings.quality; }
+
   applyQuality() {
     const q = this.state.settings.quality === 'auto' ? this.autoQuality : this.state.settings.quality;
     const r = this.renderer;

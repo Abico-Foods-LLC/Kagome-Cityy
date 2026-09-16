@@ -585,3 +585,65 @@ export function buggy(parent, x, z) {
   contactShadow(g, 2.6, 0, 0, 3.0);
   return g;
 }
+
+// ---- Маркетын машины чимэг: туг / антенн / жимсний хайрцаг (нэг удаад нэг) ----
+export function carDecor(chassis, kind) {
+  if (chassis.userData.decor) { chassis.userData.decor.removeFromParent(); chassis.userData.decor = null; }
+  if (!kind) return null;
+  const g = group('CarDecor', chassis, 0, 0, 0);
+  const dark = toon(0x2b3335, { key: 'buggyDark' });
+  if (kind === 'flag') {
+    cyl(dark, g, 1.1, 2.7, 1.7, 0.03, 1.5);
+    const cloth = mesh(new T.PlaneGeometry(0.9, 0.5), new T.MeshBasicMaterial({ color: 0xe81e39, side: T.DoubleSide, toneMapped: false }), g, 1.1 + 0.45, 3.25, 1.7);
+    cloth.geometry.translate(0.45, 0, 0); cloth.position.x = 1.1; cloth.userData.wave = true; g.userData.cloth = cloth;
+    const k = new T.Mesh(new T.CircleGeometry(0.15, 16), new T.MeshBasicMaterial({ map: textTexture('K', { bg: '#fff8e0', fg: '#e81e39', font: '900 200px Arial', w: 256, h: 256, radius: 128 }), toneMapped: false, side: T.DoubleSide }));
+    k.position.set(0.5, 0, 0.005); cloth.add(k);
+  } else if (kind === 'antenna') {
+    cyl(dark, g, 1.2, 2.3, -1.5, 0.02, 1.3);
+    sphere(glow(0xffd24d, 1.2), g, 1.2, 3.0, -1.5, 0.13);
+  } else if (kind === 'crate') {
+    const wood = toon(0xc08a52, { key: 'benchWood' });
+    mesh(new RoundedBoxGeometry(1.2, 0.4, 0.8, 3, 0.06), wood, g, 0, 2.45, 1.2);
+    for (const s of [-1, 1]) box(toon(0x8a5a30, { key: 'crateD' }), g, s * 0.3, 2.45, 1.2, 0.06, 0.42, 0.82);
+    [[0xf0464f, -0.35], [0xff9a1f, 0], [0x8f5cd6, 0.35]].forEach(([c, x]) => sphere(toon(c, { key: 'crateF' + c }), g, x, 2.72, 1.2, 0.17));
+  }
+  chassis.userData.decor = g;
+  return g;
+}
+
+// ---- «Миний булан»: талбайн дэргэдэх гэрийн чимэглэл ----
+export function homeDecor(parent, kind, x, z) {
+  if (kind === 'flowers') {
+    const pts = []; for (let i = 0; i < 12; i++) pts.push([x + Math.sin(i * 2.4) * 1.1 * (0.4 + (i % 3) * 0.3), z + Math.cos(i * 2.4) * 1.1 * (0.4 + (i % 3) * 0.3)]);
+    const g = group('HomeFlowers', parent, 0, 0, 0); flowerField(g, pts);
+    mesh(new T.TorusGeometry(1.4, 0.12, 6, 24), toon(0x8a5a30, { key: 'crateD' }), g, x, 0.06, z).rotation.x = Math.PI / 2;
+    return g;
+  }
+  if (kind === 'lamp') return lamp(parent, x, z);
+  if (kind === 'bench') return bench(parent, x, z, Math.PI / 2);
+  const g = group('Home_' + kind, parent, x, 0, z);
+  if (kind === 'mailbox') {
+    const red = toon(0xe83a4a, { key: 'kagomeRed' }), dark = toon(0x2b3335, { key: 'buggyDark' });
+    cyl(dark, g, 0, 0.5, 0, 0.05, 1.0);
+    mesh(new RoundedBoxGeometry(0.5, 0.4, 0.7, 3, 0.12), red, g, 0, 1.2, 0);
+    box(toon(0xffd24d, { key: 'mailFlag' }), g, 0.28, 1.35, -0.1, 0.03, 0.25, 0.12);
+    mesh(new T.CircleGeometry(0.14, 12), toon(0x2b3335, { key: 'buggyDark' }), g, 0, 1.2, 0.36);
+  } else if (kind === 'bunting') {
+    const dark = toon(0x2f5e4e, { key: 'lampPost' });
+    for (const s of [-1, 1]) cyl(dark, g, s * 2.2, 1.4, 0, 0.05, 2.8);
+    const rope = mesh(new T.CylinderGeometry(0.015, 0.015, 4.4, 4), dark, g, 0, 2.7, 0); rope.rotation.z = Math.PI / 2;
+    const cols = [0xff5c5c, 0xffb03a, 0xfff05a, 0x5ee07a, 0x5aa8ff, 0xb37aff, 0xff7ab8, 0xffffff];
+    for (let i = 0; i < 8; i++) { const f = mesh(new T.ConeGeometry(0.16, 0.4, 3), new T.MeshBasicMaterial({ color: cols[i], toneMapped: false, side: T.DoubleSide }), g, -1.75 + i * 0.5, 2.5 - Math.sin(i / 7 * Math.PI) * 0.25, 0); f.rotation.x = Math.PI; f.userData.wave = i; }
+  } else if (kind === 'scarecrow') {
+    const wood = toon(0xc08a52, { key: 'benchWood' }), straw = toon(0xf2d27a, { key: 'straw' });
+    cyl(wood, g, 0, 1.0, 0, 0.05, 2.0);
+    const arm = cyl(wood, g, 0, 1.5, 0, 0.04, 1.6); arm.rotation.z = Math.PI / 2;
+    box(toon(0x3d8bff, { key: 'scareShirt' }), g, 0, 1.4, 0, 0.5, 0.6, 0.3);
+    sphere(toon(0xffc93c, { key: 'scareHead' }), g, 0, 2.0, 0, 0.26);
+    mesh(new T.CylinderGeometry(0.42, 0.45, 0.06, 16), straw, g, 0, 2.2, 0); mesh(new T.CylinderGeometry(0.2, 0.24, 0.24, 12), straw, g, 0, 2.34, 0);
+    for (const s of [-1, 1]) sphere(toon(0x2b3335, { key: 'buggyDark' }), g, s * 0.09, 2.04, 0.24, 0.035);
+    sphere(toon(0xff7f2a, { key: 'scareNose' }), g, 0, 1.96, 0.27, 0.05, 0.05, 0.1);
+  }
+  contactShadow(g, 0.7);
+  return g;
+}

@@ -22,11 +22,32 @@ export class Dog {
     for (const [x, z] of [[-0.2, 0.28], [0.2, 0.28], [-0.2, -0.28], [0.2, -0.28]]) { const l = new T.Group(); l.position.set(x, -0.2, z); body.add(l); part(new T.CapsuleGeometry(0.08, 0.16, 4, 8), fur, l, 0, -0.14, 0); this.legs.push(l); }
     const tail = new T.Group(); tail.position.set(0, 0.1, -0.5); body.add(tail); this.tail = tail;
     part(new T.CapsuleGeometry(0.05, 0.3, 4, 8), fur, tail, 0, 0.15, -0.05).rotation.x = -0.8;
-    // Хүзүүвч
-    part(new T.TorusGeometry(0.3, 0.05, 8, 20), soft(0xe83a4a), body, 0, 0.16, 0.3).rotation.x = Math.PI / 2 - 0.3;
+    // Хүзүүвч (өнгө маркетаас солигдоно)
+    this.collarMat = soft(0xe83a4a);
+    part(new T.TorusGeometry(0.3, 0.05, 8, 20), this.collarMat, body, 0, 0.16, 0.3).rotation.x = Math.PI / 2 - 0.3;
     part(S, soft(0xffd24d), body, 0, 0.02, 0.62, 0.06);
+    this.wearGroup = null;
     const shadow = new T.Mesh(new T.CircleGeometry(0.45, 20), new T.MeshBasicMaterial({ color: 0x0f2a1c, transparent: true, opacity: 0.2, depthWrite: false })); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; root.add(shadow);
     this.vel = new T.Vector3(); this.heading = 0; this.t = 0; this.idleT = 0; this.sniff = 0; this.happy = 0;
+  }
+  /** Маркетын аксессуар: хүзүүвчийн өнгө, бандана, жижиг малгай. Дахин дуудахад хуучныг арилгана. */
+  wear({ collar = 0xe83a4a, extra = null, hat = null } = {}) {
+    this.collarMat.color.set(collar);
+    if (this.wearGroup) this.wearGroup.removeFromParent();
+    const g = new T.Group(); this.wearGroup = g;
+    if (extra === 'bandana') {
+      const tri = new T.Mesh(new T.ConeGeometry(0.3, 0.42, 3), soft(0xe83a4a, { glow: 0.03 }));
+      tri.position.set(0, -0.02, 0.5); tri.rotation.set(Math.PI + 0.3, Math.PI / 3, 0); tri.scale.set(1, 1, 0.25); tri.castShadow = true; g.add(tri);
+      this.body.add(g);
+    }
+    if (hat === 'hat') {
+      const h = new T.Group(); h.position.set(0, 0.28, -0.02); h.rotation.x = -0.2;
+      part(new T.CylinderGeometry(0.19, 0.2, 0.16, 14), soft(0xe83a4a), h, 0, 0.04, 0);
+      part(new T.CylinderGeometry(0.2, 0.2, 0.03, 14, 1, false, 0, Math.PI), soft(0xfff6ee), h, 0, -0.03, 0.1).scale.z = 1.4;
+      part(S, soft(0xffd24d), h, 0, 0.13, 0, 0.04);
+      this.head.add(h); g.add(new T.Group()); if (!g.parent) this.body.add(g); this.hatGroup?.removeFromParent(); this.hatGroup = h;
+    } else { this.hatGroup?.removeFromParent(); this.hatGroup = null; }
+    if (!g.parent) this.body.add(g);
   }
   /** target: тоглогчийн байрлал; blocked(x,z) collision */
   update(dt, target, blocked, playerState, stopDist = 3.2) {

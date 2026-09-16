@@ -13,11 +13,12 @@ import { FishingGame } from './fishing.js';
 import { DeliveryBoard } from './delivery.js';
 import { Wreckables } from './wreck.js';
 import { ShopUI } from './shop.js';
+import { HomeDecor } from './home.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
 import * as P from '../world/props.js';
 import { bulbMaterial } from '../world/props.js';
-import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS, CITIZENS, CITIZEN_LINES } from '../core/content.js';
+import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS, CITIZENS, CITIZEN_LINES, SHOP_BY_ID } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
 
 const WALK = 5.6, RUN = 9.4, SWIM = 3.2, ROLL_SPEED = 12, ROLL_DUR = 0.45, ACCEL = 34, DECEL = 42, AIR_CTRL = 0.45, GRAVITY = 24, JUMP_V = 8.6, COYOTE = 0.12, BUFFER = 0.14;
@@ -111,6 +112,7 @@ export class TownScene {
     scene.add(g); this.goalMarker = g;
 
     this.setupInteractables();
+    this.applyEquipment();
     this.setupUI();
     this.updateHUD();
     this.setGoalForChapter();
@@ -603,6 +605,7 @@ export class TownScene {
     for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ярилцах`, icon: '💬', visible: () => !c.knock && !c.carried, action: () => this.talkCitizen(c) });
     this.wreck = new Wreckables(this);
     this.shopUI = new ShopUI(this);
+    this.home = new HomeDecor(this); this.home.setup();
   }
 
   setupUI() {
@@ -795,8 +798,32 @@ export class TownScene {
 
   /** Аксессуарын дэлгүүр (Kagome маркет) */
   shop(cat) { this.shopUI.open(cat); }
-  /** Худалдан авсан/өмссөн бүх зүйлийг дүрслэлд тусгана (хувцас; Task 3-д машин, нохой, trail, гэр) */
-  applyEquipment() { this.refreshWear(); }
+  /** Худалдан авсан/өмссөн бүх зүйлийг дүрслэлд тусгана: хувцас, машины будаг/чимэг, Луувсайн аксессуар, trail, гэрийн чимэглэл */
+  applyEquipment() {
+    const st = this.state, item = (slot) => SHOP_BY_ID[st.equipped(slot)];
+    this.refreshWear();
+    const paint = item('carPaint')?.data || { body: 0xff9f2e, dark: 0xe07f16 };
+    toon(0xff9f2e, { key: 'buggyBody' }).color.set(paint.body); toon(0xe07f16, { key: 'buggyD' }).color.set(paint.dark);
+    P.carDecor(this.town.car.userData.chassis, item('carDecor')?.data || null);
+    this.dog.wear({ collar: item('dogCollar')?.data ?? 0xe83a4a, extra: item('dogExtra')?.data || null, hat: item('dogHat')?.data || null });
+    this.trailKind = item('trail')?.data || null;
+    this.home.refresh();
+  }
+  /** Алхах/гүйх/машинаар явахад ард нь эффект үлдээнэ (маркетын trail) */
+  updateTrail(dt) {
+    if (!this.trailKind) return;
+    const V = this.vehicle, moving = V ? Math.abs(this.car.speed) > 2 : (this.player.state === 'walk' || this.player.state === 'run');
+    if (!moving) return;
+    this.trailT = (this.trailT || 0) + dt;
+    const step = this.app.quality === 'low' ? 0.16 : 0.08;
+    if (this.trailT < step) return;
+    this.trailT = 0;
+    const h = V ? this.car.heading : this.player.heading, base = V ? V.position : this.player.pos;
+    const pos = new T.Vector3(base.x - Math.sin(h) * (V ? 2.2 : 0.6) + (Math.random() - 0.5) * 0.5, (V ? 0.4 : this.player.visualY + 0.25), base.z - Math.cos(h) * (V ? 2.2 : 0.6) + (Math.random() - 0.5) * 0.5);
+    if (this.trailKind === 'stars') this.particles.burst(pos, 0xffe066, 1, { speed: 0.3, up: 1, size: 0.16, life: 0.7, gravity: 0 });
+    else if (this.trailKind === 'petals') this.particles.burst(pos, [0xffb3cc, 0xffd9e6, 0xff8fc0][Math.floor(Math.random() * 3)], 1, { speed: 0.5, up: 0.6, size: 0.18, life: 1.4, gravity: 1.5 });
+    else { this.trailI = ((this.trailI || 0) + 1) % 6; this.particles.burst(pos, [0xff5c5c, 0xffb03a, 0xfff05a, 0x5ee07a, 0x5aa8ff, 0xb37aff][this.trailI], 1, { speed: 0.2, up: 0.8, size: 0.2, life: 0.9, gravity: 0 }); }
+  }
 
   refreshWear() {
     for (const sc of Object.values(this.app.scenes)) { sc.character?.wear?.(this.state.wardrobe.equipped); sc.driver?.wear?.(this.state.wardrobe.equipped); }
@@ -931,6 +958,8 @@ export class TownScene {
     this.fishing.update(dt);
     this.delivery.update(dt);
     this.wreck.update(dt);
+    this.updateTrail(dt);
+    this.home.update(dt, this.clock);
     this.updateInteractables(active);
     this.updateHudLive();
     this.particles.update(dt, this.camera);
@@ -1194,6 +1223,8 @@ export class TownScene {
     town.gates.forEach((g) => { g.obj.visible = this.state.chapter === 4 && g.index >= this.state.counts.drive; g.obj.traverse((o) => { if (o.userData.spin) { o.rotation.y = t * 1.5; o.position.y = 2.6 + Math.sin(t * 2) * 0.2; } }); });
     // Хүрд
     if (this.wheelSpin > 0) { this.wheelSpin -= dt; town.wheel.rotation.z += dt * (4 + this.wheelSpin * 6); } else town.wheel.rotation.z += dt * 0.15;
+    // Машины туг (маркетын чимэг) салхинд
+    const decor = town.car.userData.chassis.userData.decor; if (decor?.userData.cloth) decor.userData.cloth.rotation.y = Math.sin(t * 7) * 0.2 + Math.sin(t * 13) * 0.08;
     // Усан оргилуур
     town.fountainJets.forEach((j, i) => { j.scale.y = 0.85 + Math.sin(t * 6 + i) * 0.2; });
     if (Math.random() < dt * 14) this.particles.sparkle(new T.Vector3(Math.sin(t * 3) * 2, 2.6, -15 + Math.cos(t * 3) * 2), 0xd8f6ff);

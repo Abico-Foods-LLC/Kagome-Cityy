@@ -111,6 +111,8 @@ export function waterMaterial(color = 0x3fb8d4, { deep = null, shore = null, edg
 
 // ---------- Салхинд ганхах навч / өвс ----------
 export function windSway(material, { strength = 0.12, speed = 1.4, heightStart = 0.0 } = {}) {
+  if (material.userData.sway) return material;   // кэшлэгдсэн (key-тэй) материалд давхар нэмэхгүй — shader давхардаж эвдэрнэ
+  material.userData.sway = true;
   material.userData.time = material.userData.time || { value: 0 };
   const prev = material.onBeforeCompile;
   material.onBeforeCompile = (shader) => {
