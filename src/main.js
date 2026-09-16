@@ -8,6 +8,7 @@ import { createPost } from './gfx/post.js';
 import { PRODUCTS } from './core/content.js';
 import { TownScene } from './town/TownScene.js';
 import { RunnerScene } from './runner/RunnerScene.js';
+import { DefenseScene } from './defense/DefenseScene.js';
 
 class App {
   constructor() {
@@ -53,6 +54,7 @@ class App {
     setLoading(80, 'Ширэнгийг ургуулж байна…');
     await nextFrame();
     this.scenes.runner = new RunnerScene(this);
+    this.scenes.defense = new DefenseScene(this);
     setLoading(100, 'Бэлэн!');
     await nextFrame();
 

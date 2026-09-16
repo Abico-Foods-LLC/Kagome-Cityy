@@ -61,6 +61,10 @@
     <footer class="keys">
       <span><kbd>W A S D</kbd> Алхах</span><span><kbd>Shift</kbd> Гүйх</span><span><kbd>Space</kbd> Үсрэх ×2</span><span><kbd>C</kbd> Өнхрөх</span><span><kbd>E</kbd> Харилцах</span><span><kbd>Хулгана</kbd> Камер</span>
     </footer>
+  </div>
+
+  <!-- Мэдрэгч дэлгэцийн удирдлага (хот + хортон хамгаалалт) -->
+  <div id="touchHud" class="hud hidden">
     <div id="touch">
       <div id="stick"><div id="knob"></div></div>
       <button id="ballBtn" class="act hidden" title="Бөмбөг шидэх (F)">🎾<small>Бөмбөг</small></button>
@@ -72,6 +76,24 @@
         <button id="actionBtn" class="act big">E<small>Үйлдэл</small></button>
       </div>
     </div>
+  </div>
+
+  <!-- Хортон хамгаалалт HUD -->
+  <div id="defHud" class="hud hidden">
+    <header>
+      <div class="brand dark"><strong>KAGOME</strong><span>ХОРТОН ХАМГААЛАЛТ</span></div>
+      <div class="stats">
+        <span class="stat defHpWrap">🎃 <i class="track"><b id="defHp"></b></i> <small id="defHpText">100/100</small></span>
+        <span id="defWave" class="stat">Бэлтгэл</span>
+        <span class="stat">🧃 <b id="defCoins">0</b></span>
+        <span class="stat">⭐ <b id="defScore">0</b></span>
+        <span id="defLeft" class="stat"></span>
+        <button id="defShopBtn" class="icon" title="Дэлгүүр">🛒</button>
+        <button id="defExit" class="icon" title="Хот руу">🏠</button>
+      </div>
+    </header>
+    <button id="defStart" class="primary hidden">▶ Давалгаа эхлэх</button>
+    <footer class="keys"><span><kbd>W A S D</kbd> Алхах</span><span><kbd>Shift</kbd> Гүйх</span><span><kbd>E</kbd>/<kbd>Товшилт</kbd> Буудах</span><span><kbd>Хулгана</kbd> Камер</span></footer>
   </div>
 
   <!-- Runner HUD -->

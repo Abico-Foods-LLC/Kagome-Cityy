@@ -846,7 +846,7 @@ export class TownScene {
   }
 
   enter() {
-    show('townHud', true);
+    show('townHud', true); show('touchHud', true);
     this.app.post.setScene(this.scene); this.app.post.setCamera(this.camera);
     this.resize();
     // Runner-ээс буцахад аялал ахисан байж болно
@@ -857,7 +857,7 @@ export class TownScene {
     if (this.started) { this.audio.startMusic('town'); this.audio.startAmbient(); }
   }
   exit() {
-    show('townHud', false);
+    show('townHud', false); show('touchHud', false);
     if (this.carry) this.putDown();
     if (this.delivery?.active) { this.delivery.finish(); toast('Хүргэлт цуцлагдлаа — ширэнгэ рүү явлаа', 2500, '📬'); }
     this.audio.engine(false);
