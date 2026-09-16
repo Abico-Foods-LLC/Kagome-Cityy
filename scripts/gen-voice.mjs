@@ -30,6 +30,9 @@ async function main() {
   const lines = collect();
   console.log(`Нийт ${lines.length} мөр, ${lines.reduce((a, l) => a + l.length, 0)} тэмдэгт. Хоолой: ${voice}`);
   if (!KEY) { console.log('AZURE_SPEECH_KEY байхгүй — зөвхөн жагсаалт:'); lines.forEach((l) => console.log(' ', lineHash(l), l)); return; }
+  if (!/^[A-Za-z0-9]{20,}$/.test(KEY)) { console.error(`AZURE_SPEECH_KEY буруу байна ("${KEY.slice(0, 8)}…"): Azure portal → Speech resource → "Keys and Endpoint" → KEY 1 (32 орчим латин үсэг/тоо) гэснийг хуулж тавина.`); process.exit(1); }
+  // Түлхүүр зөв эсэхийг нэг богино хүсэлтээр шалгана
+  try { await tts('Сайн уу'); } catch (e) { console.error('Azure хариу:', e.message, '\n→ Түлхүүр эсвэл REGION (AZURE_SPEECH_REGION) буруу байж магадгүй.'); process.exit(1); }
   await mkdir(OUT, { recursive: true });
   const idxPath = new URL('index.json', OUT); let index = {};
   try { index = JSON.parse(await readFile(idxPath, 'utf8')); } catch { /* шинэ */ }
