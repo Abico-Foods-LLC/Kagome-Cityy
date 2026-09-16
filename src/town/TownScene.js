@@ -608,7 +608,7 @@ export class TownScene {
 
   // ---------------------------------------------------------------- Өргөх / шидэх / буулгах (товшилт, Q)
   clickAction() {
-    if (!this.active || this.vehicle || this.fishing.active || this.player.carriedBy || this.player.flung) return;
+    if (this.app.current !== this || !this.active || this.vehicle || this.fishing.active || this.player.carriedBy || this.player.flung) return;
     if (this.carry) return this.putDown();
     const pp = this.player.pos; let best = null, bd = 2.4;
     for (const e of [...this.citizens, this.farmer]) {
@@ -825,7 +825,7 @@ export class TownScene {
     add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
     // Байшингийн хаалга: Хулууны гэр → Хортон хамгаалалт; бусад удахгүй
     for (const h of town.houses) {
-      const world = { 'ХУЛУУНЫ ГЭР': { scene: 'defense', label: '🎃 Хортон хамгаалалт руу орох' }, 'УСАН ҮЗМИЙН ГЭР': { scene: 'obby', label: '🍬 ASMR цамхаг руу орох' } }[h.label];
+      const world = { 'ХУЛУУНЫ ГЭР': { scene: 'defense', label: '🎃 Хортон хамгаалалт руу орох' }, 'УСАН ҮЗМИЙН ГЭР': { scene: 'obby', label: '🍬 ASMR цамхаг руу орох' }, 'МАНГО КАФЕ': { scene: 'cafe', label: '🍳 Манго кафед хоол хийх' } }[h.label];
       add({ x: h.doorPos.x, z: h.doorPos.z, r: 2.8, hintY: 3.2, label: world ? world.label : `${h.label} — орох`, icon: '🚪', action: () => { if (world) this.enterHouse(h, world.scene); else { this.audio.ui(); toast(`🔒 ${h.label} удахгүй нээгдэнэ — өөр ертөнц энд байх болно!`, 3000, '🚪'); } } });
     }
     this.farm = new FarmPlot(this);
@@ -871,9 +871,9 @@ export class TownScene {
       input.on('jump', () => { if (this.active && !this.vehicle) this.player.buffer = BUFFER; }),
       input.on('interact', () => this.interact()),
       input.on('click', () => this.clickAction()),
-      input.on('ball', () => this.ball.throw()),
-      input.on('photo', () => { if (this.started && !isModalOpen()) this.photo.toggle(); }),
-      input.on('chat', () => { if (this.started && !isModalOpen()) this.chat.toggle(); }),
+      input.on('ball', () => { if (this.app.current === this) this.ball.throw(); }),
+      input.on('photo', () => { if (this.app.current === this && this.started && !isModalOpen()) this.photo.toggle(); }),
+      input.on('chat', () => { if (this.app.current === this && this.started && !isModalOpen()) this.chat.toggle(); }),
       input.on('pause', () => { if (this.photo.active) return; if (this.started && !isModalOpen()) this.pauseMenu(); else if ($('panel').open && $('panel').dataset.closable === '1') closeModal(); }),
       input.on('map', () => { if (this.active) this.showMap(); }),
       input.on('emote1', () => this.emote('wave')), input.on('emote2', () => this.emote('cheer')), input.on('emote3', () => this.emote('dance')),
@@ -979,7 +979,7 @@ export class TownScene {
   }
 
   interact() {
-    if (!this.active) return;
+    if (!this.active || this.app.current !== this) return;
     if (this.vehicle) { this.exitCar(); return; }
     if (this.fishing.active) { this.fishing.press(); return; }
     if (this.near) { this.audio.ui(); this.near.action(); }
@@ -1125,7 +1125,7 @@ export class TownScene {
     this.netTick = (this.netTick || 0) + dt;
     if (this.netTick < 0.5) return;
     this.netTick = 0;
-    if (this.app.current !== this.app.scenes.runner) return;   // defense/obby scene өөрөө state-ээ явуулна
+    if (this.app.current !== this.app.scenes.runner && this.app.current !== this.app.scenes.cafe) return;   // defense/obby өөрөө state-ээ явуулна; cafe/runner-т zone 1 (нуугдана)
     const P = this.player;
     this.net.sendState(packState({ x: P.pos.x, y: 0, z: P.pos.z, h: P.heading, anim: 'idle', speed: 0, inCar: false, zone: 1 }));
   }

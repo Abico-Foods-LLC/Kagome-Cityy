@@ -370,3 +370,18 @@ body.defense #rollBtn, body.defense #ballBtn, body.defense #throwBtn { display: 
 #obbyTrack { position: absolute; left: 50%; top: 78px; transform: translateX(-50%); width: min(420px, 60vw); height: 10px; background: rgba(255, 255, 255, .6); border-radius: 5px; overflow: hidden; }
 #obbyTrack i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffb3cc, #c9b6ff, #a0f0d8); transition: width .3s; }
 body.obby #rollBtn, body.obby #ballBtn, body.obby #throwBtn, body.obby #actionBtn, body.obby #adsBtn { display: none; }
+/* Манго кафе HUD */
+#cafeHud header { display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px; pointer-events: none; }
+#cafeHud .stats { display: flex; gap: 8px; align-items: center; pointer-events: auto; }
+#cafeHud .stat { background: rgba(255, 255, 255, .92); border-radius: 14px; padding: 9px 14px; font-weight: 900; }
+#cafeOrders { position: absolute; left: 16px; top: 84px; display: grid; gap: 8px; width: 250px; pointer-events: none; }
+.ord { position: relative; background: rgba(255, 255, 255, .94); border-radius: 14px; padding: 8px 12px 12px; display: grid; grid-template-columns: 34px 1fr; column-gap: 8px; box-shadow: var(--shadow); overflow: hidden; }
+.ord span { font-size: 26px; grid-row: 1 / 3; align-self: center; } .ord b { font-size: 14px; } .ord small { font-size: 12px; opacity: .8; }
+.ord i { position: absolute; left: 0; bottom: 0; height: 5px; background: linear-gradient(90deg, #ff6b6b, #ffd24d, #5ee07a); transition: width .3s; }
+.ord.empty { opacity: .7; font-size: 13px; grid-template-columns: 1fr; }
+#cafePrompt { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); background: #fff; border: 3px solid var(--gold); padding: 10px 18px 10px 12px; border-radius: 18px; font-weight: 900; display: flex; gap: 10px; align-items: center; opacity: 0; transition: opacity .18s; pointer-events: none; box-shadow: var(--shadow); }
+#cafePrompt.on { opacity: 1; pointer-events: auto; cursor: pointer; }
+#cafePrompt kbd { background: var(--gold); border-radius: 8px; padding: 4px 9px; }
+.recipes { display: grid; gap: 8px; margin: 10px 0; } .recipes > div { background: #f0f6ea; border-radius: 12px; padding: 8px 12px; }
+body.cafe #rollBtn, body.cafe #jumpBtn, body.cafe #ballBtn, body.cafe #throwBtn, body.cafe #adsBtn { display: none; }
+@media (pointer: coarse) { #cafeOrders { width: 180px; top: 70px; } .ord b { font-size: 12px; } .ord small { font-size: 10px; } #cafePrompt { bottom: 190px; font-size: 14px; } }
