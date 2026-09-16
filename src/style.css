@@ -159,6 +159,8 @@ dialog p { font-size: 16px; line-height: 1.55; }
 .dq { display: grid; grid-template-columns: 40px 1fr 30px; gap: 10px; align-items: center; background: #f0f6ea; border-radius: 14px; padding: 10px 12px; margin: 8px 0; }
 .dq .em { font-size: 26px; text-align: center; } .dq b { font-size: 14px; } .dq small { color: var(--ink-soft); font-weight: 700; } .dq .track { margin: 6px 0 3px; height: 7px; }
 .dq.done { background: #d5f4de; } .dq.done b { text-decoration: line-through; opacity: .7; }
+button#netButton { width: auto; padding: 0 10px; border-radius: 999px; grid-auto-flow: column; gap: 4px; } #netButton b { font-size: 13px; }
+.netList { margin: 4px 0 10px; padding-left: 18px; font-weight: 700; }
 #fps { position: fixed; left: 8px; bottom: 8px; z-index: 50; font: 700 12px/1 monospace; background: rgba(0, 0, 0, .55); color: #9df5b3; padding: 5px 8px; border-radius: 8px; pointer-events: none; }
 /* Photo mode: HUD нуугдана, зөвхөн photoBar */
 body.photo #townHud > *:not(#photoBar) { display: none !important; }

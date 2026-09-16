@@ -18,6 +18,7 @@ import { GoldenCarrots } from './carrots.js';
 import { CitizenRequests } from './requests.js';
 import { FetchBall } from './ball.js';
 import { PhotoMode } from './photo.js';
+import { Net } from '../net/room.js';
 import { GameState } from '../core/state.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
@@ -744,6 +745,8 @@ export class TownScene {
     this.requests = new CitizenRequests(this); this.requests.setup();
     this.ball = new FetchBall(this); this.ball.setup();
     this.photo = new PhotoMode(this); this.photo.setup();
+    this.net = new Net(this);
+    $('netButton').onclick = () => this.net.roomModal();
   }
 
   setupUI() {
@@ -798,6 +801,9 @@ export class TownScene {
     this.audio.startMusic('town'); this.audio.startAmbient();
     const c = this.state.currentChapter;
     toast(c ? 'Тавтай морил! ' + c.hint : 'Тавтай морил, одтой аялагч аа!', 4000, '👋');
+    // Линкээр орсон бол өрөөнд автоматаар нэгдэнэ
+    const code = new URLSearchParams(location.search).get('room');
+    if (code && /^[a-z0-9]{4,12}$/.test(code)) setTimeout(() => this.net.askName(() => { this.net.fromLink = true; this.net.join(code); }), 600);
   }
 
   // ---------------------------------------------------------------- Аялал / хадгалалт
@@ -1001,7 +1007,7 @@ export class TownScene {
         <label>Сорилын түвшин <select id="sLevel"><option value="1">Бага (6–8 нас)</option><option value="2">Ахлах (9–12 нас)</option></select></label>
         <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>
       </div>
-      <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="pickAvatar">🍅 Дүр солих</button><button id="shopBtn">🛍️ Хувцас</button><button id="dailyBtn2">📅 Даалгавар</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
+      <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="pickAvatar">🍅 Дүр солих</button><button id="shopBtn">🛍️ Хувцас</button><button id="netBtn">👥 Хамт тоглох</button><button id="dailyBtn2">📅 Даалгавар</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
     $('sQuality').value = st.quality; $('sLevel').value = String(st.level || 1);
     $('sLevel').onchange = (e) => { st.level = +e.target.value; this.state.save(); toast(st.level === 2 ? 'Ахлах түвшний сорил' : 'Бага түвшний сорил', 1800, '🎓'); };
     $('resume').onclick = closeModal;
@@ -1013,6 +1019,7 @@ export class TownScene {
     $('gotoRunner').onclick = () => { closeModal(); this.enterJungle(); };
     $('pickAvatar').onclick = () => this.pickAvatar(() => this.pauseMenu());
     $('shopBtn').onclick = () => this.shop('wear');
+    $('netBtn').onclick = () => this.net.roomModal();
     $('dailyBtn2').onclick = () => this.dailyModal();
     $('reset').onclick = () => { if (confirm('Бүх ахиц устгах уу?')) { this.state.reset(); location.reload(); } };
   }
@@ -1110,6 +1117,7 @@ export class TownScene {
     this.carrots.update(dt);
     this.requests.update(dt);
     this.ball.update(dt);
+    this.net.update(dt);
     this.home.update(dt, this.clock);
     this.updateInteractables(active);
     this.updateHudLive();
