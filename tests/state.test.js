@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GameState } from '../src/core/state.js';
+import { QUESTIONS } from '../src/core/content.js';
 
 const MIN = 60 * 1000;
 
@@ -198,4 +199,21 @@ describe('GameState — алтан лууван', () => {
     const r = s.collectCarrot('c19'); expect(r.done).toBe(true); expect(s.stars).toBe(310); expect(s.owns('goldcrown')).toBe(true);
     const t = JSON.parse(JSON.stringify(s.toJSON())); expect(new GameState(t).carrots.size).toBe(20);
   });
+});
+
+describe('GameState — сорилын түвшин', () => {
+  it('nextQuestion зөвхөн сонгосон түвшний асуулт', () => {
+    const s = new GameState(); s.settings.level = 2;
+    const i = s.nextQuestion('math'); expect(QUESTIONS.math[i].level).toBe(2);
+    s.settings.level = 1; expect(QUESTIONS.math[s.nextQuestion('math')].level).toBe(1);
+  });
+  it('төрөл бүр 15 асуулт, түвшин бүрд ≥7, хариу зөв индекстэй', () => {
+    for (const t of ['math', 'read', 'logic']) {
+      expect(QUESTIONS[t].length).toBe(15);
+      expect(QUESTIONS[t].filter((q) => q.level === 1).length).toBeGreaterThanOrEqual(7);
+      expect(QUESTIONS[t].filter((q) => q.level === 2).length).toBeGreaterThanOrEqual(7);
+      for (const q of QUESTIONS[t]) { expect(q.options).toHaveLength(4); expect(q.a).toBeGreaterThanOrEqual(0); expect(q.a).toBeLessThan(4); }
+    }
+  });
+  it('хуучин solved index хэвээр', () => { const s = new GameState({ solved: ['math0'] }); expect(s.nextQuestion('math')).not.toBe(0); });
 });

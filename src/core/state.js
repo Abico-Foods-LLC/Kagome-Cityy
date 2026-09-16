@@ -17,7 +17,7 @@ export class GameState {
       collection: [0, 0, 0, 0, 0, 0, 0, 0],
       ...(data.runner || {}),
     };
-    this.settings = { sound: true, music: true, quality: 'auto', avatar: 'tomato', ...(data.settings || {}) };
+    this.settings = { sound: true, music: true, quality: 'auto', avatar: 'tomato', level: 1, ...(data.settings || {}) };   // level: 1 Бага (6–8), 2 Ахлах (9–12)
     this.playtime = Number(data.playtime) || 0;
     this.wardrobe = { owned: [], equipped: {}, ...(data.wardrobe || {}) };
     this.regrow = { ...(data.regrow || {}) };          // crop id → дахин ургах цаг (ms)
@@ -225,8 +225,15 @@ export class GameState {
     return true;
   }
 
+  /** Сонгосон түвшний (settings.level) шийдээгүй эхний асуултын индекс; бүгд шийдэгдвэл −1 */
   nextQuestion(type) {
-    return QUESTIONS[type].findIndex((q, i) => !this.solved.has(type + i));
+    const L = this.settings.level || 1;
+    return QUESTIONS[type].findIndex((q, i) => (q.level || 1) === L && !this.solved.has(type + i));
+  }
+  /** Тухайн түвшинд үлдсэн асуултын тоо */
+  remainingQuestions(type) {
+    const L = this.settings.level || 1;
+    return QUESTIONS[type].filter((q, i) => (q.level || 1) === L && !this.solved.has(type + i)).length;
   }
 
   gate(index) {

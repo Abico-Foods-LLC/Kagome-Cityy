@@ -746,11 +746,14 @@ export class TownScene {
   ask(type, idx) {
     const qs = QUESTIONS[type];
     if (idx === undefined) idx = this.state.nextQuestion(type);
-    if (idx < 0) { modal('<div class="reward">🏅</div><h2>Энэ сорилыг бүрэн давлаа!</h2><p>Газрын зургаас дараагийн аяллаа сонгоорой.</p><button class="primary" id="ok">Гоё!</button>'); $('ok').onclick = closeModal; return; }
+    if (idx < 0) {
+      const other = this.state.settings.level === 2 ? 'Бага' : 'Ахлах';
+      modal(`<div class="reward">🏅</div><h2>Энэ түвшний сорилыг бүрэн давлаа!</h2><p>Цэснээс «${other}» түвшинг сонгоод шинэ асуултуудыг туршаарай.</p><button class="primary" id="ok">Гоё!</button>`); $('ok').onclick = closeModal; return;
+    }
     const q = qs[idx];
     const title = { math: 'ТОО БОДОХ ЗАХ', read: 'УНШИХ СОРИЛ', logic: 'ЛОГИКИЙН ХҮРД' }[type];
-    const remaining = qs.filter((_, i) => !this.state.solved.has(type + i)).length;
-    modal(`<div class="eyebrow">${title} · ${remaining} үлдсэн</div><h2>${q.q}</h2>${q.passage ? `<p class="hint">${q.passage}</p>` : ''}<div class="choices">${q.options.map((s, i) => `<button data-answer="${i}">${s}</button>`).join('')}</div><div class="feedback" role="status"></div>`);
+    const remaining = this.state.remainingQuestions(type), lvl = this.state.settings.level === 2 ? 'Ахлах' : 'Бага';
+    modal(`<div class="eyebrow">${title} · ${lvl} · ${remaining} үлдсэн</div><h2>${q.q}</h2>${q.passage ? `<p class="hint">${q.passage}</p>` : ''}<div class="choices">${q.options.map((s, i) => `<button data-answer="${i}">${s}</button>`).join('')}</div><div class="feedback" role="status"></div>`);
     document.querySelectorAll('[data-answer]').forEach((b) => b.onclick = () => {
       const ok = this.state.answer(type, idx, +b.dataset.answer);
       const fb = document.querySelector('.feedback');
@@ -857,10 +860,12 @@ export class TownScene {
         <label>Дуу <input type="checkbox" id="sSound" ${st.sound ? 'checked' : ''}></label>
         <label>Хөгжим <input type="checkbox" id="sMusic" ${st.music ? 'checked' : ''}></label>
         <label>Гүний бүдгэрэлт (DoF) <input type="checkbox" id="sDof" ${st.dof !== false ? 'checked' : ''}></label>
+        <label>Сорилын түвшин <select id="sLevel"><option value="1">Бага (6–8 нас)</option><option value="2">Ахлах (9–12 нас)</option></select></label>
         <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>
       </div>
       <div class="row"><button class="primary" id="resume">Үргэлжлүүлэх →</button><button id="help">Удирдлага</button><button id="pickAvatar">🍅 Дүр солих</button><button id="shopBtn">🛍️ Хувцас</button><button id="dailyBtn2">📅 Даалгавар</button><button id="gotoRunner">🌴 Jungle Runner</button><button id="reset" class="ghost">Ахиц устгах</button></div>`);
-    $('sQuality').value = st.quality;
+    $('sQuality').value = st.quality; $('sLevel').value = String(st.level || 1);
+    $('sLevel').onchange = (e) => { st.level = +e.target.value; this.state.save(); toast(st.level === 2 ? 'Ахлах түвшний сорил' : 'Бага түвшний сорил', 1800, '🎓'); };
     $('resume').onclick = closeModal;
     $('sSound').onchange = (e) => { st.sound = e.target.checked; this.audio.applySettings(); this.state.save(); };
     $('sMusic').onchange = (e) => { st.music = e.target.checked; this.audio.applySettings(); this.state.save(); };
