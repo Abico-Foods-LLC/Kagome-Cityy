@@ -159,6 +159,11 @@ dialog p { font-size: 16px; line-height: 1.55; }
 .dq { display: grid; grid-template-columns: 40px 1fr 30px; gap: 10px; align-items: center; background: #f0f6ea; border-radius: 14px; padding: 10px 12px; margin: 8px 0; }
 .dq .em { font-size: 26px; text-align: center; } .dq b { font-size: 14px; } .dq small { color: var(--ink-soft); font-weight: 700; } .dq .track { margin: 6px 0 3px; height: 7px; }
 .dq.done { background: #d5f4de; } .dq.done b { text-decoration: line-through; opacity: .7; }
+/* Photo mode: HUD нуугдана, зөвхөн photoBar */
+body.photo #townHud > *:not(#photoBar) { display: none !important; }
+#photoBar { position: absolute; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 8px; pointer-events: auto; background: rgba(255, 255, 255, .9); padding: 8px; border-radius: 999px; box-shadow: 0 6px 20px rgba(23, 67, 46, .18); }
+#photoBar.hidden { display: none; }
+#photoBar button { padding: 8px 14px; font-size: 13px; }
 .req { background: #fff6d6; border: 2px solid var(--gold); border-radius: 14px; padding: 10px 12px; margin: 8px 0; }
 .req p { margin: 0 0 8px; }
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }

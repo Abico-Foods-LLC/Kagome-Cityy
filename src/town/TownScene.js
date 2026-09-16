@@ -17,6 +17,7 @@ import { HomeDecor } from './home.js';
 import { GoldenCarrots } from './carrots.js';
 import { CitizenRequests } from './requests.js';
 import { FetchBall } from './ball.js';
+import { PhotoMode } from './photo.js';
 import { GameState } from '../core/state.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
@@ -671,6 +672,7 @@ export class TownScene {
     this.carrots = new GoldenCarrots(this); this.carrots.setup();
     this.requests = new CitizenRequests(this); this.requests.setup();
     this.ball = new FetchBall(this); this.ball.setup();
+    this.photo = new PhotoMode(this); this.photo.setup();
   }
 
   setupUI() {
@@ -690,7 +692,8 @@ export class TownScene {
       input.on('interact', () => this.interact()),
       input.on('click', () => this.clickAction()),
       input.on('ball', () => this.ball.throw()),
-      input.on('pause', () => { if (this.started && !isModalOpen()) this.pauseMenu(); else if ($('panel').open && $('panel').dataset.closable === '1') closeModal(); }),
+      input.on('photo', () => { if (this.started && !isModalOpen()) this.photo.toggle(); }),
+      input.on('pause', () => { if (this.photo.active) return; if (this.started && !isModalOpen()) this.pauseMenu(); else if ($('panel').open && $('panel').dataset.closable === '1') closeModal(); }),
       input.on('map', () => { if (this.active) this.showMap(); }),
       input.on('emote1', () => this.emote('wave')), input.on('emote2', () => this.emote('cheer')), input.on('emote3', () => this.emote('dance')),
     ];
@@ -988,6 +991,7 @@ export class TownScene {
 
   // ---------------------------------------------------------------- Update
   update(dt) {
+    if (this.photo.active) { this.active = false; this.photo.update(dt); return; }   // photo mode: ертөнц царцана, зөвхөн камер
     this.clock += dt;
     this.state.playtime += dt;
     const active = this.started && !isModalOpen();
