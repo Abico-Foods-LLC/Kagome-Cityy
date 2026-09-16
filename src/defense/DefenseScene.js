@@ -11,7 +11,7 @@ import { $, toast, modal, closeModal, isModalOpen, show } from '../core/ui.js';
 import { RemotePlayers } from '../net/remote.js';
 import { packState } from '../net/proto.js';
 
-const WALK = 5.6, RUN = 9.4, ACCEL = 34, DECEL = 42, AIM_R = 16, BLOB_SPEED = 30, CAM_DIST = 6.2, GRAVITY = 24, JUMP_V = 8;
+const WALK = 5.6, RUN = 9.4, ACCEL = 34, DECEL = 42, AIM_R = 22, BLOB_SPEED = 90, CAM_DIST = 6.2, GRAVITY = 24, JUMP_V = 8;
 
 export class DefenseScene {
   constructor(app) {
@@ -133,17 +133,39 @@ export class DefenseScene {
     if (target) { const rx = target.x - P.pos.x, rz = target.z - P.pos.z, l = Math.hypot(rx, rz); dx = rx / l; dz = rz / l; }
     return { dx, dz, target };
   }
+  /** Crosshair-ийн заасан 3D цэг: камерын төвөөс туяа → хамгийн ойрын хортон (бөмбөрцөг) эсвэл газар/40м */
+  aimPoint() {
+    const cam = this.camera, o = cam.position.clone(), d = cam.getWorldDirection(new T.Vector3());
+    let best = 40, hit = null;
+    for (const p of this.core.pests) {
+      if (!p.emerged) continue;
+      const def = PESTS[p.type], cy = def.flying ? 2.5 : 0.6, r = def.r + 0.35;
+      const c = new T.Vector3(p.x, cy, p.z), oc = c.clone().sub(o), t = oc.dot(d);
+      if (t < 0.5 || t > best) continue;
+      const q = oc.lengthSq() - t * t;
+      if (q <= r * r) { best = t - Math.sqrt(r * r - q); hit = p; }
+    }
+    if (hit) return { point: o.clone().addScaledVector(d, best), pest: hit };
+    if (d.y < -0.02) { const t = -o.y / d.y; if (t < best) return { point: o.clone().addScaledVector(d, t), pest: null }; }
+    return { point: o.clone().addScaledVector(d, best), pest: null };
+  }
   shoot() {
     const P = this.player; if (P.fireCd > 0 || this.over) return;
     P.fireCd = this.core.playerRate;
-    let { dx, dz } = this.aimDir();
+    // Hitscan: crosshair-ийн цэг (aim assist-тай бол тэр хортон) руу шууд
+    const ap = this.aimPoint(), assist = this.aimDir();
+    const tgt = ap.pest ? new T.Vector3(ap.pest.x, 0.7, ap.pest.z) : assist.target ? new T.Vector3(assist.target.x, 0.7, assist.target.z) : ap.point;
+    let dx = tgt.x - P.pos.x, dz = tgt.z - P.pos.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
     // Тэлэлт (bloom): байнга буудах/хөдлөхөд өргөснө, ADS-д багасна
     const jitter = (Math.random() - 0.5) * this.spread * (this.ads ? 0.35 : 1) * 0.12;
     const cj = Math.cos(jitter), sj = Math.sin(jitter); [dx, dz] = [dx * cj - dz * sj, dx * sj + dz * cj];
     this.spread = Math.min(1, this.spread + 0.28);
     const n = this.nozzle.getWorldPosition(new T.Vector3());
-    this.spawnBlob(n.x, n.y, n.z, dx, dz);
-    this.tracer(n, dx, dz);
+    // Хошуунаас онилсон цэг рүү шууд: tracer + хурдан дусал + цэг дээр цацлага
+    this.tracer(n, tgt);
+    const dir = tgt.clone().sub(n), len = dir.length() || 1; dir.divideScalar(len);
+    for (let i = 0; i < 3; i++) this.spawnBlob(n.x + dir.x * i * 0.6, n.y + dir.y * i * 0.6, n.z + dir.z * i * 0.6, dir.x, dir.z, undefined, dir.y, len / BLOB_SPEED);
+    this.particles.burst(tgt, ap.pest || assist.target ? 0xc8ff8a : 0x9fe4ff, 8, { speed: 2.5, up: 2, size: 0.11, life: 0.35, gravity: 6 });
     // Muzzle: цацлагын дусал + гэрэл, recoil, камерын цохилт (ADS-д зөөлөн)
     this.particles.burst(n, 0xc8ff8a, 5, { speed: 5, up: 1.2, size: 0.09, life: 0.25, gravity: 4 });
     this.flash.position.copy(n); this.flashT = 0.07; this.muzzleLight.position.copy(n); this.muzzleLight.intensity = 2.2;
@@ -152,16 +174,16 @@ export class DefenseScene {
     this.onShoot(P.pos.x, P.pos.z, dx, dz);
   }
   /** Онолтыг Core шийднэ (co-op-д host) */
-  onShoot(x, z, dx, dz) { if (this.isHost) this.core.shoot(x, z, dx, dz); if (this.coop) this.net.sendEvent({ t: 'defShot', x, z, dx, dz }); }
-  /** Хошуунаас 14м урагш бүдгэрэх зураас */
-  tracer(n, dx, dz) {
-    const geo = new T.BufferGeometry().setFromPoints([n, new T.Vector3(n.x + dx * 13, n.y + 0.2, n.z + dz * 13)]);
+  onShoot(x, z, dx, dz) { if (this.isHost) this.core.shoot(x, z, dx, dz, this.core.playerDmg, AIM_R); if (this.coop) this.net.sendEvent({ t: 'defShot', x, z, dx, dz }); }
+  /** Хошуунаас онилсон цэг хүртэл бүдгэрэх зураас */
+  tracer(n, to) {
+    const geo = new T.BufferGeometry().setFromPoints([n, to]);
     const line = new T.Line(geo, new T.LineBasicMaterial({ color: 0xd8ffa0, transparent: true, opacity: 0.55, depthWrite: false }));
     this.scene.add(line); this.tracers.push({ line, t: 0.12 });
   }
-  spawnBlob(x, y, z, dx, dz, color) {
+  spawnBlob(x, y, z, dx, dz, color, dy = 0, life = 0.7) {
     const m = createBlob(this.scene, color); m.position.set(x, y, z);
-    this.blobs.push({ m, vx: dx * BLOB_SPEED, vz: dz * BLOB_SPEED, vy: 0.6, t: 0.7, color: color || 0x9fe36a });
+    this.blobs.push({ m, vx: dx * BLOB_SPEED, vz: dz * BLOB_SPEED, vy: dy * BLOB_SPEED, t: life, color: color || 0x9fe36a, nog: dy !== 0 });
   }
 
   // ---------------------------------------------------------------- Update
@@ -215,7 +237,7 @@ export class DefenseScene {
     this.applyEvents();
     this.syncVisuals(dt);
     // Сум + цацлагын мөр
-    for (let i = this.blobs.length - 1; i >= 0; i--) { const b = this.blobs[i]; b.t -= dt; b.m.position.x += b.vx * dt; b.m.position.z += b.vz * dt; b.vy -= 5 * dt; b.m.position.y += b.vy * dt; if (Math.random() < dt * 40) this.particles.burst(b.m.position, b.color, 1, { speed: 0.4, up: 0.3, size: 0.07, life: 0.3, gravity: 3 }); if (b.t <= 0 || b.m.position.y < 0) { b.m.removeFromParent(); this.blobs.splice(i, 1); } }
+    for (let i = this.blobs.length - 1; i >= 0; i--) { const b = this.blobs[i]; b.t -= dt; b.m.position.x += b.vx * dt; b.m.position.z += b.vz * dt; if (!b.nog) b.vy -= 5 * dt; b.m.position.y += b.vy * dt; if (Math.random() < dt * 40) this.particles.burst(b.m.position, b.color, 1, { speed: 0.4, up: 0.3, size: 0.07, life: 0.3, gravity: 3 }); if (b.t <= 0 || b.m.position.y < 0) { b.m.removeFromParent(); this.blobs.splice(i, 1); } }
     // Камер: мөрний дээгүүр (баруун тийш offset), crosshair дэлгэцийн голд
     this.cam.kick = Math.max(0, (this.cam.kick || 0) - dt * 0.12); if (this.cam.yawKick) { this.cam.yaw += this.cam.yawKick; this.cam.yawKick *= Math.exp(-dt * 25); if (Math.abs(this.cam.yawKick) < 1e-4) this.cam.yawKick = 0; }
     const pitch = this.cam.pitch - this.cam.kick, fx = -Math.sin(this.cam.yaw), fz = -Math.cos(this.cam.yaw), rx = -fz, rz = fx;
@@ -241,7 +263,7 @@ export class DefenseScene {
     switch (d.t) {
       case 'defJoin': { const isNew = !this.defPeers.has(from); this.defPeers.set(from, d.at); if (isNew) { this.net.sendEvent({ t: 'defJoin', at: this.defAt }, from); toast(`${this.net.peers.get(from)?.name || 'Тоглогч'} хамгаалалтад нэгдлээ!`, 2400, '👥'); if (this.isHost) this.net.sendDef(this.core.snapshot()); } break; }
       case 'defLeave': this.defPeers.delete(from); break;
-      case 'defShot': { const dx = d.dx, dz = d.dz; this.spawnBlob(d.x + dx * 0.6, 1.1, d.z + dz * 0.6, dx, dz); if (this.isHost) this.core.shoot(d.x, d.z, dx, dz); break; }
+      case 'defShot': { const dx = d.dx, dz = d.dz; this.spawnBlob(d.x + dx * 0.6, 1.1, d.z + dz * 0.6, dx, dz); if (this.isHost) this.core.shoot(d.x, d.z, dx, dz, this.core.playerDmg, AIM_R); break; }
       case 'defBuy': if (this.isHost) { const r = this.core.buy(d.kind); if (r.ok) this.audio.correct(); } break;
       case 'defStart': if (this.isHost && this.core.phase === 'prep') { this.core.startWave(); this.audio.gate(); } break;
     }
@@ -278,7 +300,7 @@ export class DefenseScene {
         case 'build': { const g = e.kind === 'FENCE' ? createFence(this.scene, e.x, e.z) : createSprayer(this.scene, e.x, e.z); this.structs.set(e.id, g); this.particles.burst(new T.Vector3(e.x, 1, e.z), 0xffe27a, 12, { speed: 2, up: 3, size: 0.16, life: 0.7 }); break; }
         case 'fenceBroken': { const g = this.structs.get(e.id); if (g) { g.removeFromParent(); this.structs.delete(e.id); } this.audio.hurt(); toast('Хашаа эвдэрлээ!', 1600, '🪵'); break; }
         case 'guard': { const m = createGuard(); m.root.position.set(e.x, 0, e.z); this.scene.add(m.root); curveTree(m.root); this.guards.set(e.id, { m }); break; }
-        case 'shot': { const dx = e.tx - e.x, dz = e.tz - e.z, l = Math.hypot(dx, dz) || 1; this.spawnBlob(e.x, e.guard ? 1.0 : 1.6, e.z, dx / l, dz / l, 0x9fe4ff); if (!e.guard) { const g = this.structs.get(e.from); if (g?.userData.head) g.userData.head.rotation.y = Math.atan2(dx, dz); } break; }
+        case 'shot': { const dx = e.tx - e.x, dz = e.tz - e.z, l = Math.hypot(dx, dz) || 1; this.spawnBlob(e.x, e.guard ? 1.0 : 1.6, e.z, dx / l, dz / l, 0x9fe4ff, 0, l / BLOB_SPEED + 0.02); this.particles.burst(new T.Vector3(e.tx, 0.7, e.tz), 0x9fe4ff, 5, { speed: 2, up: 1.5, size: 0.1, life: 0.3, gravity: 6 }); if (!e.guard) { const g = this.structs.get(e.from); if (g?.userData.head) g.userData.head.rotation.y = Math.atan2(dx, dz); } break; }
         case 'buy': { if (e.kind === 'REPAIR') { setBaseMood(this.world, c.base.hp, c.base.max); this.particles.burst(new T.Vector3(0, 2.5, 0), 0x9df5b3, 14, { speed: 2, up: 3, size: 0.18, life: 0.8 }); } break; }
         case 'waveClear': toast(`Давалгаа ${e.wave} давлаа! +${e.bonus} зоос — дэлгүүр нээгдлээ`, 3200, '🎉'); this.audio.fanfare(); this.character.cheer?.(); this.onWaveClear?.(); break;
         case 'over': this.gameOver(e); break;
