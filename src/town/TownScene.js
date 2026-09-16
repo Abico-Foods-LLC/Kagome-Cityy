@@ -15,6 +15,7 @@ import { Wreckables } from './wreck.js';
 import { ShopUI } from './shop.js';
 import { HomeDecor } from './home.js';
 import { GoldenCarrots } from './carrots.js';
+import { CitizenRequests } from './requests.js';
 import { GameState } from '../core/state.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
@@ -538,7 +539,9 @@ export class TownScene {
     this.character.play('wave', 1.1); c.m.play('wave', 1.4);
     if (!c.talked) { c.talked = true; this.progress('talk', 1); }
     const line = CITIZEN_LINES[Math.floor(Math.random() * CITIZEN_LINES.length)];
-    modal(`<div class="npc-head"><div class="reward">${MASCOTS[c.m.kind]?.emoji || '🙂'}</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${c.name}</h2></div></div><p>«${line}»</p><div class="row"><button id="npcBye" class="primary">Баярлалаа!</button></div>`);
+    const req = this.requests.of(c), panel = req ? this.requests.panel(c, req) : null;
+    modal(`<div class="npc-head"><div class="reward">${MASCOTS[c.m.kind]?.emoji || '🙂'}</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${c.name}</h2></div></div><p>«${line}»</p>${panel ? panel.html : ''}<div class="row"><button id="npcBye" class="${panel ? 'ghost' : 'primary'}">${panel ? 'Дараа' : 'Баярлалаа!'}</button></div>`);
+    if (panel) panel.bind();
     $('npcBye').onclick = () => closeModal();
   }
 
@@ -604,11 +607,12 @@ export class TownScene {
     this.farm = new FarmPlot(this);
     this.fishing = new FishingGame(this);
     this.delivery = new DeliveryBoard(this);
-    for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ярилцах`, icon: '💬', visible: () => !c.knock && !c.carried, action: () => this.talkCitizen(c) });
+    for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ${this.requests.of(c) ? 'хүсэлт' : 'ярилцах'}`, icon: () => this.requests.of(c) ? '❗' : '💬', visible: () => !c.knock && !c.carried, action: () => this.talkCitizen(c) });
     this.wreck = new Wreckables(this);
     this.shopUI = new ShopUI(this);
     this.home = new HomeDecor(this); this.home.setup();
     this.carrots = new GoldenCarrots(this); this.carrots.setup();
+    this.requests = new CitizenRequests(this); this.requests.setup();
   }
 
   setupUI() {
@@ -969,6 +973,7 @@ export class TownScene {
     this.wreck.update(dt);
     this.updateTrail(dt);
     this.carrots.update(dt);
+    this.requests.update(dt);
     this.home.update(dt, this.clock);
     this.updateInteractables(active);
     this.updateHudLive();

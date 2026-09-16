@@ -217,3 +217,19 @@ describe('GameState — сорилын түвшин', () => {
   });
   it('хуучин solved index хэвээр', () => { const s = new GameState({ solved: ['math0'] }); expect(s.nextQuestion('math')).not.toBe(0); });
 });
+
+describe('GameState — иргэдийн хүсэлт', () => {
+  it('өдөрт 2 өөр иргэн', () => { const s = new GameState(); s.ensureRequests(6); expect(s.requests.list).toHaveLength(2); expect(s.requests.list[0].c).not.toBe(s.requests.list[1].c); });
+  it('fruit: дутуу бол ok:false, хүрвэл хасаж 30 од', () => {
+    const s = new GameState(); s.ensureRequests(6, () => 0); const r = s.requests.list[0]; r.type = 'fruit'; r.fruit = 0; r.n = 2;
+    expect(s.fulfillRequest(r, {}).ok).toBe(false); s.inventory[0] = 3;
+    expect(s.fulfillRequest(r, {}).ok).toBe(true); expect(s.inventory[0]).toBe(1); expect(s.stars).toBe(30); expect(r.done).toBe(true);
+    expect(s.fulfillRequest(r, {}).ok).toBe(false);
+  });
+  it('dog: нохой ойр байх ёстой', () => { const s = new GameState(); s.ensureRequests(6); const r = s.requests.list[0]; r.type = 'dog'; expect(s.fulfillRequest(r, { dogNear: false }).ok).toBe(false); expect(s.fulfillRequest(r, { dogNear: true }).ok).toBe(true); });
+  it('өдөр солигдвол шинэчлэнэ, requestFor биелээгүйг л буцаана', () => {
+    const s = new GameState({ requests: { date: '2000-01-01', list: [] } }); s.ensureRequests(6); expect(s.requests.list).toHaveLength(2);
+    const r = s.requests.list[0]; expect(s.requestFor(r.c)).toBe(r); r.done = true; expect(s.requestFor(r.c)).toBeNull();
+    expect(new GameState(JSON.parse(JSON.stringify(s.toJSON()))).requests.list[0].done).toBe(true);
+  });
+});

@@ -28,6 +28,7 @@ export class GameState {
     for (const c of this.farm) if (c.stage > 0 && !(Number.isInteger(c.type) && c.type >= 0 && c.type < 8)) { c.type = null; c.stage = 0; c.since = null; }   // эвдэрсэн save
     this.delivery = { done: 0, ...(data.delivery || {}) };
     this.carrots = new Set(data.carrots || []);          // олсон алтан лувангийн id
+    this.requests = data.requests || null;                 // { date, list: [{ c, type, fruit, n, done }] }
     this.ensureDaily();
     this.applyRegrow();
   }
@@ -61,6 +62,7 @@ export class GameState {
     { id: 'farm', goal: 1, text: 'Талбайгаас 1 ургац хураа', reward: 35, icon: '🌱' },
     { id: 'delivery', goal: 2, text: '2 хүргэлт хий', reward: 40, icon: '📬' },
     { id: 'repair', goal: 2, text: '2 эвдэрсэн зүйл зас', reward: 30, icon: '🔧' },
+    { id: 'request', goal: 1, text: 'Иргэний 1 хүсэлт биелүүл', reward: 35, icon: '❗' },
   ];
   ensureDaily() {
     const today = new Date().toISOString().slice(0, 10);
@@ -127,6 +129,33 @@ export class GameState {
   // ---------- Хүргэлт ----------
   deliveryDone(onTime) { this.delivery.done++; this.counts.delivery++; this.stars += onTime ? 30 : 15; }
 
+  // ---------- Иргэдийн өдрийн хүсэлт ----------
+  static REQUEST_REWARD = 30;
+  /** Өдөр бүр 2 өөр иргэн хүсэлттэй: жимс (2–3 ш) эсвэл Луувсайтай уулзах */
+  ensureRequests(citizenCount, rand = Math.random) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (this.requests && this.requests.date === today && this.requests.list.length) return;
+    const idx = Array.from({ length: citizenCount }, (_, i) => i), list = [];
+    while (list.length < 2 && idx.length) {
+      const c = idx.splice(Math.floor(rand() * idx.length), 1)[0];
+      const type = rand() < 0.7 ? 'fruit' : 'dog';
+      list.push({ c, type, fruit: Math.floor(rand() * 8), n: 2 + Math.floor(rand() * 2), done: false });
+    }
+    this.requests = { date: today, list };
+  }
+  /** Тухайн иргэний биелээгүй хүсэлт (байхгүй бол null) */
+  requestFor(c) { return this.requests?.list.find((r) => r.c === c && !r.done) || null; }
+  /** Хүсэлт биелүүлэх: fruit → inventory хасна; dog → dogNear шаардана. ok бол +30 од. */
+  fulfillRequest(req, { dogNear = false } = {}) {
+    if (!req || req.done) return { ok: false, reason: 'done' };
+    if (req.type === 'fruit') {
+      if ((this.inventory[req.fruit] || 0) < req.n) return { ok: false, reason: 'fruit' };
+      this.inventory[req.fruit] -= req.n;
+    } else if (!dogNear) return { ok: false, reason: 'dog' };
+    req.done = true; this.stars += GameState.REQUEST_REWARD;   // өдрийн даалгаврын ахицыг scene (progress) нэмнэ
+    return { ok: true };
+  }
+
   // ---------- Алтан лууван ----------
   static CARROT_TOTAL = 20;
   /** Алтан лууван авах: +10 од; 20 бүгдийг олбол +300 од, алтан титэм. Давхардвал null. */
@@ -178,7 +207,7 @@ export class GameState {
       solved: [...this.solved], collected: [...this.collected], chapter: this.chapter,
       runner: this.runner, settings: this.settings, playtime: this.playtime,
       wardrobe: this.wardrobe, regrow: this.regrow, daily: this.daily, juice: this.juice, pet: this.pet,
-      farm: this.farm, delivery: this.delivery, carrots: [...this.carrots],
+      farm: this.farm, delivery: this.delivery, carrots: [...this.carrots], requests: this.requests,
     };
   }
 
