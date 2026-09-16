@@ -29,13 +29,13 @@ export class Dog {
     this.vel = new T.Vector3(); this.heading = 0; this.t = 0; this.idleT = 0; this.sniff = 0; this.happy = 0;
   }
   /** target: тоглогчийн байрлал; blocked(x,z) collision */
-  update(dt, target, blocked, playerState) {
+  update(dt, target, blocked, playerState, stopDist = 3.2) {
     this.t += dt;
     const r = this.root, p = r.position;
     const dx = target.x - p.x, dz = target.z - p.z, d = Math.hypot(dx, dz);
     let moving = false;
-    if (d > 3.2) {
-      const sp = d > 9 ? 9.5 : 5;
+    if (d > stopDist) {
+      const sp = d > 9 || stopDist < 2 ? 9.5 : 5;   // хол хоцорсон эсвэл яаралтай (унасан иргэн рүү) бол гүйнэ
       const h = Math.atan2(dx, dz);
       this.heading += Math.atan2(Math.sin(h - this.heading), Math.cos(h - this.heading)) * Math.min(1, dt * 8);
       const nx = p.x + Math.sin(this.heading) * sp * dt, nz = p.z + Math.cos(this.heading) * sp * dt;
@@ -74,17 +74,37 @@ export function createDuck(color = 0xfff3d6) {
   part(new T.BoxGeometry(0.14, 0.05, 0.16), orange, head, 0, -0.02, 0.2);
   for (const s of [-1, 1]) part(S, ink, head, s * 0.08, 0.04, 0.13, 0.03);
   part(S, fur, g, 0, 0.26, -0.3, 0.12, 0.1, 0.16).rotation.x = -0.5;   // сүүл
-  g.userData = { head, phase: Math.random() * 6, dip: 0 };
+  const wings = [];
+  for (const s of [-1, 1]) { const w = new T.Group(); w.position.set(s * 0.24, 0.24, -0.02); g.add(w); part(S, fur, w, s * 0.1, 0, 0, 0.16, 0.06, 0.24); wings.push({ w, s }); }
+  g.userData = { head, wings, phase: Math.random() * 6, dip: 0, flee: 0, off: new T.Vector3(), fleeDir: new T.Vector3() };
   return g;
 }
-export function updateDuck(g, dt, t, cx, cz, radius) {
+/** Нугас сувагт тойрон хөвнө; threats[] (Vector3) 2.5м-т ойртвол далавч дэвсэн зугтана (буцаж тойрогтоо ирнэ). onFlee() — дуу/үсрэлт. */
+export function updateDuck(g, dt, t, cx, cz, radius, threats = [], onFlee = null) {
   const u = g.userData, a = t * 0.25 + u.phase;
-  g.position.set(cx + Math.sin(a) * radius * 0.6, -0.32 + Math.sin(t * 2 + u.phase) * 0.03, cz + Math.cos(a * 0.7) * radius);
-  g.rotation.y = Math.atan2(Math.cos(a) * radius * 0.6 * 0.25, -Math.sin(a * 0.7) * radius * 0.175) ;
+  const ox = cx + Math.sin(a) * radius * 0.6, oz = cz + Math.cos(a * 0.7) * radius;
+  // Зугтах: хамгийн ойрын аюулаас холдох чиглэл
+  if (u.flee <= 0) {
+    for (const th of threats) {
+      const dx = g.position.x - th.x, dz = g.position.z - th.z, d = Math.hypot(dx, dz);
+      if (d < 2.5) { u.flee = 1.3; u.fleeDir.set(dx / (d || 1), 0, dz / (d || 1)); if (onFlee) onFlee(g); break; }
+    }
+  }
+  if (u.flee > 0) {
+    u.flee -= dt;
+    const sp = 4.5 * Math.min(1, u.flee / 0.4 + 0.4);
+    u.off.x += u.fleeDir.x * sp * dt; u.off.z += u.fleeDir.z * sp * dt;
+    // Сувгаас гарахгүй: хажуу тийш бага, дагуу их
+    u.off.x = Math.max(-1.6, Math.min(1.6, u.off.x)); u.off.z = Math.max(-6, Math.min(6, u.off.z));
+  } else { u.off.x *= Math.exp(-dt * 0.5); u.off.z *= Math.exp(-dt * 0.5); }
+  const fleeing = u.flee > 0;
+  g.position.set(ox + u.off.x, -0.32 + Math.sin(t * 2 + u.phase) * 0.03 + (fleeing ? Math.abs(Math.sin(t * 18)) * 0.08 : 0), oz + u.off.z);
+  g.rotation.y = fleeing ? Math.atan2(u.fleeDir.x, u.fleeDir.z) : Math.atan2(Math.cos(a) * radius * 0.6 * 0.25, -Math.sin(a * 0.7) * radius * 0.175);
   g.rotation.z = Math.sin(t * 2.2 + u.phase) * 0.05;
-  if (u.dip <= 0 && Math.random() < dt * 0.08) u.dip = 1.4;
+  for (const { w, s } of u.wings) w.rotation.z = fleeing ? s * (0.9 + Math.sin(t * 26) * 0.7) : 0;
+  if (!fleeing && u.dip <= 0 && Math.random() < dt * 0.08) u.dip = 1.4;
   u.dip = Math.max(0, u.dip - dt);
-  u.head.rotation.x = u.dip > 0 ? Math.sin(Math.min(1, u.dip / 1.4) * Math.PI) * 1.2 : Math.sin(t * 1.3 + u.phase) * 0.1;
+  u.head.rotation.x = fleeing ? -0.3 : u.dip > 0 ? Math.sin(Math.min(1, u.dip / 1.4) * Math.PI) * 1.2 : Math.sin(t * 1.3 + u.phase) * 0.1;
 }
 
 /** Муур: сандал дээр хэвтэж, сүүл хөдөлгөнө, хааяа шинэ. */
@@ -98,12 +118,17 @@ export function createCat(color = 0x8a8a8a) {
   part(S, pink, head, 0, -0.05, 0.2, 0.03, 0.02, 0.02);
   const tail = new T.Group(); tail.position.set(0.2, 0.15, -0.35); g.add(tail);
   part(new T.CapsuleGeometry(0.035, 0.4, 4, 8), fur, tail, 0, 0, -0.2).rotation.x = Math.PI / 2;
-  g.userData = { head, tail, phase: Math.random() * 6, stretch: 0 };
+  g.userData = { head, tail, phase: Math.random() * 6, stretch: 0, pet: 0 };
   return g;
 }
+/** u.pet > 0 үед илүүлж байна: толгойгоо налан, сүүл хурдан, бие чичирнэ (purr). */
 export function updateCat(g, dt, t) {
   const u = g.userData;
-  u.tail.rotation.y = Math.sin(t * 1.8 + u.phase) * 0.6;
-  u.head.rotation.y = Math.sin(t * 0.6 + u.phase) * 0.4;
-  g.scale.y = 1 + Math.sin(t * 2.5 + u.phase) * 0.015;
+  u.pet = Math.max(0, u.pet - dt);
+  const pet = u.pet > 0 ? Math.min(1, u.pet / 0.3) : 0;
+  u.tail.rotation.y = Math.sin(t * (1.8 + pet * 4) + u.phase) * 0.6;
+  u.head.rotation.y = Math.sin(t * 0.6 + u.phase) * 0.4 * (1 - pet);
+  u.head.rotation.z = pet * (0.45 + Math.sin(t * 5) * 0.1);
+  u.head.rotation.x = pet * -0.25;
+  g.scale.y = 1 + Math.sin(t * 2.5 + u.phase) * 0.015 + pet * Math.sin(t * 24) * 0.02;
 }
