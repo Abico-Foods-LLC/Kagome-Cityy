@@ -16,6 +16,7 @@ import { ShopUI } from './shop.js';
 import { HomeDecor } from './home.js';
 import { GoldenCarrots } from './carrots.js';
 import { CitizenRequests } from './requests.js';
+import { FetchBall } from './ball.js';
 import { GameState } from '../core/state.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
@@ -186,7 +187,7 @@ export class TownScene {
     scene.add(this.dog.root);
     this.interactables.push({ x: 5, z: -9, r: 3, low: true, label: this.state.pet ? 'Луувсайг илэх' : 'Луувсайг дагуулах', icon: '🐶', dynamic: () => this.dog.root.position, action: () => {
       if (!this.state.pet) { this.state.pet = true; this.state.save(); toast('Луувсай одооноос чамайг дагана! 🐾', 3000, '🐶'); this.character.cheer(); this.interactables.find((i) => i.icon === '🐶').label = 'Луувсайг илэх'; }
-      else { this.character.play('pick', 0.8); this.dog.happy = 2; this.particles.burst(this.dog.root.position.clone().add(new T.Vector3(0, 0.8, 0)), 0xffa7c0, 8, { speed: 1.5, up: 2, size: 0.15, life: 0.7 }); this.audio.tone({ f: 880, f2: 1400, type: 'sine', dur: 0.15, vol: 0.08 }); }
+      else { this.character.play('pick', 0.8); this.dog.happy = 2; this.bubbles.show(this.dog.root, '❤️', { dur: 1.4, y: 1.3, size: 0.7 }); this.particles.burst(this.dog.root.position.clone().add(new T.Vector3(0, 0.8, 0)), 0xffa7c0, 8, { speed: 1.5, up: 2, size: 0.15, life: 0.7 }); this.audio.tone({ f: 880, f2: 1400, type: 'sine', dur: 0.15, vol: 0.08 }); }
       this.audio.ui();
     } });
     // Нугас — сувагт
@@ -226,8 +227,13 @@ export class TownScene {
         this.dog.sniff = 0.5; this.dog.happy = 0.5;
         if (!fetch.licked) { fetch.licked = true; this.bubbles.show(fetch.m.root, '🐶', { dur: 1.2, y: 1.6 }); }
       }
-    } else if (this.state.pet) this.dog.update(dt, this.vehicle ? this.vehicle.position : pp, this.blocked, this.player.state);
+    } else if (this.dog.knock) this.updateDogKnock(dt);
+    else if (this.carry?.dog) { /* тоглогч өргөж яваа — updateCarry байрлуулна */ }
+    else if (this.dogMode === 'fetch') this.dog.update(dt, this.ball.mesh.position, this.blocked, 'idle', 0.6);
+    else if (this.dogMode === 'return') this.dog.update(dt, pp, this.blocked, 'idle', 1.4);
+    else if (this.state.pet) this.dog.update(dt, this.vehicle ? this.vehicle.position : pp, this.blocked, this.player.state);
     else { this.dog.update(dt, this.dog.root.position, this.blocked, 'idle'); }
+    $('ballBtn').classList.toggle('hidden', !this.state.pet);
     // Нугас
     const threats = [this.vehicle ? this.vehicle.position : pp]; if (this.state.pet) threats.push(this.dog.root.position);
     for (const d of this.ducks) updateDuck(d, dt, t, CANAL.x, d.userData.cz, 2.6, threats, (g) => this.duckFlee(g));
@@ -432,6 +438,20 @@ export class TownScene {
     }
   }
 
+  /** Шидэгдсэн нохой: богино нисэлт, тонгорч буугаад босно — гомдохгүй, ❤️ */
+  updateDogKnock(dt) {
+    const d = this.dog, k = d.knock, r = d.root;
+    k.t -= dt;
+    const nx = r.position.x + k.vx * dt, nz = r.position.z + k.vz * dt;
+    if (!this.blocked(nx, nz, 0.3)) { r.position.x = nx; r.position.z = nz; } else { k.vx *= -0.3; k.vz *= -0.3; }
+    k.vx *= Math.exp(-dt * 2.5); k.vz *= Math.exp(-dt * 2.5);
+    k.vy -= 14 * dt; r.position.y = Math.max(0, r.position.y + k.vy * dt);
+    if (r.position.y === 0 && k.vy < 0) { k.vy = 0; if (!k.landed) { k.landed = true; this.particles.dust(r.position, 4); } }
+    r.rotation.x = k.landed ? r.rotation.x * Math.exp(-dt * 10) : r.rotation.x + dt * 7;
+    d.tail.rotation.y = Math.sin(this.clock * 20) * 0.5;
+    if (k.t <= 0) { d.knock = null; r.rotation.x = 0; r.position.y = 0; d.happy = 2; this.bubbles.show(r, '❤️', { dur: 1.4, y: 1.3, size: 0.7 }); }
+  }
+
   /** Сандал мөргөгдөхөд дээр нь суусан муур үсрэн зугтана */
   scareCats(benchPos, dx, dz) {
     for (const c of this.cats) {
@@ -481,7 +501,18 @@ export class TownScene {
       const d = Math.hypot(e.m.root.position.x - pp.x, e.m.root.position.z - pp.z);
       if (d < bd) { bd = d; best = e; }
     }
+    // Луувсайг ч өргөж болно (дагадаг үед)
+    if (this.state.pet && !this.dog.knock && !this.dogMode) {
+      const d = Math.hypot(this.dog.root.position.x - pp.x, this.dog.root.position.z - pp.z);
+      if (d < bd) { bd = d; best = { dog: true, root: this.dog.root, name: 'Луувсай' }; }
+    }
     if (!best) return;
+    if (best.dog) {
+      this.carry = best; this.dog.happy = 2;
+      this.bubbles.show(this.dog.root, '❤️', { dur: 1.4, y: 1.3, size: 0.7 });
+      this.character.play('pick', 0.5); this.audio.ui();
+      return;
+    }
     this.carry = best; best.carried = true; best.target = null; best.chat = null; best.carryT = 0;
     this.bubbles.show(best.m.root, '😮', { dur: 1.4 });
     this.character.play('pick', 0.5); this.audio.ui();
@@ -489,7 +520,18 @@ export class TownScene {
   }
   updateCarry(dt, active) {
     const e = this.carry; if (!e) return;
-    const P = this.player, r = e.m.root;
+    const P = this.player;
+    if (e.dog) {
+      // Нохой толгой дээр: сүүл савчина, баярлана
+      const d = this.dog;
+      d.root.position.set(P.pos.x + Math.sin(P.heading) * 0.1, P.visualY + 2.05 + Math.sin(this.clock * 6) * 0.05, P.pos.z + Math.cos(P.heading) * 0.1);
+      d.root.rotation.set(0, P.heading, 0); d.heading = P.heading;
+      d.t += dt; d.tail.rotation.y = Math.sin(d.t * 18) * 0.7; d.head.rotation.x = -0.2 + Math.sin(d.t * 3) * 0.05;
+      d.legs.forEach((l, i) => { l.rotation.x = Math.sin(d.t * 6 + i) * 0.25; });
+      if (active && this.input.justPressed('camLeft')) this.throwCarry();
+      return;
+    }
+    const r = e.m.root;
     r.position.set(P.pos.x + Math.sin(P.heading) * 0.15, P.visualY + 2.0 + Math.sin(this.clock * 6) * 0.05, P.pos.z + Math.cos(P.heading) * 0.15);
     r.rotation.set(0, P.heading, 0);
     // Эхлээд гайхаж хөл савчина; 4 сек өргөж явбал таашааж эхэлнэ
@@ -502,8 +544,15 @@ export class TownScene {
   }
   putDown() {
     const e = this.carry; if (!e) return;
-    this.carry = null; e.carried = false;
     const P = this.player, x = P.pos.x + Math.sin(P.heading) * 1.3, z = P.pos.z + Math.cos(P.heading) * 1.3;
+    if (e.dog) {
+      this.carry = null;
+      this.dog.root.position.set(this.blocked(x, z, 0.3) ? P.pos.x : x, 0, this.blocked(x, z, 0.3) ? P.pos.z : z);
+      this.dog.happy = 2; this.bubbles.show(this.dog.root, '❤️', { dur: 1.4, y: 1.3, size: 0.7 });
+      this.character.play('pick', 0.5); this.audio.ui();
+      return;
+    }
+    this.carry = null; e.carried = false;
     if (!this.blocked(x, z, 0.4)) e.m.root.position.set(x, 0, z); else e.m.root.position.set(P.pos.x, 0, P.pos.z);
     e.m.root.rotation.set(0, P.heading, 0);
     e.wait = 1.5; e.target = null; e.m.setMood('happy', 1.5); e.m.play('wave', 1); e.joyed = false; e.lastBubble = 0;
@@ -512,8 +561,16 @@ export class TownScene {
   }
   throwCarry() {
     const e = this.carry; if (!e) return;
-    this.carry = null; e.carried = false;
     const P = this.player;
+    if (e.dog) {
+      this.carry = null;
+      this.dog.knock = { t: 1.0, vx: Math.sin(P.heading) * 8, vz: Math.cos(P.heading) * 8, vy: 4.5 };
+      this.dog.root.position.y = 1.8;
+      this.bubbles.show(this.dog.root, '😮', { dur: 1.2, y: 1.3, size: 0.7 });
+      this.character.play('pick', 0.5); this.audio.whoosh();
+      return;
+    }
+    this.carry = null; e.carried = false;
     e.m.root.position.y = 1.8;
     e.knock = { t: 2.0, dur: 2.0, vx: Math.sin(P.heading) * 9, vz: Math.cos(P.heading) * 9, vy: 5 };
     e.m.play('hurt', 2); e.m.roll(0.7); e.joyed = false; e.lastBubble = 0; e.licked = false;
@@ -613,6 +670,7 @@ export class TownScene {
     this.home = new HomeDecor(this); this.home.setup();
     this.carrots = new GoldenCarrots(this); this.carrots.setup();
     this.requests = new CitizenRequests(this); this.requests.setup();
+    this.ball = new FetchBall(this); this.ball.setup();
   }
 
   setupUI() {
@@ -622,6 +680,7 @@ export class TownScene {
     input.bindButton($('actionBtn'), 'interact');
     input.bindButton($('runBtn'), 'run');
     input.bindButton($('rollBtn'), 'roll');
+    input.bindButton($('ballBtn'), 'ball');
     $('mapButton').onclick = () => this.showMap();
     $('collectionButton').onclick = () => this.collection();
     $('pauseButton').onclick = () => this.pauseMenu();
@@ -630,6 +689,7 @@ export class TownScene {
       input.on('jump', () => { if (this.active && !this.vehicle) this.player.buffer = BUFFER; }),
       input.on('interact', () => this.interact()),
       input.on('click', () => this.clickAction()),
+      input.on('ball', () => this.ball.throw()),
       input.on('pause', () => { if (this.started && !isModalOpen()) this.pauseMenu(); else if ($('panel').open && $('panel').dataset.closable === '1') closeModal(); }),
       input.on('map', () => { if (this.active) this.showMap(); }),
       input.on('emote1', () => this.emote('wave')), input.on('emote2', () => this.emote('cheer')), input.on('emote3', () => this.emote('dance')),
@@ -974,6 +1034,7 @@ export class TownScene {
     this.updateTrail(dt);
     this.carrots.update(dt);
     this.requests.update(dt);
+    this.ball.update(dt);
     this.home.update(dt, this.clock);
     this.updateInteractables(active);
     this.updateHudLive();
