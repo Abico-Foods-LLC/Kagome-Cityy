@@ -107,6 +107,7 @@ export class DeliveryBoard {
     const onTime = this.elapsed() <= a.sec;
     this.state.inventory[a.type] -= a.count;
     this.state.deliveryDone(onTime);
+    this.scene.feat?.(onTime ? 'хүргэлтээ цагтаа хүргэлээ!' : 'хүргэлт хийлээ', '📬');
     npc.m.cheer(); sc.character.play('wave', 1.1);
     sc.particles.burst(new T.Vector3(npc.x, 1.8, npc.z), 0xffd24d, 26, { speed: 4, up: 4 });
     if (onTime) sc.audio.fanfare(); else sc.audio.correct();

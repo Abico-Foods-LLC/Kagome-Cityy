@@ -73,6 +73,7 @@ export class GoldenCarrots {
     sc.character.cheer?.();
     if (r.done) { sc.audio.fanfare(); toast(`Бүх алтан лууван олдлоо! +300 од, Алтан титэм 👑 маркетад нээгдэв`, 5000, '🥕'); }
     else { sc.audio.correct(); toast(`🥕 Алтан лууван ${r.count}/${GameState.CARROT_TOTAL} — ${it.hint} (+${r.reward} од)`, 2800, '✨'); }
+    sc.feat(r.done ? 'бүх 20 алтан лууванг оллоо! 👑' : `алтан лууван оллоо (${r.count}/20)`, '🥕');
     sc.state.save(); sc.updateHUD();
   }
 }

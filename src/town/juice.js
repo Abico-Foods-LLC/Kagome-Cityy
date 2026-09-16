@@ -75,6 +75,7 @@ export class JuiceGame {
       for (const [t, n] of Object.entries(o.need)) this.take(+t, n);
       const reward = o.big ? 35 : 20;
       const st = this.state; st.stars += reward; st.juice.made[o.sku] = (st.juice.made[o.sku] || 0) + 1;
+      this.scene.feat?.('шүүс хийлээ!', '🧃');
       this.orders++;
       st.save(); this.scene.updateHUD(); this.scene.audio.correct(); this.scene.progress('juice', 1);
       const done = this.orders >= 3;

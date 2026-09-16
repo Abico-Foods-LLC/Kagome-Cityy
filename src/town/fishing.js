@@ -140,6 +140,7 @@ export class FishingGame {
     const sc = this.scene;
     this.ui.bar.classList.add('hidden');
     this.state.fishCaught(perfect);
+    this.scene.feat?.(perfect ? 'төгс загас барилаа!' : 'загас барилаа!', '🐟');
     sc.character.cheer(); sc.audio.correct();
     sc.particles.burst(this.float.position.clone(), 0xffd24d, 16, { speed: 2.5, up: 4, size: 0.2, life: 0.7 });
     this.fishFrom = this.float.position.clone();

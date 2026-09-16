@@ -116,6 +116,7 @@ export class FarmPlot {
   harvest(i) {
     const type = this.state.farm[i].type, { g } = this.cells[i];
     if (!this.state.farmHarvest(i)) return;
+    this.scene.feat?.('талбайгаасаа ургац хураалаа!', '🌱');
     const sc = this.scene;
     sc.character.play('pick', 0.7); sc.audio.pickup(type);
     sc.particles.burst(new T.Vector3(g.position.x, 1, g.position.z), FRUITS[type].color, 20);

@@ -98,12 +98,18 @@ export class Wreckables {
     if (Math.random() < dt * 12) this.scene.particles.sparkle(new T.Vector3(f.it.hint.x + (Math.random() - 0.5) * 1.5, 0.6 + Math.random(), f.it.hint.z + (Math.random() - 0.5) * 1.5), 0xffe27a, 1);
     if (f.t < REPAIR_DUR) return;
     const it = f.it; this.fixing = null;
+    this.applyRepair(it, false);
+    this.scene.net?.sendEvent({ t: 'fix', i: this.items.indexOf(it) });
+  }
+  /** Засварыг тусгана; silent = өөр тоглогч зассан (шагнал/toast-гүй) */
+  applyRepair(it, silent) {
     for (const pc of it.pieces) if (pc.broken) { pc.broken = false; pc.mesh.position.copy(pc.home.p); pc.mesh.rotation.copy(pc.home.r); }
     if (it.topple) { it.topple = null; it.group.quaternion.copy(it.homeQ); }
     it.broken = 0;
     if (it.kind === 'bench') this.scene.returnCats(it.group.position);
     if (it.collider) it.collider.disabled = false;
     this.scene.particles.burst(new T.Vector3(it.hint.x, 0.8, it.hint.z), 0xffe27a, 18, { speed: 2, up: 3, size: 0.18, life: 0.7 });
+    if (silent) return;
     this.scene.audio.correct(); this.scene.character.cheer();
     toast(`${it.label} засагдлаа! ✨`, 2000, '🔧');
     this.scene.progress('repair', 1);
