@@ -161,6 +161,13 @@ dialog p { font-size: 16px; line-height: 1.55; }
 .dq.done { background: #d5f4de; } .dq.done b { text-decoration: line-through; opacity: .7; }
 button#netButton { width: auto; padding: 0 10px; border-radius: 999px; grid-auto-flow: column; gap: 4px; } #netButton b { font-size: 13px; }
 .netList { margin: 4px 0 10px; padding-left: 18px; font-weight: 700; }
+#chatBox { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); background: rgba(255, 255, 255, .95); border-radius: 18px; padding: 10px; box-shadow: 0 8px 24px rgba(23, 67, 46, .2); pointer-events: auto; z-index: 6; }
+#chatBox.hidden { display: none; }
+.chatRow { display: flex; flex-wrap: wrap; gap: 6px; } .chatRow + .chatRow { margin-top: 8px; }
+.chatRow button { padding: 7px 10px; font-size: 13px; border-radius: 999px; background: #eef3ea; } .chatRow.em button { font-size: 20px; padding: 4px 8px; }
+#chatLog { position: absolute; left: 16px; bottom: 260px; max-width: 300px; font-size: 13px; font-weight: 700; color: #1e6b45; display: grid; gap: 3px; pointer-events: none; }
+#chatLog div { background: rgba(255, 255, 255, .85); padding: 4px 10px; border-radius: 10px; }
+#chatLog.hidden { display: none; }
 #fps { position: fixed; left: 8px; bottom: 8px; z-index: 50; font: 700 12px/1 monospace; background: rgba(0, 0, 0, .55); color: #9df5b3; padding: 5px 8px; border-radius: 8px; pointer-events: none; }
 /* Photo mode: HUD нуугдана, зөвхөн photoBar */
 body.photo #townHud > *:not(#photoBar) { display: none !important; }

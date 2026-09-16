@@ -21,6 +21,7 @@ import { PhotoMode } from './photo.js';
 import { Net } from '../net/room.js';
 import { RemotePlayers } from '../net/remote.js';
 import { WorldSync } from '../net/sync.js';
+import { Chat } from '../net/chat.js';
 import { packState } from '../net/proto.js';
 import { GameState } from '../core/state.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
@@ -804,6 +805,7 @@ export class TownScene {
     this.net = new Net(this);
     this.remote = new RemotePlayers(this);
     this.sync = new WorldSync(this);
+    this.chat = new Chat(this); this.chat.setup();
     this.net.on('world', (d) => this.sync.onWorld(d))
       .on('peerLeave', (id) => this.sync.onPeerLeave(id))
       .on('hello', (id, p) => this.remote.add(id, p))
@@ -831,6 +833,7 @@ export class TownScene {
       input.on('click', () => this.clickAction()),
       input.on('ball', () => this.ball.throw()),
       input.on('photo', () => { if (this.started && !isModalOpen()) this.photo.toggle(); }),
+      input.on('chat', () => { if (this.started && !isModalOpen()) this.chat.toggle(); }),
       input.on('pause', () => { if (this.photo.active) return; if (this.started && !isModalOpen()) this.pauseMenu(); else if ($('panel').open && $('panel').dataset.closable === '1') closeModal(); }),
       input.on('map', () => { if (this.active) this.showMap(); }),
       input.on('emote1', () => this.emote('wave')), input.on('emote2', () => this.emote('cheer')), input.on('emote3', () => this.emote('dance')),
@@ -1250,6 +1253,7 @@ export class TownScene {
     this.net.update(dt);
     this.netSync(dt);
     this.sync.update(dt);
+    this.chat.update();
     this.home.update(dt, this.clock);
     this.updateInteractables(active);
     this.updateHudLive();
