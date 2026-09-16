@@ -27,6 +27,7 @@ export class GameState {
     this.farm = Array.from({ length: 6 }, (_, i) => ({ type: null, stage: 0, since: null, ...((data.farm || [])[i] || {}) }));
     for (const c of this.farm) if (c.stage > 0 && !(Number.isInteger(c.type) && c.type >= 0 && c.type < 8)) { c.type = null; c.stage = 0; c.since = null; }   // эвдэрсэн save
     this.delivery = { done: 0, ...(data.delivery || {}) };
+    this.carrots = new Set(data.carrots || []);          // олсон алтан лувангийн id
     this.ensureDaily();
     this.applyRegrow();
   }
@@ -126,6 +127,19 @@ export class GameState {
   // ---------- Хүргэлт ----------
   deliveryDone(onTime) { this.delivery.done++; this.counts.delivery++; this.stars += onTime ? 30 : 15; }
 
+  // ---------- Алтан лууван ----------
+  static CARROT_TOTAL = 20;
+  /** Алтан лууван авах: +10 од; 20 бүгдийг олбол +300 од, алтан титэм. Давхардвал null. */
+  collectCarrot(id) {
+    if (this.carrots.has(id)) return null;
+    this.carrots.add(id);
+    let reward = 10;
+    const done = this.carrots.size >= GameState.CARROT_TOTAL;
+    if (done && !this.wardrobe.owned.includes('goldcrown')) { reward += 300; this.wardrobe.owned.push('goldcrown'); }
+    this.stars += reward;
+    return { count: this.carrots.size, done, reward };
+  }
+
   // ---------- Маркет (хувцас, машин, нохой, эффект, гэр) ----------
   buy(id, price) {
     if (this.wardrobe.owned.includes(id)) return true;
@@ -164,7 +178,7 @@ export class GameState {
       solved: [...this.solved], collected: [...this.collected], chapter: this.chapter,
       runner: this.runner, settings: this.settings, playtime: this.playtime,
       wardrobe: this.wardrobe, regrow: this.regrow, daily: this.daily, juice: this.juice, pet: this.pet,
-      farm: this.farm, delivery: this.delivery,
+      farm: this.farm, delivery: this.delivery, carrots: [...this.carrots],
     };
   }
 

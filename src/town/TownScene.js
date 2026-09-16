@@ -14,6 +14,8 @@ import { DeliveryBoard } from './delivery.js';
 import { Wreckables } from './wreck.js';
 import { ShopUI } from './shop.js';
 import { HomeDecor } from './home.js';
+import { GoldenCarrots } from './carrots.js';
+import { GameState } from '../core/state.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
 import * as P from '../world/props.js';
@@ -606,6 +608,7 @@ export class TownScene {
     this.wreck = new Wreckables(this);
     this.shopUI = new ShopUI(this);
     this.home = new HomeDecor(this); this.home.setup();
+    this.carrots = new GoldenCarrots(this); this.carrots.setup();
   }
 
   setupUI() {
@@ -680,6 +683,7 @@ export class TownScene {
     $('fruitCount').textContent = '🍎 ' + s.counts.harvest;
     $('dailyCount').textContent = s.dailyDone + '/3';
     $('starCount').textContent = '⭐ ' + s.stars;
+    $('carrotCount').textContent = `🥕 ${s.carrots.size}/${GameState.CARROT_TOTAL}`;
     if (c) {
       $('chapter').textContent = `АЯЛАЛ ${s.chapter + 1} / ${CHAPTERS.length}`;
       $('questTitle').textContent = c.title;
@@ -793,7 +797,7 @@ export class TownScene {
   collection() {
     const s = this.state;
     const inv = FRUITS.map((t, i) => `<span class="stat" style="font-size:15px">${t.emoji} ${s.inventory[i] || 0}</span>`).join(' ');
-    modal(`<div class="eyebrow">МИНИЙ АЯЛАЛ</div><h2>Ургац ба цуглуулга</h2><div class="row" style="margin:6px 0 14px">${inv}</div><p>Цуглуулсан од: <b>${s.stars}</b> · Дууссан аялал: <b>${s.chapter}/${CHAPTERS.length}</b> · Ширэнгэ: <b>${s.runner.unlocked}/5 үе</b></p><p>🐟 Загас: <b>${s.counts.fish}</b> · 🌱 Талбайн ургац: <b>${s.counts.farm}</b> · 📬 Хүргэлт: <b>${s.counts.delivery}</b></p><div class="grid">${PRODUCTS.map((p) => `<div class="product ${s.collected.has('package-' + p.sku) ? 'got' : ''}"><img src="${p.src}" alt="Kagome ${p.flavor}" loading="lazy"><small>${p.name}</small><span>${p.size}</span></div>`).join('')}</div><p class="hint" style="margin-top:14px">Хотоос 8 бүтээгдэхүүнийг олоод бүх ★ авбал цуглуулга бүрэн болно. Ширэнгэнд цуглуулсан: ${s.runner.collection.reduce((a, b) => a + b, 0)} ш.</p>`);
+    modal(`<div class="eyebrow">МИНИЙ АЯЛАЛ</div><h2>Ургац ба цуглуулга</h2><div class="row" style="margin:6px 0 14px">${inv}</div><p>Цуглуулсан од: <b>${s.stars}</b> · Дууссан аялал: <b>${s.chapter}/${CHAPTERS.length}</b> · Ширэнгэ: <b>${s.runner.unlocked}/5 үе</b></p><p>🐟 Загас: <b>${s.counts.fish}</b> · 🌱 Талбайн ургац: <b>${s.counts.farm}</b> · 📬 Хүргэлт: <b>${s.counts.delivery}</b> · 🥕 Алтан лууван: <b>${s.carrots.size}/${GameState.CARROT_TOTAL}</b>${s.carrots.size >= GameState.CARROT_TOTAL ? ' 👑' : ''}</p><div class="grid">${PRODUCTS.map((p) => `<div class="product ${s.collected.has('package-' + p.sku) ? 'got' : ''}"><img src="${p.src}" alt="Kagome ${p.flavor}" loading="lazy"><small>${p.name}</small><span>${p.size}</span></div>`).join('')}</div><p class="hint" style="margin-top:14px">Хотоос 8 бүтээгдэхүүнийг олоод бүх ★ авбал цуглуулга бүрэн болно. Ширэнгэнд цуглуулсан: ${s.runner.collection.reduce((a, b) => a + b, 0)} ш.</p>`);
   }
 
   /** Аксессуарын дэлгүүр (Kagome маркет) */
@@ -959,6 +963,7 @@ export class TownScene {
     this.delivery.update(dt);
     this.wreck.update(dt);
     this.updateTrail(dt);
+    this.carrots.update(dt);
     this.home.update(dt, this.clock);
     this.updateInteractables(active);
     this.updateHudLive();

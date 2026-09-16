@@ -187,3 +187,15 @@ describe('GameState — маркет', () => {
     expect(s.owns('cap')).toBe(true); expect(s.equipped('hat')).toBe('cap');
   });
 });
+
+describe('GameState — алтан лууван', () => {
+  it('нэг удаа тоолж 10 од өгнө', () => {
+    const s = new GameState(); expect(s.collectCarrot('c1')).toEqual({ count: 1, done: false, reward: 10 }); expect(s.stars).toBe(10);
+    expect(s.collectCarrot('c1')).toBeNull(); expect(s.stars).toBe(10);
+  });
+  it('20 дахь → 300 од + алтан титэм, save/load хадгална', () => {
+    const s = new GameState({ carrots: Array.from({ length: 19 }, (_, i) => 'c' + i) });
+    const r = s.collectCarrot('c19'); expect(r.done).toBe(true); expect(s.stars).toBe(310); expect(s.owns('goldcrown')).toBe(true);
+    const t = JSON.parse(JSON.stringify(s.toJSON())); expect(new GameState(t).carrots.size).toBe(20);
+  });
+});
