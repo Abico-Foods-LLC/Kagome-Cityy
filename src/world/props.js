@@ -348,8 +348,12 @@ export function fruitHouse(parent, x, z, type, label, rot = 0) {
   mesh(new T.BoxGeometry(2.4, 3.1, 1.6), wall, porch, 0, 1.95, 0);
   mesh(new T.BoxGeometry(2.7, 0.35, 1.9), cream, porch, 0, 3.6, 0);                        // орцны дээвэр
   box(wood, porch, 0, 1.55, 0.81, 1.5, 2.5, 0.12);                                              // хаалганы хүрээ
-  box(cream, porch, 0, 1.5, 0.88, 1.2, 2.2, 0.06);                                              // хаалга
-  sphere(toon(PALETTE.gold, { key: 'gold' }), porch, 0.4, 1.45, 0.95, 0.09);                     // бариул
+  // Хаалга: нугас зүүн ирмэгт (ойртоход нээгдэнэ)
+  const hinge = group('Door', porch, -0.6, 0.4, 0.88);
+  box(cream, hinge, 0.6, 1.1, 0, 1.2, 2.2, 0.06);
+  sphere(toon(PALETTE.gold, { key: 'gold' }), hinge, 1.0, 1.05, 0.07, 0.09);                     // бариул
+  g.userData.door = hinge;
+  g.userData.doorPos = new T.Vector3(0, 0, 4.45 + 1.6).applyAxisAngle(new T.Vector3(0, 1, 0), rot).add(new T.Vector3(x, 0, z));   // хаалганы урд (дэлхийн)
   box(cream, porch, 0, 0.12, 1.2, 2.2, 0.24, 1.0);                                              // шат
   // Цонх: гадаргуу дээр яг тулна
   for (const s of [-1, 1]) {

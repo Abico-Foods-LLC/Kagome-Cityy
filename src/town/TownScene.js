@@ -792,6 +792,11 @@ export class TownScene {
     add({ x: -21, z: 14, r: 3.5, label: 'Шүүсний лаборатори — шүүс хийх', icon: '🧃', action: () => this.juice.open() });
     add({ x: 38, z: 20, r: 3.4, label: 'Логикийн хүрд эргүүлэх', icon: '🎡', action: () => this.spinWheel() });
     add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
+    // Байшингийн хаалга: Хулууны гэр → Хортон хамгаалалт; бусад удахгүй
+    for (const h of town.houses) {
+      const isDef = h.label === 'ХУЛУУНЫ ГЭР';
+      add({ x: h.doorPos.x, z: h.doorPos.z, r: 2.8, hintY: 3.2, label: isDef ? '🎃 Хортон хамгаалалт руу орох' : `${h.label} — орох`, icon: '🚪', action: () => { if (isDef) this.enterDefense(h); else { this.audio.ui(); toast(`🔒 ${h.label} удахгүй нээгдэнэ — өөр ертөнц энд байх болно!`, 3000, '🚪'); } } });
+    }
     this.farm = new FarmPlot(this);
     this.fishing = new FishingGame(this);
     this.delivery = new DeliveryBoard(this);
@@ -849,6 +854,7 @@ export class TownScene {
     show('townHud', true); show('touchHud', true);
     this.app.post.setScene(this.scene); this.app.post.setCamera(this.camera);
     this.resize();
+    if (this.returnPos) { this.player.pos.copy(this.returnPos); this.player.vel.set(0, 0, 0); this.returnPos = null; }   // байшингаас буцахад хаалганы урд
     // Runner-ээс буцахад аялал ахисан байж болно
     const prevChapter = this.hudChapter;
     this.updateHUD(); this.setGoalForChapter();
@@ -1212,6 +1218,14 @@ export class TownScene {
     show('speedo', false);
   }
 
+  /** Хулууны гэр → Хортон хамгаалалт (буцахад хаалганы урд) */
+  async enterDefense(h) {
+    if (this.vehicle) this.exitCar();
+    if (this.carry) this.putDown();
+    this.returnPos = h.doorPos.clone();
+    this.audio.gate();
+    await this.app.switchTo('defense');
+  }
   async enterJungle() {
     if (this.vehicle) this.exitCar();
     this.audio.whoosh();
@@ -1543,6 +1557,8 @@ export class TownScene {
     town.gates.forEach((g) => { g.obj.visible = this.state.chapter === 4 && g.index >= this.state.counts.drive; g.obj.traverse((o) => { if (o.userData.spin) { o.rotation.y = t * 1.5; o.position.y = 2.6 + Math.sin(t * 2) * 0.2; } }); });
     // Хүрд
     if (this.wheelSpin > 0) { this.wheelSpin -= dt; town.wheel.rotation.z += dt * (4 + this.wheelSpin * 6); } else town.wheel.rotation.z += dt * 0.15;
+    // Байшингийн хаалга: тоглогч 3.5м-т ойртвол нээгдэнэ
+    for (const h of town.houses) { const near = Math.hypot(this.player.pos.x - h.doorPos.x, this.player.pos.z - h.doorPos.z) < 3.5; h.door.rotation.y += ((near ? -1.7 : 0) - h.door.rotation.y) * Math.min(1, dt * 5); if (near && !h.wasNear) this.audio.tone({ f: 220, f2: 330, type: 'triangle', dur: 0.2, vol: 0.05 }); h.wasNear = near; }
     // Машины туг (маркетын чимэг) салхинд
     const decor = town.car.userData.chassis.userData.decor; if (decor?.userData.cloth) decor.userData.cloth.rotation.y = Math.sin(t * 7) * 0.2 + Math.sin(t * 13) * 0.08;
     // Усан оргилуур

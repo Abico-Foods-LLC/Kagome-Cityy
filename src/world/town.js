@@ -114,7 +114,7 @@ export function buildTown(scene, { textures }) {
 
   // ---------- Байшин ----------
   const houseDefs = [[-33, -50, 0, 'АЛИМЫН ГУДАМЖ', 0.2], [40, -49, 3, 'МАНГО КАФЕ', -0.15], [-42, 24, 2, 'УСАН ҮЗМИЙН ГЭР', 0.5], [46, 8, 1, 'ЖҮРЖИЙН БУУДАЛ', -0.8], [-46, -32, 7, 'ХУЛУУНЫ ГЭР', 0.9]];
-  for (const [x, z, t, label, rot] of houseDefs) addCollider(P.fruitHouse(world, x, z, t, label, rot));
+  out.houses = houseDefs.map(([x, z, t, label, rot]) => { const h = P.fruitHouse(world, x, z, t, label, rot); addCollider(h); return { group: h, label, type: t, x, z, door: h.userData.door, doorPos: h.userData.doorPos }; });
 
   // ---------- Асар ----------
   P.pavilion(world, -28, -20, 'ТОО БОДОХ ЗАХ', 0xffb554, 0.1); colliders.push({ x: -28, z: -20, r: 1.2 });
