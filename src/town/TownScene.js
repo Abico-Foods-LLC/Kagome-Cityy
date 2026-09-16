@@ -1263,6 +1263,11 @@ export class TownScene {
     const day = T.MathUtils.smoothstep(sunH, -0.12, 0.35);
     const dusk = Math.max(0, 1 - Math.abs(sunH) / 0.28);
     const night = (1 - day) * 0.8;
+    // Хөгжмийн хувилбар: машин / шөнө / өвөл / өдөр — 2 сек тогтвортой байвал солино
+    const mood = this.vehicle ? 'car' : day < 0.3 ? 'night' : this.season === 3 ? 'winter' : 'town';
+    if (mood !== this.moodWant) { this.moodWant = mood; this.moodT = 0; }
+    this.moodT = (this.moodT || 0) + dt;
+    if (this.moodT > 2 && this.started && this.active && this.audio.music) this.audio.setMood(mood);
     const skyTop = new T.Color(0x3f9ce8).lerp(new T.Color(0x1a2a5e), night).lerp(new T.Color(0xff8d5c), dusk * 0.35);
     const skyHor = new T.Color(0xbfe9f5).lerp(new T.Color(0x44598f), night).lerp(new T.Color(0xffb26b), dusk * 0.6);
     this.sky.uniforms.uTop.value.copy(skyTop);

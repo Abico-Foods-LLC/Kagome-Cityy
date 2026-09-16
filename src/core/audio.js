@@ -167,27 +167,34 @@ export class AudioSystem {
   }
 
   /** Хөгжим: энгийн арпеджио + бас, 4 хөвчний давталт. mood: 'town' | 'runner' */
+  /** Хөгжмийн хувилбарууд: chords (хагас тонын offset), root Hz, bpm, дууны хэлбэр, хэмжээ */
+  static MUSIC = {
+    town: { chords: [[0, 4, 7, 11], [5, 9, 12, 16], [7, 11, 14, 17], [2, 5, 9, 12]], root: 261.63, bpm: 96, type: 'triangle', vol: 0.09, bass: 0.14 },
+    night: { chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [5, 8, 12, 15], [-2, 2, 5, 9]], root: 196, bpm: 72, type: 'sine', vol: 0.06, bass: 0.1, dur: 1.4 },
+    car: { chords: [[0, 4, 7, 11], [5, 9, 12, 16], [7, 11, 14, 17], [2, 5, 9, 12]], root: 261.63, bpm: 124, type: 'square', vol: 0.05, bass: 0.12, hat: true, bass8: true },
+    winter: { chords: [[0, 4, 7, 11], [5, 9, 12, 16], [7, 11, 14, 17], [2, 5, 9, 12]], root: 523.25, bpm: 84, type: 'triangle', vol: 0.07, bass: 0, dur: 1.6, bell: true },
+    runner: { chords: [[0, 3, 7, 10], [-2, 2, 5, 9], [3, 7, 10, 14], [5, 8, 12, 15]], root: 196, bpm: 138, type: 'square', vol: 0.06, bass: 0.14, hat: true },
+  };
+
   startMusic(mood = 'town') {
     if (!this.ctx) return;
     this.stopMusic();
-    const chords = mood === 'town'
-      ? [[0, 4, 7, 11], [5, 9, 12, 16], [7, 11, 14, 17], [2, 5, 9, 12]]
-      : [[0, 3, 7, 10], [-2, 2, 5, 9], [3, 7, 10, 14], [5, 8, 12, 15]];
-    const root = mood === 'town' ? 261.63 : 196;
-    const bpm = mood === 'town' ? 96 : 138;
-    const beat = 60 / bpm;
+    const M = AudioSystem.MUSIC[mood] || AudioSystem.MUSIC.town;
+    this.mood = mood;
+    const beat = 60 / M.bpm;
     let bar = 0, step = 0;
-    const g = this.ctx.createGain(); g.gain.value = 1; g.connect(this.musicBus);
+    const g = this.ctx.createGain(); g.gain.value = 0; g.connect(this.musicBus);
+    g.gain.setTargetAtTime(1, this.ctx.currentTime, 0.5);   // crossfade: аажим орж ирнэ
     const self = this;
     function schedule() {
-      if (!self.music) return;
-      const chord = chords[bar % chords.length];
-      const t = self.ctx.currentTime;
+      if (!self.music || self.music.g !== g) return;
+      const chord = M.chords[bar % M.chords.length];
       const note = chord[step % chord.length] + (step % 8 >= 4 ? 12 : 0);
-      const f = root * Math.pow(2, note / 12);
-      self.tone({ f, type: mood === 'town' ? 'triangle' : 'square', dur: beat * 0.9, vol: mood === 'town' ? 0.09 : 0.06, bus: g });
-      if (step % 4 === 0) self.tone({ f: root / 2 * Math.pow(2, chord[0] / 12), type: 'sine', dur: beat * 1.8, vol: 0.14, bus: g });
-      if (mood === 'runner' && step % 2 === 1) self.noise({ dur: 0.05, vol: 0.05, hp: 3000, bus: g });
+      const f = M.root * Math.pow(2, note / 12);
+      self.tone({ f, type: M.type, dur: beat * (M.dur || 0.9), vol: M.vol, bus: g });
+      if (M.bell && step % 2 === 0) self.tone({ f: f * 2, type: 'sine', dur: beat * 1.2, vol: M.vol * 0.4, bus: g });   // өвөл: хонхны дээд өнгө
+      if (M.bass && step % (M.bass8 ? 2 : 4) === 0) self.tone({ f: M.root / 2 * Math.pow(2, chord[0] / 12), type: 'sine', dur: beat * 1.8, vol: M.bass, bus: g });
+      if (M.hat && step % 2 === 1) self.noise({ dur: 0.05, vol: 0.05, hp: 3000, bus: g });
       step++;
       if (step % 8 === 0) bar++;
       self.music.timer = setTimeout(schedule, beat * 500);
@@ -196,11 +203,17 @@ export class AudioSystem {
     schedule();
   }
 
+  /** Хувилбар солих (ижил бол юу ч хийхгүй): хуучин нь 0.6с fade, шинэ нь орж ирнэ */
+  setMood(mood) {
+    if (!this.ctx || this.mood === mood) return;
+    this.startMusic(mood);
+  }
+
   stopMusic() {
     if (!this.music) return;
     clearTimeout(this.music.timer);
-    const m = this.music; this.music = null;
-    m.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4);
-    setTimeout(() => m.g.disconnect(), 1500);
+    const m = this.music; this.music = null; this.mood = null;
+    m.g.gain.setTargetAtTime(0, this.ctx.currentTime, 0.6);
+    setTimeout(() => m.g.disconnect(), 2000);
   }
 }
