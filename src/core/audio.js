@@ -88,6 +88,8 @@ export class AudioSystem {
   shield() { this.tone({ f: 500, f2: 1500, type: 'sine', dur: 0.3, vol: 0.12 }); this.tone({ f: 750, f2: 2250, type: 'sine', dur: 0.3, vol: 0.08, delay: 0.05 }); }
   gate() { [784, 988, 1175].forEach((f, i) => this.tone({ f, type: 'square', dur: 0.18, vol: 0.07, delay: i * 0.07 })); }
   carIn() { this.tone({ f: 120, f2: 260, type: 'sawtooth', dur: 0.4, vol: 0.08 }); }
+  purr() { for (let i = 0; i < 8; i++) this.tone({ f: 95 + (i % 2) * 8, f2: 80, type: 'triangle', dur: 0.09, vol: 0.09, delay: i * 0.1 }); }
+  quack(n = 2) { for (let i = 0; i < n; i++) { this.tone({ f: 540, f2: 360, type: 'sawtooth', dur: 0.11, vol: 0.07, delay: i * 0.17 }); this.noise({ dur: 0.06, vol: 0.03, hp: 1200, lp: 4000, delay: i * 0.17 }); } }
   splash() { this.noise({ dur: 0.3, vol: 0.12, hp: 300, lp: 5000, pitchDecay: true }); }
   spin() { for (let i = 0; i < 14; i++) this.tone({ f: 800, type: 'square', dur: 0.03, vol: 0.05, delay: i * i * 0.012 }); }
 

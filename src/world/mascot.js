@@ -331,6 +331,16 @@ export class Mascot {
         torsoPitch = 0.05;
         break;
       }
+      case 'carried': {
+        // Тоглогчийн толгой дээр өргөгдсөн: хөл савчина, гар дэлгэнэ; p.joy > 0 бол баярлаж гараа өргөнө
+        const joy = Math.min(1, p.joy || 0), f = t * (joy ? 7 : 11);
+        setLegs((l) => { l.hip.rotation.x = Math.sin(f + (l.s > 0 ? 0 : Math.PI)) * (0.9 - joy * 0.5); });
+        setArms((a) => { a.sh.rotation.x = lerp(-0.6 + Math.sin(f * 0.8 + a.s) * 0.4, -Math.PI + 0.25 + Math.sin(f + a.s) * 0.2, joy); a.sh.rotation.z = lerp(a.s * 1.4, a.base * 0.5, joy); });
+        torsoPitch = -0.12 + Math.sin(f * 0.5) * 0.05 * (1 - joy); torsoRoll = Math.sin(f * 0.6) * 0.12 * (1 - joy);
+        headPitch = -0.15; headRoll = Math.sin(f * 0.5) * 0.08;
+        squash = Math.sin(f) * 0.02;
+        break;
+      }
       default: {
         const iv = this.idleT > 6 ? (Math.floor(this.idleT / 6) % 3) + 1 : 0;
         const ph2 = (this.idleT % 6) / 6;
