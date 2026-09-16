@@ -6,12 +6,13 @@ import { createSunFlare, createRain, updateRain, createRainbow, updateRainbow, c
 import { glow, toon, PALETTE, curveTree, hitUniforms } from '../gfx/materials.js';
 import { buildTown, makeBlocked, ISLAND, CANAL, BRIDGES_Z } from '../world/town.js';
 import { createAvatar, AVATARS } from '../world/avatar.js';
-import { Mascot, MASCOTS, ACCESSORIES } from '../world/mascot.js';
+import { Mascot, MASCOTS } from '../world/mascot.js';
 import { JuiceGame } from './juice.js';
 import { FarmPlot } from './farm.js';
 import { FishingGame } from './fishing.js';
 import { DeliveryBoard } from './delivery.js';
 import { Wreckables } from './wreck.js';
+import { ShopUI } from './shop.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
 import * as P from '../world/props.js';
@@ -601,6 +602,7 @@ export class TownScene {
     this.delivery = new DeliveryBoard(this);
     for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ярилцах`, icon: '💬', visible: () => !c.knock && !c.carried, action: () => this.talkCitizen(c) });
     this.wreck = new Wreckables(this);
+    this.shopUI = new ShopUI(this);
   }
 
   setupUI() {
@@ -792,24 +794,9 @@ export class TownScene {
   }
 
   /** Аксессуарын дэлгүүр (Kagome маркет) */
-  shop() {
-    const st = this.state, w = st.wardrobe;
-    const isMascot = st.settings.avatar !== 'suit';
-    const items = Object.entries(ACCESSORIES).map(([k, a]) => {
-      const owned = w.owned.includes(k), on = w.equipped[a.slot] === k;
-      const btn = owned ? `<button data-wear="${k}" class="${on ? 'primary' : ''}">${on ? 'Өмссөн ✓' : 'Өмсөх'}</button>` : `<button data-buy="${k}" ${st.stars < a.price ? 'disabled' : ''}>⭐ ${a.price}</button>`;
-      return `<div class="shop-item ${on ? 'on' : ''}"><span class="em">${a.emoji}</span><small>${a.name}</small>${btn}</div>`;
-    }).join('');
-    modal(`<div class="eyebrow">KAGOME МАРКЕТ</div><h2>Хувцас, аксессуар</h2><p>Од ⭐ <b id="shopStars">${st.stars}</b> · Оддоо цуглуулаад дүрээ гоёорой.${isMascot ? '' : ' <i>(Аксессуар mascot дүрүүдэд л харагдана)</i>'}</p><div class="shop">${items}</div><div class="row"><button id="shopCollection">🧃 Бүтээгдэхүүний цуглуулга</button><button class="ghost" id="shopClose">Хаах</button></div>`);
-    document.querySelectorAll('[data-buy]').forEach((b) => b.onclick = () => {
-      const k = b.dataset.buy;
-      if (st.buyAccessory(k, ACCESSORIES[k].price)) { st.equip(k, ACCESSORIES[k].slot); st.save(); this.refreshWear(); this.audio.correct(); toast(ACCESSORIES[k].name + ' авлаа!', 2000, ACCESSORIES[k].emoji); this.updateHUD(); this.shop(); }
-      else this.audio.wrong();
-    });
-    document.querySelectorAll('[data-wear]').forEach((b) => b.onclick = () => { const k = b.dataset.wear; st.equip(k, ACCESSORIES[k].slot); st.save(); this.refreshWear(); this.audio.ui(); this.shop(); });
-    $('shopCollection').onclick = () => this.collection();
-    $('shopClose').onclick = closeModal;
-  }
+  shop(cat) { this.shopUI.open(cat); }
+  /** Худалдан авсан/өмссөн бүх зүйлийг дүрслэлд тусгана (хувцас; Task 3-д машин, нохой, trail, гэр) */
+  applyEquipment() { this.refreshWear(); }
 
   refreshWear() {
     for (const sc of Object.values(this.app.scenes)) { sc.character?.wear?.(this.state.wardrobe.equipped); sc.driver?.wear?.(this.state.wardrobe.equipped); }
@@ -851,7 +838,7 @@ export class TownScene {
     $('help').onclick = () => this.help();
     $('gotoRunner').onclick = () => { closeModal(); this.enterJungle(); };
     $('pickAvatar').onclick = () => this.pickAvatar(() => this.pauseMenu());
-    $('shopBtn').onclick = () => this.shop();
+    $('shopBtn').onclick = () => this.shop('wear');
     $('dailyBtn2').onclick = () => this.dailyModal();
     $('reset').onclick = () => { if (confirm('Бүх ахиц устгах уу?')) { this.state.reset(); location.reload(); } };
   }
