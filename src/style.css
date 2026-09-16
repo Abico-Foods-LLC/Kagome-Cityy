@@ -363,3 +363,10 @@ body.defense #rollBtn, body.defense #ballBtn, body.defense #throwBtn { display: 
 #killFeed div { background: rgba(0, 0, 0, .45); color: #fff; font-weight: 700; font-size: 13px; padding: 5px 10px; border-radius: 10px; animation: feedin .2s ease-out; }
 #killFeed b { color: #ffe38a; }
 @keyframes feedin { from { opacity: 0; transform: translateX(-10px); } }
+/* ASMR цамхаг HUD */
+#obbyHud header { display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px; pointer-events: none; }
+#obbyHud .stats { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+#obbyHud .stat { background: rgba(255, 255, 255, .92); border-radius: 14px; padding: 9px 14px; font-weight: 900; }
+#obbyTrack { position: absolute; left: 50%; top: 78px; transform: translateX(-50%); width: min(420px, 60vw); height: 10px; background: rgba(255, 255, 255, .6); border-radius: 5px; overflow: hidden; }
+#obbyTrack i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffb3cc, #c9b6ff, #a0f0d8); transition: width .3s; }
+body.obby #rollBtn, body.obby #ballBtn, body.obby #throwBtn, body.obby #actionBtn, body.obby #adsBtn { display: none; }

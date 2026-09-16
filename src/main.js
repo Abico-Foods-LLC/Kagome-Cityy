@@ -9,6 +9,7 @@ import { PRODUCTS } from './core/content.js';
 import { TownScene } from './town/TownScene.js';
 import { RunnerScene } from './runner/RunnerScene.js';
 import { DefenseScene } from './defense/DefenseScene.js';
+import { ObbyScene } from './obby/ObbyScene.js';
 
 class App {
   constructor() {
@@ -55,6 +56,7 @@ class App {
     await nextFrame();
     this.scenes.runner = new RunnerScene(this);
     this.scenes.defense = new DefenseScene(this);
+    this.scenes.obby = new ObbyScene(this);
     setLoading(100, 'Бэлэн!');
     await nextFrame();
 

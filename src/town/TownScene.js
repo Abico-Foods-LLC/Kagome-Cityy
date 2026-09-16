@@ -794,8 +794,8 @@ export class TownScene {
     add({ x: 46, z: -57, r: 4.5, label: 'Ширэнгэ рүү орох — Jungle Runner', icon: '🌴', action: () => this.enterJungle() });
     // Байшингийн хаалга: Хулууны гэр → Хортон хамгаалалт; бусад удахгүй
     for (const h of town.houses) {
-      const isDef = h.label === 'ХУЛУУНЫ ГЭР';
-      add({ x: h.doorPos.x, z: h.doorPos.z, r: 2.8, hintY: 3.2, label: isDef ? '🎃 Хортон хамгаалалт руу орох' : `${h.label} — орох`, icon: '🚪', action: () => { if (isDef) this.enterDefense(h); else { this.audio.ui(); toast(`🔒 ${h.label} удахгүй нээгдэнэ — өөр ертөнц энд байх болно!`, 3000, '🚪'); } } });
+      const world = { 'ХУЛУУНЫ ГЭР': { scene: 'defense', label: '🎃 Хортон хамгаалалт руу орох' }, 'УСАН ҮЗМИЙН ГЭР': { scene: 'obby', label: '🍬 ASMR цамхаг руу орох' } }[h.label];
+      add({ x: h.doorPos.x, z: h.doorPos.z, r: 2.8, hintY: 3.2, label: world ? world.label : `${h.label} — орох`, icon: '🚪', action: () => { if (world) this.enterHouse(h, world.scene); else { this.audio.ui(); toast(`🔒 ${h.label} удахгүй нээгдэнэ — өөр ертөнц энд байх болно!`, 3000, '🚪'); } } });
     }
     this.farm = new FarmPlot(this);
     this.fishing = new FishingGame(this);
@@ -1085,7 +1085,7 @@ export class TownScene {
     this.netTick = (this.netTick || 0) + dt;
     if (this.netTick < 0.5) return;
     this.netTick = 0;
-    if (this.app.current === this.app.scenes.defense) return;   // defense scene өөрөө state-ээ явуулна
+    if (this.app.current !== this.app.scenes.runner) return;   // defense/obby scene өөрөө state-ээ явуулна
     const P = this.player;
     this.net.sendState(packState({ x: P.pos.x, y: 0, z: P.pos.z, h: P.heading, anim: 'idle', speed: 0, inCar: false, zone: 1 }));
   }
@@ -1219,14 +1219,15 @@ export class TownScene {
     show('speedo', false);
   }
 
-  /** Хулууны гэр → Хортон хамгаалалт (буцахад хаалганы урд) */
-  async enterDefense(h) {
+  /** Байшингийн хаалгаар өөр ертөнц рүү (буцахад хаалганы урд) */
+  async enterHouse(h, sceneName) {
     if (this.vehicle) this.exitCar();
     if (this.carry) this.putDown();
     this.returnPos = h.doorPos.clone();
     this.audio.gate();
-    await this.app.switchTo('defense');
+    await this.app.switchTo(sceneName);
   }
+  enterDefense(h) { return this.enterHouse(h, 'defense'); }
   async enterJungle() {
     if (this.vehicle) this.exitCar();
     this.audio.whoosh();
