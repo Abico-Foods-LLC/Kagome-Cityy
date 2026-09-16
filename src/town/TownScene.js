@@ -1089,7 +1089,7 @@ export class TownScene {
   say(root, text, pitch = 1.5) {
     const v = this.app.voice; if (!v) return;
     const clean = String(text).replace(/<[^>]+>/g, '');
-    if (v.speak(clean, { pitch }) && root && !v.hasMongolian) this.bubbles.show(root, '💬', { dur: Math.min(3, 0.6 + clean.length * 0.04) });
+    if (v.speak(clean, { pitch }) && root && v.mode === 'babble') this.bubbles.show(root, '💬', { dur: Math.min(3, 0.6 + clean.length * 0.04) });
   }
 
   /** Амжилтаа өрөөний бусдад мэдэгдэнэ (toast) */
@@ -1177,7 +1177,7 @@ export class TownScene {
       <div class="settings">
         <label>Дуу <input type="checkbox" id="sSound" ${st.sound ? 'checked' : ''}></label>
         <label>Хөгжим <input type="checkbox" id="sMusic" ${st.music ? 'checked' : ''}></label>
-        <label>Дүрүүд ярих ${this.app.voice?.hasMongolian ? '(монгол хоолой)' : '(хүүхдийн дуу хоолой)'} <input type="checkbox" id="sVoice" ${st.voice !== false ? 'checked' : ''}></label>
+        <label>Дүрүүд ярих ${{ mn: '(монгол хоолой)', ru: '(орос хоолойгоор монголоор)', babble: '(хүүхдийн дуу хоолой)' }[this.app.voice?.mode || 'babble']} <input type="checkbox" id="sVoice" ${st.voice !== false ? 'checked' : ''}></label>
         <label>Гүний бүдгэрэлт (DoF) <input type="checkbox" id="sDof" ${st.dof !== false ? 'checked' : ''}></label>
         <label>Сорилын түвшин <select id="sLevel"><option value="1">Бага (6–8 нас)</option><option value="2">Ахлах (9–12 нас)</option></select></label>
         <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>

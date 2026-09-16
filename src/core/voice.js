@@ -10,23 +10,34 @@ export class Voice {
   load() {
     if (typeof speechSynthesis === 'undefined') return;
     const vs = speechSynthesis.getVoices() || [];
-    // Монгол хоолой: mn-MN (Edge: Yesui/Bataa Neural). Эмэгтэй/залуу хоолойг илүүд үзнэ
+    // 1) Монгол хоолой: mn-MN (Edge: Yesui/Bataa Neural). 2) Үгүй бол орос хоолой — кирилл текстийг ойролцоо уншина (ө→о, ү→у)
     this.voice = vs.find((v) => /^mn/i.test(v.lang) && /yesui|female/i.test(v.name)) || vs.find((v) => /^mn/i.test(v.lang)) || null;
+    this.ruVoice = vs.find((v) => /^ru/i.test(v.lang) && /female|milena|google|elena|svetlana|irina/i.test(v.name)) || vs.find((v) => /^ru/i.test(v.lang)) || null;
     this.ready = true;
   }
   get hasMongolian() { return !!this.voice; }
+  get hasRussian() { return !!this.ruVoice; }
+  get mode() { return this.voice ? 'mn' : this.ruVoice ? 'ru' : 'babble'; }
+  /** Орос хоолойд зориулж монгол үсгийг ойролцоо болгоно */
+  static toRu(t) { return t.replace(/ө/g, 'о').replace(/Ө/g, 'О').replace(/ү/g, 'у').replace(/Ү/g, 'У'); }
 
   /** Текст уншуулах. who: { pitch (0.8–2), gender } — дүр бүр өөр өнгө */
   speak(text, { pitch = 1.5, rate = 1.0, interrupt = true } = {}) {
     if (!this.enabled || !text) return false;
     const clean = String(text).replace(/[«»"“”*_<>]/g, '').replace(/\p{Extended_Pictographic}/gu, '').replace(/\s+/g, ' ').trim();
     if (!clean) return false;
-    if (this.voice) {
+    const v = this.voice || this.ruVoice;
+    if (v && !this.ttsBroken) {
       try {
         if (interrupt) speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(clean);
-        u.voice = this.voice; u.lang = this.voice.lang; u.pitch = Math.min(2, pitch); u.rate = rate; u.volume = 0.9;
+        const u = new SpeechSynthesisUtterance(this.voice ? clean : Voice.toRu(clean));
+        u.voice = v; u.lang = v.lang; u.pitch = Math.min(2, pitch); u.rate = rate; u.volume = 1;
+        let started = false;
+        u.onstart = () => { started = true; this.ttsOk = true; };
+        u.onerror = () => { if (!started) { this.ttsFails = (this.ttsFails || 0) + 1; if (this.ttsFails >= 2) this.ttsBroken = true; this.babble(clean, pitch); } };
         speechSynthesis.speak(u);
+        // Хамгаалалт: 0.9с дотор эхлэхгүй бол (сүлжээний хоолой унтарсан г.м) babble
+        setTimeout(() => { if (!started && !this.ttsOk) { try { speechSynthesis.cancel(); } catch (e) { /* ok */ } this.ttsFails = (this.ttsFails || 0) + 1; if (this.ttsFails >= 2) this.ttsBroken = true; this.babble(clean, pitch); } }, 900);
         return true;
       } catch (e) { /* доор babble */ }
     }
