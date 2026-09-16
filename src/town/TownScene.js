@@ -871,6 +871,7 @@ export class TownScene {
     // Линкээр орсон бол өрөөнд автоматаар нэгдэнэ
     const code = new URLSearchParams(location.search).get('room');
     if (code && /^[a-z0-9]{4,12}$/.test(code)) setTimeout(() => this.net.askName(() => { this.net.fromLink = true; this.net.join(code); }), 600);
+    else if (this.state.settings.publicRoom !== false) setTimeout(() => this.net.askName(() => this.net.joinPublic()), 600);   // нийтийн хот (default)
   }
 
   // ---------------------------------------------------------------- Аялал / хадгалалт

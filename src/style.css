@@ -160,6 +160,7 @@ dialog p { font-size: 16px; line-height: 1.55; }
 .dq .em { font-size: 26px; text-align: center; } .dq b { font-size: 14px; } .dq small { color: var(--ink-soft); font-weight: 700; } .dq .track { margin: 6px 0 3px; height: 7px; }
 .dq.done { background: #d5f4de; } .dq.done b { text-decoration: line-through; opacity: .7; }
 button#netButton { width: auto; padding: 0 10px; border-radius: 999px; grid-auto-flow: column; gap: 4px; } #netButton b { font-size: 13px; }
+.chk { display: flex; gap: 8px; align-items: center; font-weight: 700; margin: 8px 0; }
 .netList { margin: 4px 0 10px; padding-left: 18px; font-weight: 700; }
 #chatBox { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); width: min(560px, calc(100% - 32px)); background: rgba(255, 255, 255, .95); border-radius: 18px; padding: 10px; box-shadow: 0 8px 24px rgba(23, 67, 46, .2); pointer-events: auto; z-index: 6; }
 #chatBox.hidden { display: none; }

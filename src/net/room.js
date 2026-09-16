@@ -19,10 +19,17 @@ export class Net {
   emit(evt, ...a) { for (const f of this.handlers[evt] || []) f(...a); }
 
   /** Өрөөнд нэгдэх (код байхгүй бол шинээр үүсгэнэ) */
+  get isPublic() { return /^lobby\d+$/.test(this.code || ''); }
+
+  /** Нийтийн хот: lobby1-д нэгдэнэ; дүүрсэн бол update() дараагийн lobby руу шилжүүлнэ */
+  joinPublic(n = 1) { this.join('lobby' + n); this.publicN = n; this.publicT = 0; }
+
   join(code = roomCode()) {
     if (this.room) return;
     this.code = code; this.joinedAt = Date.now(); this.peers.clear(); this.hostId = this.selfId;
-    const url = new URL(location.href); url.searchParams.set('room', code); history.replaceState(null, '', url);
+    const url = new URL(location.href);
+    if (/^lobby\d+$/.test(code)) url.searchParams.delete('room'); else url.searchParams.set('room', code);
+    history.replaceState(null, '', url);
     try {
       this.room = joinRoom({ appId: APP_ID }, 'kc-' + code, { onJoinError: (d) => this.fail('Холбогдож чадсангүй: ' + (d?.error?.message || d?.error || 'сүлжээ')) });
     } catch (e) { this.fail('Холбогдож чадсангүй: ' + e.message); return; }
@@ -38,7 +45,8 @@ export class Net {
     this.refreshHud();
     // Линкээр орсон бол 20с дотор хэн ч ирэхгүй бол анхааруулна (host нь өрөөнд ганцаараа хүлээж болно)
     this.waitT = 0;
-    toast(`Өрөө: ${code} — бусдыг линкээр урь`, 3500, '👥');
+    if (this.isPublic) toast('Нийтийн хотод нэгдлээ — бусад тоглогчид энд ирнэ 👥', 3000, '🌍');
+    else toast(`Өрөө: ${code} — бусдыг линкээр урь`, 3500, '👥');
   }
 
   fail(msg) { toast(msg + '. Өөр сүлжээ/утасны интернет туршаад дахин оролдоорой.', 6000, '⚠️'); this.leave(); }
@@ -78,6 +86,14 @@ export class Net {
   }
   update(dt) {
     if (!this.room) return;
+    // Нийтийн хот дүүрсэн (8+) бол хамгийн сүүлд орсон нь дараагийн lobby руу шилжинэ
+    if (this.isPublic) {
+      this.publicT = (this.publicT || 0) + dt;
+      if (this.publicT > 4 && this.peers.size >= MAX_PEERS - 1) {
+        const newest = [...this.peers.values()].every((p) => p.joinedAt <= this.joinedAt);
+        if (newest) { const n = (this.publicN || 1) + 1; this.leave(); this.joinPublic(n); toast(`Хот дүүрсэн тул ${n}-р хот руу орлоо`, 3000, '🌍'); return; }
+      }
+    }
     if (this.peers.size === 0 && this.fromLink) { this.waitT += dt; if (this.waitT > 20 && !this.warned) { this.warned = true; toast('Өрөөнд одоогоор хэн ч алга — линк үүсгэсэн хүн тоглоомоо нээсэн эсэхийг шалгаарай', 5000, '👥'); } }
   }
   refreshHud() {
@@ -97,9 +113,13 @@ export class Net {
   /** Өрөөний модал: линк, тоглогчид, гарах */
   roomModal() {
     const st = this.scene.state;
-    if (!this.room) {
-      modal(`<div class="eyebrow">ХАМТ ТОГЛОХ</div><h2>👥 Найзуудаа урь</h2><p>Өрөө үүсгээд линкийг найздаа илгээ — тэр линкээр ороход нэг хотод хамт тоглоно (8 хүртэл). Сервергүй, шууд холбогдоно.</p><div class="row"><button id="netCreate" class="primary">Өрөө үүсгэх</button><button id="netClose" class="ghost">Хаах</button></div>`);
-      $('netCreate').onclick = () => { closeModal(); this.askName(() => { this.join(); this.roomModal(); }); };
+    if (!this.room || this.isPublic) {
+      const pub = st.settings.publicRoom !== false;
+      const list = this.room ? [...this.peers.values()].map((p) => p.name).join(', ') : '';
+      modal(`<div class="eyebrow">ХАМТ ТОГЛОХ</div><h2>👥 ${this.room ? `Нийтийн хот · ${this.count} тоглогч` : 'Найзуудаа урь'}</h2>${this.room ? `<p>${list ? 'Энд: ' + list : 'Одоогоор ганцаараа — бусад тоглогч ормогц энд ирнэ.'}</p>` : ''}<p>Хувийн өрөө үүсгээд линкийг найздаа илгээвэл зөвхөн та нар хамт тоглоно (8 хүртэл). Сервергүй, шууд холбогдоно.</p><label class="chk"><input type="checkbox" id="netPublic" ${pub ? 'checked' : ''}> Тоглоом нээхэд нийтийн хотод автоматаар нэгдэх</label><div class="row"><button id="netCreate" class="primary">Хувийн өрөө үүсгэх</button>${this.room ? '<button id="netLeave" class="ghost">Нийтийн хотоос гарах</button>' : ''}<button id="netClose" class="ghost">Хаах</button></div>`);
+      $('netPublic').onchange = (e) => { st.settings.publicRoom = e.target.checked; st.save(); if (e.target.checked && !this.room) this.askName(() => this.joinPublic()); };
+      $('netCreate').onclick = () => { closeModal(); this.askName(() => { if (this.room) this.leave(); this.join(); this.roomModal(); }); };
+      const lv = $('netLeave'); if (lv) lv.onclick = () => { this.leave(); closeModal(); toast('Нийтийн хотоос гарлаа', 2000, '👋'); };
       $('netClose').onclick = closeModal; return;
     }
     const link = location.origin + location.pathname + '?room=' + this.code;
