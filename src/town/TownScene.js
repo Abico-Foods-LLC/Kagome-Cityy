@@ -19,6 +19,8 @@ import { CitizenRequests } from './requests.js';
 import { FetchBall } from './ball.js';
 import { PhotoMode } from './photo.js';
 import { Net } from '../net/room.js';
+import { RemotePlayers } from '../net/remote.js';
+import { packState } from '../net/proto.js';
 import { GameState } from '../core/state.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
@@ -128,6 +130,7 @@ export class TownScene {
 
   /** Дүрийг (дахин) үүсгэнэ — тоглогч болон машины жолооч хоёулаа */
   buildAvatar(kind) {
+    this.net?.sendHello();   // дүр солиход бусдад мэдэгдэнэ
     const prevVisible = this.character ? this.character.root.visible : true;
     if (this.character) this.scene.remove(this.character.root);
     if (this.driver) this.driver.root.removeFromParent();
@@ -746,6 +749,10 @@ export class TownScene {
     this.ball = new FetchBall(this); this.ball.setup();
     this.photo = new PhotoMode(this); this.photo.setup();
     this.net = new Net(this);
+    this.remote = new RemotePlayers(this);
+    this.net.on('hello', (id, p) => this.remote.add(id, p))
+      .on('state', (id, arr) => this.remote.onState(id, arr))
+      .on('peerLeave', (id) => { this.remote.remove(id); if (this.carry?.remote === id) this.carry = null; if (this.player.carriedBy === id) this.player.carriedBy = null; });
     $('netButton').onclick = () => this.net.roomModal();
   }
 
@@ -949,10 +956,23 @@ export class TownScene {
 
   /** Аксессуарын дэлгүүр (Kagome маркет) */
   shop(cat) { this.shopUI.open(cat); }
+  /** Сүлжээ: өөрийн төлөвийг 15Hz илгээж, бусдыг шинэчилнэ */
+  netSync(dt) {
+    if (!this.net.active) return;
+    this.remote.update(dt);
+    this.netTick = (this.netTick || 0) + dt;
+    if (this.netTick < 1 / 15) return;
+    this.netTick = 0;
+    const P = this.player, V = this.vehicle;
+    const anim = P.carriedBy ? 'carried' : P.flung ? 'flung' : V ? 'sit' : (P.rollT > 0 ? 'roll' : P.state);
+    this.net.sendState(packState({ x: P.pos.x, y: P.visualY, z: P.pos.z, h: P.heading, anim, speed: Math.min(1, P.vel.length() / RUN), inCar: !!V, carX: V ? V.position.x : 0, carZ: V ? V.position.z : 0, carH: V ? this.car.heading : 0, carSpeed: V ? this.car.speed : 0, runner: this.inRunner || false }));
+  }
+
   /** Худалдан авсан/өмссөн бүх зүйлийг дүрслэлд тусгана: хувцас, машины будаг/чимэг, Луувсайн аксессуар, trail, гэрийн чимэглэл */
   applyEquipment() {
     const st = this.state, item = (slot) => SHOP_BY_ID[st.equipped(slot)];
     this.refreshWear();
+    this.net?.sendHello();
     const paint = item('carPaint')?.data || { body: 0xff9f2e, dark: 0xe07f16 };
     toon(0xff9f2e, { key: 'buggyBody' }).color.set(paint.body); toon(0xe07f16, { key: 'buggyD' }).color.set(paint.dark);
     P.carDecor(this.town.car.userData.chassis, item('carDecor')?.data || null);
@@ -1118,6 +1138,7 @@ export class TownScene {
     this.requests.update(dt);
     this.ball.update(dt);
     this.net.update(dt);
+    this.netSync(dt);
     this.home.update(dt, this.clock);
     this.updateInteractables(active);
     this.updateHudLive();

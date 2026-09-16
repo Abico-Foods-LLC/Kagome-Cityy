@@ -289,6 +289,14 @@ export class Character {
         torsoPitch = 0.1;
         break;
       }
+      case 'carried': {
+        // Өргөгдсөн: хөл савчина, гар дэлгэнэ; p.joy бол баярлаж гараа өргөнө
+        const joy = Math.min(1, p.joy || 0), f = t * (joy ? 7 : 11);
+        setLegs((l) => { l.hip.rotation.x = Math.sin(f + (l.s > 0 ? 0 : Math.PI)) * (0.8 - joy * 0.4); l.knee.rotation.x = 0.6; l.foot.rotation.x = 0; });
+        setArms((a) => { a.shoulder.rotation.x = lerp(-0.6 + Math.sin(f * 0.8 + a.s) * 0.4, -Math.PI + 0.25, joy); a.shoulder.rotation.z = lerp(a.s * 1.3, a.s * 0.2, joy); a.elbow.rotation.x = -0.3; });
+        torsoPitch = -0.1; headPitch = -0.15;
+        break;
+      }
       default: { // idle + удаан зогсоход хувилбарууд
         const iv = this.idleT > 6 ? (Math.floor(this.idleT / 6) % 3) + 1 : 0;   // 1: эргэн тойрноо харах, 2: сунах, 3: хөл тогшилт
         const ph2 = (this.idleT % 6) / 6;
