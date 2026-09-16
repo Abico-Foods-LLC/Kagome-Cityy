@@ -25,7 +25,7 @@ export class CitizenRequests {
     this.bubbleT = 0;
     for (const r of sc.state.requests.list) {
       const c = sc.citizens[r.c];
-      if (!r.done && c && !c.carried && !c.knock) sc.bubbles.show(c.m.root, '❗', { dur: 1.6 });
+      if (!r.done && c && !c.carried && !c.knock && !c.upset) sc.bubbles.show(c.m.root, '❗', { dur: 1.6 });
     }
   }
 

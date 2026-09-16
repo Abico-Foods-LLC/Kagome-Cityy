@@ -296,6 +296,7 @@ export class TownScene {
       const r = c.m.root;
       if (c.carried) continue;   // тоглогч өргөж яваа — updateCarry байрлуулна
       if (this.updateKnock(c, dt)) continue;
+      if (this.updateDodge(c, dt)) continue;
       if (this.updateChat(c, dt)) continue;
       if (c.stareT > 0) {
         // Гайхаж зогсоод харна (шидэгдсэн иргэн рүү)
@@ -310,7 +311,8 @@ export class TownScene {
         if (doNear) c.nearCache = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 4;
         const near = !!c.nearCache;
         c.m.update(dt, { state: 'idle', speed: 0, lookAt: near ? new T.Vector3(pp.x, 1.5, pp.z) : null });
-        if (near && !c.waved && !c.m.busy) { c.m.play('wave', 1.2); c.waved = true; this.bubbles.show(r, '👋', { dur: 1.3 }); }
+        this.updateUpset(c, dt, near);
+        if (near && !c.waved && !c.m.busy && !c.upset) { c.m.play('wave', 1.2); c.waved = true; this.bubbles.show(r, '👋', { dur: 1.3 }); }
         continue;
       }
       if (!c.target) {
@@ -343,6 +345,7 @@ export class TownScene {
       r.position.x = nx; r.position.z = nz;
       if (doNear) c.nearCache = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 5;
       c.m.update(dt, { state: 'walk', speed: 0.45, lookAt: c.nearCache ? new T.Vector3(pp.x, 1.5, pp.z) : null });
+      this.updateUpset(c, dt, c.nearCache);
     }
     if (doNear) { this.startChats(); this.lowTick = 0; }
   }
@@ -350,7 +353,7 @@ export class TownScene {
   // ---------------------------------------------------------------- Иргэд хоорондоо ярилцана
   /** Хоёр чөлөөтэй иргэн 2.5м дотор таарвал зогсоод 3.5 сек ярилцана; нэг хос 25 сек дахин ярихгүй */
   startChats() {
-    const C = this.citizens, free = (c) => !c.chat && !c.knock && !c.carried && !(c.stareT > 0);
+    const C = this.citizens, free = (c) => !c.chat && !c.knock && !c.carried && !(c.stareT > 0) && !c.upset && !c.dodge;
     this.chatCool = this.chatCool || {};
     for (let i = 0; i < C.length; i++) {
       const a = C[i]; if (!free(a)) continue;
@@ -407,11 +410,60 @@ export class TownScene {
     e.knock = { t: 1.7, dur: 1.7, vx: dx * push, vz: dz * push, vy: 4.5 };
     e.m.play('hurt', 1.7); e.m.roll(0.6); e.chat = null; e.licked = false;
     this.bubbles.show(e.m.root, '😵', { dur: 1.4, y: 1.6 });
+    this.upsetCitizen(e);
     if (this.state.pet && !this.dogFetch) this.dogFetch = e;
     this.audio.hurt(); this.cam.shake = Math.max(this.cam.shake, 0.25);
     this.particles.dust(e.m.root.position, 6);
     if (Math.random() < 0.6) toast(['Өө! Болгоомжтой жолоод!', 'Аяа! Хүмүүсийг мөргөж болохгүй!', 'Ёо-ёо… удаан жолоод!'][Math.floor(Math.random() * 3)], 1800, '😵');
   }
+  /** Иргэн гомдоно: уучлалт гуйх хүртэл ярилцахгүй, тоглогчийг харахаараа 😠 */
+  upsetCitizen(e) {
+    if (e.dog || e === this.farmer) return;
+    if (!e.upset) toast(`${e.name} гомдлоо — очиж уучлалт гуй (E)`, 2600, '😠');
+    e.upset = true; e.upsetBubble = 0;
+  }
+  /** Гомдсон иргэн тоглогчийг харахаараа гомдсон царай, 4с тутам 😠 */
+  updateUpset(c, dt, near) {
+    if (!c.upset) return;
+    if (near) { c.m.setMood('hurt', 0.3); c.upsetBubble = (c.upsetBubble || 0) + dt; if (c.upsetBubble > 4) { c.upsetBubble = 0; this.bubbles.show(c.m.root, '😠', { dur: 1.5 }); } }
+  }
+  /** Уучлалт гуйх (модал): иргэн уучилна, хэвийн болно — од өгөхгүй */
+  apologize(c) {
+    c.upset = false; c.m.setMood('happy', 2); c.m.cheer();
+    this.character.play('wave', 1.1);
+    this.bubbles.show(c.m.root, '❤️', { dur: 2 });
+    this.particles.burst(c.m.root.position.clone().add(new T.Vector3(0, 1.8, 0)), 0xffa7c0, 12, { speed: 2, up: 2.5, size: 0.16, life: 0.8, gravity: 3 });
+    this.audio.tone({ f: 660, f2: 990, type: 'sine', dur: 0.2, vol: 0.08 });
+    closeModal();
+    toast(`${c.name}: «Зүгээр, дараа болгоомжтой байгаарай!»`, 2600, '🙂');
+  }
+  /** Машин хурдтай урдаас нь ирж байвал иргэн хажуу тийш үсрэн зайлна; true = зайлж байна */
+  updateDodge(c, dt) {
+    const r = c.m.root;
+    if (c.dodge) {
+      c.dodge.t -= dt;
+      const nx = r.position.x + c.dodge.vx * dt, nz = r.position.z + c.dodge.vz * dt;
+      if (!this.blocked(nx, nz, 0.4)) { r.position.x = nx; r.position.z = nz; }
+      c.m.update(dt, { state: c.dodge.t > 0.35 ? 'jump' : 'fall', speed: 0 });
+      if (c.dodge.t <= 0) { c.dodge = null; c.wait = 1.2 + Math.random(); c.target = null; c.m.setMood('surprised', 1.2); }
+      return true;
+    }
+    const V = this.vehicle; if (!V || Math.abs(this.car.speed) < 3) return false;
+    const fx = Math.sin(this.car.heading) * Math.sign(this.car.speed), fz = Math.cos(this.car.heading) * Math.sign(this.car.speed);
+    const dx = r.position.x - V.position.x, dz = r.position.z - V.position.z, d = Math.hypot(dx, dz);
+    if (d > 8 || d < 0.5) return false;
+    const along = (dx * fx + dz * fz) / d;            // машины урд талд байгаа эсэх
+    const side = dx * fz - dz * fx;                    // машины замаас хэдий зайд (+ = зүүн)
+    if (along < 0.6 || Math.abs(side) > 2.6) return false;
+    const sgn = side >= 0 ? 1 : -1;                    // замаас хол тал руу
+    const vx = fz * sgn * 5.5, vz = -fx * sgn * 5.5;
+    c.dodge = { t: 0.7, vx, vz }; c.chat = null; c.stareT = 0;
+    c.heading = Math.atan2(-fx, -fz); r.rotation.y = c.heading;   // машин руу эргэж харна
+    this.bubbles.show(r, '😮', { dur: 1.2 });
+    if (Math.random() < 0.5) this.audio.tone({ f: 700, f2: 1100, type: 'sine', dur: 0.12, vol: 0.06 });
+    return true;
+  }
+
   /** Унасан байдлыг шинэчилнэ; true = унасан хэвээр (хэвийн логикоо алгасна) */
   updateKnock(e, dt) {
     const k = e.knock; if (!k) return false;
@@ -584,6 +636,7 @@ export class TownScene {
     e.knock = { t: 2.0, dur: 2.0, vx: Math.sin(P.heading) * 9, vz: Math.cos(P.heading) * 9, vy: 5 };
     e.m.play('hurt', 2); e.m.roll(0.7); e.joyed = false; e.lastBubble = 0; e.licked = false;
     this.bubbles.show(e.m.root, '😵', { dur: 1.6, y: 1.6 });
+    this.upsetCitizen(e);
     if (this.state.pet && !this.dogFetch) this.dogFetch = e;
     // Ойр орчмын иргэд гайхаж зогсоод харна
     for (const c of this.citizens) {
@@ -602,6 +655,16 @@ export class TownScene {
     c.wait = Math.max(c.wait, 5); c.waved = true; c.chat = null; c.stareT = 0;
     r.rotation.y = c.heading = Math.atan2(pp.x - r.position.x, pp.z - r.position.z);
     this.player.heading = Math.atan2(r.position.x - pp.x, r.position.z - pp.z);
+    if (c.upset) {
+      // Гомдсон: уучлалт гуйх хүртэл ярилцахгүй
+      c.m.setMood('hurt', 3); this.bubbles.show(r, '😠', { dur: 1.5 });
+      const fruits = FRUITS.map((f, i) => (this.state.inventory[i] || 0) > 0 ? `<button data-gift="${i}">${f.emoji} бэлэглэх</button>` : '').join('');
+      modal(`<div class="npc-head"><div class="reward">😠</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${c.name}</h2></div></div><p>«Өө… чи намайг мөргөчихсөн шүү дээ. Өвдлөө…»</p><div class="row"><button id="npcSorry" class="primary">Уучлаарай 🙏</button>${fruits}<button id="npcBye" class="ghost">Дараа</button></div>`);
+      $('npcSorry').onclick = () => this.apologize(c);
+      document.querySelectorAll('[data-gift]').forEach((b) => b.onclick = () => { const i = +b.dataset.gift; this.state.inventory[i]--; this.state.save(); this.updateHUD(); this.apologize(c); this.bubbles.show(r, FRUITS[i].emoji, { dur: 1.6 }); });
+      $('npcBye').onclick = () => closeModal();
+      return;
+    }
     this.character.play('wave', 1.1); c.m.play('wave', 1.4);
     if (!c.talked) { c.talked = true; this.progress('talk', 1); }
     const line = CITIZEN_LINES[Math.floor(Math.random() * CITIZEN_LINES.length)];
@@ -673,7 +736,7 @@ export class TownScene {
     this.farm = new FarmPlot(this);
     this.fishing = new FishingGame(this);
     this.delivery = new DeliveryBoard(this);
-    for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ${this.requests.of(c) ? 'хүсэлт' : 'ярилцах'}`, icon: () => this.requests.of(c) ? '❗' : '💬', visible: () => !c.knock && !c.carried, action: () => this.talkCitizen(c) });
+    for (const c of this.citizens) add({ dynamic: () => c.m.root.position, r: 3.2, hintY: 2.4, label: () => `${c.name} — ${c.upset ? 'уучлалт гуйх' : this.requests.of(c) ? 'хүсэлт' : 'ярилцах'}`, icon: () => c.upset ? '😠' : this.requests.of(c) ? '❗' : '💬', visible: () => !c.knock && !c.carried, action: () => this.talkCitizen(c) });
     this.wreck = new Wreckables(this);
     this.shopUI = new ShopUI(this);
     this.home = new HomeDecor(this); this.home.setup();
