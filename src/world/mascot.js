@@ -243,6 +243,8 @@ export class Mascot {
   play(action, dur = 0.7) { this.action = action; this.actionT = dur; this.actionDur = dur; const md = { wave: 'talk', hurt: 'hurt', pick: 'focus', dance: 'happy' }[action]; if (md) this.setMood(md, dur); }
   flip() { this.flipT = 0.55; this.setMood('surprised', 0.55); }
   roll(dur = 0.45) { this.rollT = dur; this.rollDur = dur; this.setMood('focus', dur); }
+  /** Буудалтын ухралт (aim төлөвд гар хойш цохигдоно) */
+  recoil(t = 0.14) { this.recoilT = t; }
   get busy() { return this.actionT > 0; }
 
   update(dt, p) {
@@ -330,6 +332,17 @@ export class Mascot {
       case 'sit': {
         setLegs((l) => { l.hip.rotation.x = -1.3; }); setArms((a) => { a.sh.rotation.x = -1.0 + (p.lean || 0) * a.s * 0.3; a.sh.rotation.z = a.base * 0.5; });
         torsoPitch = 0.05;
+        break;
+      }
+      case 'aim': {
+        // Цацуур/буу барьж чиглүүлэх: хоёр гар урагш, баруун гар зэвсэгтэй; recoil-д хойш цохигдоно
+        this.recoilT = Math.max(0, (this.recoilT || 0) - dt);
+        const rc = this.recoilT > 0 ? Math.sin(this.recoilT / 0.14 * Math.PI) : 0;
+        const bob = this.speedNorm > 0.1 ? Math.sin(ph) * 0.05 : Math.sin(t * 2) * 0.02;
+        setArms((a) => { a.sh.rotation.x = lerp(a.sh.rotation.x, (a.s > 0 ? -1.5 : -1.25) + rc * 0.45 + bob, k12); a.sh.rotation.z = lerp(a.sh.rotation.z, a.s > 0 ? 0.05 : 0.35, k12); });
+        if (this.speedNorm > 0.1) { setLegs((l) => { l.hip.rotation.x = Math.sin(ph + (l.s > 0 ? 0 : Math.PI)) * (0.5 + this.speedNorm * 0.5); }); bodyY = Math.abs(Math.cos(ph)) * 0.05; }
+        else easeLegs(() => 0, k8);
+        torsoPitch = 0.12 + rc * -0.08; headPitch = -0.05; squash = rc * 0.02;
         break;
       }
       case 'carried': {

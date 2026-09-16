@@ -35,7 +35,8 @@ export class Net {
     } catch (e) { this.fail('Холбогдож чадсангүй: ' + e.message); return; }
     // Trystero 0.25: makeAction → { send, onMessage }; onMessage(data, { peerId })
     const mk = (name) => { const a = this.room.makeAction(name); return { send: (d, t) => a.send(d, t), recv: (fn) => { a.onMessage = (d, meta) => fn(d, typeof meta === 'string' ? meta : meta?.peerId); } }; };
-    this.act = { hello: mk('hello'), state: mk('state'), event: mk('event'), world: mk('world') };
+    this.act = { hello: mk('hello'), state: mk('state'), event: mk('event'), world: mk('world'), def: mk('def') };
+    this.act.def.recv((d, from) => { if (this.peers.has(from)) this.emit('def', d, from); });
     this.act.hello.recv((d, from) => this.onHello(d, from));
     this.act.state.recv((d, from) => { if (this.peers.has(from)) this.emit('state', from, d); });
     this.act.event.recv((d, from) => { if (this.peers.has(from)) this.emit('event', d, from); });
@@ -68,6 +69,7 @@ export class Net {
   sendState(arr) { if (this.act && this.peers.size) this.act.state.send(arr); }
   sendEvent(obj, target) { if (this.act && this.peers.size) this.act.event.send(obj, target); }
   sendWorld(obj) { if (this.act && this.peers.size) this.act.world.send(obj); }
+  sendDef(obj) { if (this.act && this.peers.size) this.act.def.send(obj); }
 
   onHello(d, from) {
     if (!d || d.ver !== PROTO_VER) { if (!this.badVer?.has(from)) { (this.badVer = this.badVer || new Set()).add(from); toast('Нэг тоглогчийн тоглоомын хувилбар өөр байна — хуудсаа шинэчлээрэй', 4000, '⚠️'); } return; }

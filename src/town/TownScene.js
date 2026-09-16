@@ -1069,7 +1069,7 @@ export class TownScene {
         else { const r = this.remote.get(d.target); if (r && r.carriedBy === from) r.carriedBy = null; }
         break;
       }
-      default: this.sync?.onEvent?.(d, from);
+      default: if (d.t.startsWith('def')) this.app.scenes.defense?.onNetEvent(d, from); else this.sync?.onEvent?.(d, from);
     }
   }
 
@@ -1085,8 +1085,9 @@ export class TownScene {
     this.netTick = (this.netTick || 0) + dt;
     if (this.netTick < 0.5) return;
     this.netTick = 0;
+    if (this.app.current === this.app.scenes.defense) return;   // defense scene өөрөө state-ээ явуулна
     const P = this.player;
-    this.net.sendState(packState({ x: P.pos.x, y: 0, z: P.pos.z, h: P.heading, anim: 'idle', speed: 0, inCar: false, runner: true }));
+    this.net.sendState(packState({ x: P.pos.x, y: 0, z: P.pos.z, h: P.heading, anim: 'idle', speed: 0, inCar: false, zone: 1 }));
   }
 
   /** Сүлжээ: өөрийн төлөвийг 15Hz илгээж, бусдыг шинэчилнэ */

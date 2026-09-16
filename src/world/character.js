@@ -173,6 +173,7 @@ export class Character {
   play(action, dur = 0.7) { this.action = action; this.actionT = dur; this.actionDur = dur; if (action === 'wave') this.setMood('talk', dur); if (action === 'hurt') this.setMood('hurt', dur); if (action === 'pick') this.setMood('focus', dur); if (action === 'dance') this.setMood('happy', dur); }
   flip() { this.flipT = 0.55; this.setMood('surprised', 0.55); }
   roll(dur = 0.45) { this.rollT = dur; this.rollDur = dur; this.setMood('focus', dur); }
+  recoil(t = 0.14) { this.recoilT = t; }
   get busy() { return this.actionT > 0; }
 
   /**
@@ -287,6 +288,15 @@ export class Character {
         setLegs((l) => { l.hip.rotation.x = -1.45; l.knee.rotation.x = 1.5; l.foot.rotation.x = 0; });
         setArms((a) => { a.shoulder.rotation.x = -0.9 + (p.lean || 0) * a.s * 0.3; a.shoulder.rotation.z = a.s * 0.1; a.elbow.rotation.x = -0.8; });
         torsoPitch = 0.1;
+        break;
+      }
+      case 'aim': {
+        this.recoilT = Math.max(0, (this.recoilT || 0) - dt);
+        const rc = this.recoilT > 0 ? Math.sin(this.recoilT / 0.14 * Math.PI) : 0;
+        setArms((a) => { a.shoulder.rotation.x = lerp(a.shoulder.rotation.x, (a.s > 0 ? -1.35 : -1.1) + rc * 0.4, k12); a.shoulder.rotation.z = lerp(a.shoulder.rotation.z, a.s > 0 ? -0.15 : 0.35, k12); a.elbow.rotation.x = lerp(a.elbow.rotation.x, a.s > 0 ? -0.35 : -0.9, k12); });
+        if (this.speedNorm > 0.1) { setLegs((l) => { l.hip.rotation.x = Math.sin(ph + (l.s > 0 ? 0 : Math.PI)) * (0.5 + this.speedNorm * 0.4); l.knee.rotation.x = Math.max(0, -Math.sin(ph + (l.s > 0 ? 0 : Math.PI))) * 0.9; l.foot.rotation.x = 0; }); hipY = Math.abs(Math.cos(ph)) * 0.05; }
+        else easeLegs(() => 0, () => 0.06, () => 0, k8);
+        torsoPitch = 0.1 + rc * -0.08; headPitch = -0.05;
         break;
       }
       case 'carried': {

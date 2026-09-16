@@ -5,11 +5,14 @@ export const ANIMS = ['idle', 'walk', 'run', 'jump', 'fall', 'swim', 'roll', 'si
 const r2 = (v) => Math.round((v || 0) * 100) / 100;
 
 /** Тоглогчийн төлөв → компакт массив (15Hz илгээнэ) */
+/** zone: 0 хот, 1 runner, 2 хортон хамгаалалт (runner:true = zone 1, хуучин нийцтэй) */
 export function packState(p) {
-  return [r2(p.x), r2(p.y), r2(p.z), r2(p.h), Math.max(0, ANIMS.indexOf(p.anim)), r2(p.speed), p.inCar ? 1 : 0, r2(p.carX), r2(p.carZ), r2(p.carH), r2(p.carSpeed), p.runner ? 1 : 0];
+  const zone = p.zone ?? (p.runner ? 1 : 0);
+  return [r2(p.x), r2(p.y), r2(p.z), r2(p.h), Math.max(0, ANIMS.indexOf(p.anim)), r2(p.speed), p.inCar ? 1 : 0, r2(p.carX), r2(p.carZ), r2(p.carH), r2(p.carSpeed), zone];
 }
 export function unpackState(a) {
-  return { x: a[0], y: a[1], z: a[2], h: a[3], anim: ANIMS[a[4]] || 'idle', speed: a[5], inCar: !!a[6], carX: a[7], carZ: a[8], carH: a[9], carSpeed: a[10], runner: !!a[11] };
+  const zone = a[11] || 0;
+  return { x: a[0], y: a[1], z: a[2], h: a[3], anim: ANIMS[a[4]] || 'idle', speed: a[5], inCar: !!a[6], carX: a[7], carZ: a[8], carH: a[9], carSpeed: a[10], zone, runner: zone !== 0 };
 }
 
 /** Host = хамгийн эрт нэгдсэн peer; тэнцвэл id үсгээр */

@@ -337,3 +337,8 @@ body.photo #townHud > *:not(#photoBar) { display: none !important; }
 #defStart.hidden { display: none; }
 @keyframes pulse { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.05); } }
 body.defense #rollBtn, body.defense #jumpBtn, body.defense #ballBtn, body.defense #throwBtn { display: none; }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 2.5px solid rgba(255, 255, 255, .85); border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(0, 0, 0, .35); transition: transform .08s, border-color .1s; pointer-events: none; }
+#crosshair i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; background: #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+#crosshair.target { border-color: #ffb03a; transform: scale(1.15); } #crosshair.target i { background: #ffb03a; }
+#crosshair.hit { border-color: #ff5c5c; transform: scale(1.35); }
+#crosshair.locked { opacity: 1; }

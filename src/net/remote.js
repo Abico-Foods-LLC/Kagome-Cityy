@@ -6,7 +6,8 @@ import { textTexture } from '../gfx/textures.js';
 import { Interp, unpackState } from './proto.js';
 
 export class RemotePlayers {
-  constructor(scene) { this.scene = scene; this.map = new Map(); }
+  /** scene: { scene: THREE.Scene, net, player, clock, town? }; zone: энэ scene-д харагдах zone (0 хот, 2 defense) */
+  constructor(scene, zone = 0) { this.scene = scene; this.zone = zone; this.map = new Map(); }
 
   add(id, hello) {
     if (this.map.has(id)) return this.refresh(id, hello);
@@ -38,7 +39,7 @@ export class RemotePlayers {
   nearest(pos, rad) {
     let best = null, bd = rad;
     for (const r of this.map.values()) {
-      if (!r.st || r.st.inCar || r.st.runner || r.carriedBy || r.anim === 'carried' || r.anim === 'flung') continue;
+      if (!r.st || r.st.inCar || r.st.zone !== this.zone || r.carriedBy || r.anim === 'carried' || r.anim === 'flung') continue;
       const d = Math.hypot(r.pos.x - pos.x, r.pos.z - pos.z);
       if (d < bd) { bd = d; best = r.id; }
     }
@@ -53,12 +54,12 @@ export class RemotePlayers {
   }
 
   update(dt) {
-    const sc = this.scene, now = performance.now(), car = sc.town.car;
+    const sc = this.scene, now = performance.now(), car = sc.town?.car;
     let remoteDriver = null;
     for (const r of this.map.values()) {
       if (!r.st) continue;
       const root = r.avatar.root;
-      const hidden = r.st.runner;
+      const hidden = r.st.zone !== this.zone;
       root.visible = !hidden; r.label.visible = !hidden;
       if (hidden) continue;
       const s = r.interp.sample(now, 100) || r.st;
@@ -72,7 +73,7 @@ export class RemotePlayers {
         r.anim = 'sit';
       } else { r.pos.set(s.x, s.y, s.z); r.heading = s.h; r.anim = r.st.anim; }
       r.speed = r.st.speed;
-      if (r.st.inCar && !sc.vehicle) {
+      if (car && r.st.inCar && !sc.vehicle) {
         // Бусдын машин: машины mesh-ийг жолоочийн state-ээр байрлуулна, тоглогчийг суудалд
         car.position.set(r.st.carX, 0, r.st.carZ); car.rotation.y = r.st.carH;
         car.userData.wheels.forEach((w) => { w.rotation.x += r.st.carSpeed * dt * 1.7; });
