@@ -126,16 +126,21 @@ export class GameState {
   // ---------- Хүргэлт ----------
   deliveryDone(onTime) { this.delivery.done++; this.counts.delivery++; this.stars += onTime ? 30 : 15; }
 
-  // ---------- Хувцас ----------
-  buyAccessory(key, price) {
-    if (this.wardrobe.owned.includes(key)) return true;
+  // ---------- Маркет (хувцас, машин, нохой, эффект, гэр) ----------
+  buy(id, price) {
+    if (this.wardrobe.owned.includes(id)) return true;
     if (this.stars < price) return false;
-    this.stars -= price; this.wardrobe.owned.push(key);
+    this.stars -= price; this.wardrobe.owned.push(id);
     return true;
   }
-  equip(key, slot) {
-    if (this.wardrobe.equipped[slot] === key) delete this.wardrobe.equipped[slot]; else this.wardrobe.equipped[slot] = key;
+  buyAccessory(id, price) { return this.buy(id, price); }
+  owns(id) { return this.wardrobe.owned.includes(id); }
+  equipped(slot) { return this.wardrobe.equipped[slot]; }
+  /** Slot дээр toggle: ижил бол тайлна */
+  equip(id, slot) {
+    if (this.wardrobe.equipped[slot] === id) delete this.wardrobe.equipped[slot]; else this.wardrobe.equipped[slot] = id;
   }
+  unequip(slot) { delete this.wardrobe.equipped[slot]; }
 
   static load() {
     try {

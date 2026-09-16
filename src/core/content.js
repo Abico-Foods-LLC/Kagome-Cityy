@@ -98,3 +98,62 @@ export const CITIZEN_LINES = [
   'Луувсай нохойг илбэл дагадаг. Сувагт сэлэх ч дуртай!',
   'Брокколид кальци их — яс бэхжүүлнэ. Бобо ахын ферм дээр ургадаг!',
 ];
+
+// ---------- Маркет ----------
+/** Mascot аксессуар (толгой/нүүр/их бие). secret: зөвхөн нээгдсэн үед дэлгүүрт харагдана. */
+export const ACCESSORIES = {
+  cap: { name: 'Kagome малгай', emoji: '🧢', slot: 'hat', price: 50 },
+  straw: { name: 'Сүрлэн малгай', emoji: '👒', slot: 'hat', price: 80 },
+  crown: { name: 'Титэм', emoji: '👑', slot: 'hat', price: 150 },
+  party: { name: 'Баярын малгай', emoji: '🎉', slot: 'hat', price: 60 },
+  flower: { name: 'Цэцэг', emoji: '🌸', slot: 'hat', price: 40 },
+  headphones: { name: 'Чихэвч', emoji: '🎧', slot: 'hat', price: 90 },
+  sun: { name: 'Нарны шил', emoji: '🕶️', slot: 'glasses', price: 70 },
+  round: { name: 'Дугуй шил', emoji: '👓', slot: 'glasses', price: 60 },
+  scarf: { name: 'Ороолт', emoji: '🧣', slot: 'extra', price: 50 },
+  wings: { name: 'Эрвээхийн далавч', emoji: '🦋', slot: 'extra', price: 200 },
+  balloon: { name: 'Шаар', emoji: '🎈', slot: 'extra', price: 120 },
+  bag: { name: 'Цүнх', emoji: '🎒', slot: 'extra', price: 60 },
+  goldcrown: { name: 'Алтан титэм', emoji: '👑', slot: 'hat', price: 0, secret: true, note: '20 алтан лууван олбол' },
+};
+
+export const SHOP_TABS = [
+  { cat: 'wear', label: 'Хувцас', emoji: '🧢' },
+  { cat: 'car', label: 'Машин', emoji: '🚗' },
+  { cat: 'dog', label: 'Луувсай', emoji: '🐶' },
+  { cat: 'trail', label: 'Эффект', emoji: '✨' },
+  { cat: 'home', label: 'Гэр', emoji: '🏡' },
+];
+
+/** Бүх бараа. slot байвал equip хийгдэнэ (нэг slot-д нэг), slot-гүй (гэр) бол авмагц байрлана. */
+export const SHOP = [
+  ...Object.entries(ACCESSORIES).map(([id, a]) => ({ id, cat: 'wear', ...a })),
+  // Машины будаг
+  { id: 'car.paint.red', cat: 'car', name: 'Улаан будаг', emoji: '🟥', price: 120, slot: 'carPaint', data: { body: 0xe83a4a, dark: 0xb9243a } },
+  { id: 'car.paint.blue', cat: 'car', name: 'Цэнхэр будаг', emoji: '🟦', price: 120, slot: 'carPaint', data: { body: 0x3d8bff, dark: 0x2a63c4 } },
+  { id: 'car.paint.green', cat: 'car', name: 'Ногоон будаг', emoji: '🟩', price: 120, slot: 'carPaint', data: { body: 0x4fbf5a, dark: 0x35913f } },
+  { id: 'car.paint.pink', cat: 'car', name: 'Ягаан будаг', emoji: '🩷', price: 120, slot: 'carPaint', data: { body: 0xff7ab8, dark: 0xd9548f } },
+  { id: 'car.paint.purple', cat: 'car', name: 'Нил ягаан будаг', emoji: '🟪', price: 120, slot: 'carPaint', data: { body: 0x9b6bff, dark: 0x6f46c9 } },
+  // Машины чимэг
+  { id: 'car.flag', cat: 'car', name: 'Туг', emoji: '🚩', price: 80, slot: 'carDecor', data: 'flag' },
+  { id: 'car.antenna', cat: 'car', name: 'Антенн бөмбөг', emoji: '📡', price: 60, slot: 'carDecor', data: 'antenna' },
+  { id: 'car.crate', cat: 'car', name: 'Жимсний хайрцаг', emoji: '📦', price: 100, slot: 'carDecor', data: 'crate' },
+  // Луувсай
+  { id: 'dog.collar.blue', cat: 'dog', name: 'Цэнхэр хүзүүвч', emoji: '🔵', price: 40, slot: 'dogCollar', data: 0x3d8bff },
+  { id: 'dog.collar.green', cat: 'dog', name: 'Ногоон хүзүүвч', emoji: '🟢', price: 40, slot: 'dogCollar', data: 0x4fbf5a },
+  { id: 'dog.collar.gold', cat: 'dog', name: 'Алтан хүзүүвч', emoji: '🟡', price: 40, slot: 'dogCollar', data: 0xffc93c },
+  { id: 'dog.bandana', cat: 'dog', name: 'Бандана', emoji: '🔻', price: 70, slot: 'dogExtra', data: 'bandana' },
+  { id: 'dog.hat', cat: 'dog', name: 'Жижиг малгай', emoji: '🧢', price: 90, slot: 'dogHat', data: 'hat' },
+  // Алхахад гарах эффект
+  { id: 'trail.stars', cat: 'trail', name: 'Одны мөр', emoji: '✨', price: 300, slot: 'trail', data: 'stars' },
+  { id: 'trail.petals', cat: 'trail', name: 'Дэлбээний мөр', emoji: '🌸', price: 350, slot: 'trail', data: 'petals' },
+  { id: 'trail.rainbow', cat: 'trail', name: 'Солонгон мөр', emoji: '🌈', price: 500, slot: 'trail', data: 'rainbow' },
+  // Миний булан (талбайн дэргэд)
+  { id: 'home.flowers', cat: 'home', name: 'Цэцгийн мандал', emoji: '🌷', price: 80, data: 'flowers' },
+  { id: 'home.mailbox', cat: 'home', name: 'Шуудангийн хайрцаг', emoji: '📮', price: 60, data: 'mailbox' },
+  { id: 'home.bench', cat: 'home', name: 'Сандал', emoji: '🪑', price: 90, data: 'bench' },
+  { id: 'home.lamp', cat: 'home', name: 'Дэнлүү', emoji: '🏮', price: 100, data: 'lamp' },
+  { id: 'home.bunting', cat: 'home', name: 'Тугны оосор', emoji: '🎏', price: 120, data: 'bunting' },
+  { id: 'home.scarecrow', cat: 'home', name: 'Манаач хүн', emoji: '🎃', price: 150, data: 'scarecrow' },
+];
+export const SHOP_BY_ID = Object.fromEntries(SHOP.map((i) => [i.id, i]));

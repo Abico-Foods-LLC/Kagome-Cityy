@@ -2,6 +2,7 @@
 // бөөрөнхий бие, жижиг гар хөл, том жимсэн толгой, цэгэн нүд, ягаан хацар, гөлгөр сүүдэрлэлт.
 // Character-тэй ижил API: root, shadow, update(dt, p), play(), flip(), roll(), cheer(), setMood(), busy, onStep.
 import * as T from 'three';
+import { ACCESSORIES } from '../core/content.js';
 
 const sphereGeo = new T.SphereGeometry(1, 28, 20);
 let _bodyGeo = null;
@@ -428,20 +429,7 @@ export class Mascot {
 }
 
 // ---------- Аксессуар (wardrobe) ----------
-export const ACCESSORIES = {
-  cap: { name: 'Kagome малгай', emoji: '🧢', slot: 'hat', price: 50 },
-  straw: { name: 'Сүрлэн малгай', emoji: '👒', slot: 'hat', price: 80 },
-  crown: { name: 'Титэм', emoji: '👑', slot: 'hat', price: 150 },
-  party: { name: 'Баярын малгай', emoji: '🎉', slot: 'hat', price: 60 },
-  flower: { name: 'Цэцэг', emoji: '🌸', slot: 'hat', price: 40 },
-  headphones: { name: 'Чихэвч', emoji: '🎧', slot: 'hat', price: 90 },
-  sun: { name: 'Нарны шил', emoji: '🕶️', slot: 'glasses', price: 70 },
-  round: { name: 'Дугуй шил', emoji: '👓', slot: 'glasses', price: 60 },
-  scarf: { name: 'Ороолт', emoji: '🧣', slot: 'extra', price: 50 },
-  wings: { name: 'Эрвээхийн далавч', emoji: '🦋', slot: 'extra', price: 200 },
-  balloon: { name: 'Шаар', emoji: '🎈', slot: 'extra', price: 120 },
-  bag: { name: 'Цүнх', emoji: '🎒', slot: 'extra', price: 60 },
-};
+export { ACCESSORIES };
 
 let _kTex = null;
 function textTextureK() {
@@ -465,11 +453,12 @@ const acc = {
     part(new T.CylinderGeometry(R * 0.7, R * 0.78, 0.36, 20), m, h, 0, y + 0.16, 0);
     part(new T.CylinderGeometry(R * 0.79, R * 0.79, 0.1, 20), soft(0xe83a4a), h, 0, y + 0.06, 0);
   },
-  crown(h, y, R) {
-    const g = soft(0xffd24d);
+  crown(h, y, R, fc, color = 0xffd24d) {
+    const g = soft(color);
     part(new T.CylinderGeometry(R * 0.6, R * 0.55, 0.28, 12), g, h, 0, y + 0.1, 0);
     for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; part(new T.ConeGeometry(0.09, 0.22, 6), g, h, Math.sin(a) * R * 0.58, y + 0.34, Math.cos(a) * R * 0.58); part(sphereGeo, soft([0xff4d6d, 0x4dd2ff, 0x7dff6f][i % 3]), h, Math.sin(a) * R * 0.6, y + 0.14, Math.cos(a) * R * 0.6, 0.05); }
   },
+  goldcrown(h, y, R, fc) { acc.crown(h, y, R, fc, 0xffe066); const g = soft(0xfff3b0); for (let i = 0; i < 6; i++) { const a = (i + 0.5) / 6 * Math.PI * 2; part(sphereGeo, g, h, Math.sin(a) * R * 0.62, y + 0.22, Math.cos(a) * R * 0.62, 0.035); } },
   party(h, y, R) {
     const c = part(new T.ConeGeometry(0.27, 0.72, 16), soft(0x5cb8ff), h, 0, y + 0.32, 0);
     for (let i = 0; i < 3; i++) part(new T.TorusGeometry(0.26 - i * 0.075, 0.025, 6, 20), soft(0xfff05a), h, 0, y + 0.12 + i * 0.2, 0).rotation.x = Math.PI / 2;

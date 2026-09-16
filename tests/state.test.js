@@ -168,3 +168,22 @@ describe('GameState — өдрийн даалгавар', () => {
     expect(s.stars).toBe(30);
   });
 });
+
+describe('GameState — маркет', () => {
+  it('buy: од хасаж owned-д нэмнэ, дахин авахад од хасахгүй', () => {
+    const s = new GameState({ stars: 200 });
+    expect(s.buy('car.paint.red', 120)).toBe(true); expect(s.stars).toBe(80);
+    expect(s.buy('car.paint.red', 120)).toBe(true); expect(s.stars).toBe(80);
+    expect(s.buy('trail.stars', 300)).toBe(false);
+  });
+  it('equip/unequip slot', () => {
+    const s = new GameState({ stars: 200 });
+    s.buy('car.paint.red', 120); s.equip('car.paint.red', 'carPaint');
+    expect(s.equipped('carPaint')).toBe('car.paint.red');
+    s.unequip('carPaint'); expect(s.equipped('carPaint')).toBeUndefined();
+  });
+  it('хуучин save-ийн owned/equipped хэвээр', () => {
+    const s = new GameState({ wardrobe: { owned: ['cap'], equipped: { hat: 'cap' } } });
+    expect(s.owns('cap')).toBe(true); expect(s.equipped('hat')).toBe('cap');
+  });
+});
