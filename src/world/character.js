@@ -170,10 +170,13 @@ export class Character {
   setMood(m, hold = 0) { this.mood = m; this.moodHold = hold; }
   cheer() { this.cheerT = 1.6; this.setMood('happy', 1.6); }
   /** Нэг удаагийн үйлдэл: 'pick' (жимс түүх), 'wave' (даллах), 'hurt' */
-  play(action, dur = 0.7) { this.action = action; this.actionT = dur; this.actionDur = dur; if (action === 'wave') this.setMood('talk', dur); if (action === 'hurt') this.setMood('hurt', dur); if (action === 'pick') this.setMood('focus', dur); if (action === 'dance') this.setMood('happy', dur); }
+  play(action, dur = 0.7) { this.action = action; this.actionT = dur; this.actionDur = dur; const md = { wave: 'talk', hurt: 'hurt', pick: 'focus', dance: 'happy', throw: 'focus', lift: 'happy' }[action]; if (md) this.setMood(md, dur); }
   flip() { this.flipT = 0.55; this.setMood('surprised', 0.55); }
   roll(dur = 0.45) { this.rollT = dur; this.rollDur = dur; this.setMood('focus', dur); }
   recoil(t = 0.14) { this.recoilT = t; }
+  jumpStart() { this.jumpT = 0.18; }
+  land(force = 0.5) { this.landT = 0.22 + force * 0.12; this.landF = Math.min(1, force); }
+  skid(dur = 0.22) { this.skidT = dur; }
   get busy() { return this.actionT > 0; }
 
   /**
@@ -188,7 +191,8 @@ export class Character {
     if (!air(prev) && air(p.state)) this.airT = 0;
     if (air(prev) && !air(p.state) && p.state !== 'swim') this.landT = 0.22;
     this.airT += dt;
-    this.landT = Math.max(0, this.landT - dt);
+    this.landT = Math.max(0, this.landT - dt); this.jumpT = Math.max(0, (this.jumpT || 0) - dt); this.skidT = Math.max(0, (this.skidT || 0) - dt);
+    this.turnV = lerp(this.turnV || 0, p.turn || 0, Math.min(1, dt * 8));
     this.cheerT = Math.max(0, this.cheerT - dt);
     this.actionT = Math.max(0, this.actionT - dt); if (this.actionT === 0) this.action = null;
     this.flipT = Math.max(0, this.flipT - dt);
@@ -248,14 +252,17 @@ export class Character {
           a.elbow.rotation.x = -0.4 - s * 0.9 - Math.max(0, -v) * 0.5;
         });
         hipY = Math.abs(Math.cos(ph)) * (0.03 + s * 0.06);
-        torsoPitch = 0.06 + s * 0.24;
-        torsoRoll = Math.sin(ph) * 0.05 * s;
-        headPitch = -0.05 - s * 0.08;
+        torsoPitch = 0.06 + s * 0.26;
+        torsoRoll = Math.sin(ph) * 0.05 * s - this.turnV * (0.2 + s * 0.15);   // эргэлтэд банк
+        headPitch = -0.05 - s * 0.08 + Math.cos(ph * 2) * 0.03 * s;
+        if (p.carry) { setArms((a) => { a.shoulder.rotation.x = -2.9; a.shoulder.rotation.z = a.s * 0.2; a.elbow.rotation.x = -0.3; }); torsoPitch = -0.02; }
+        if (this.skidT > 0) { const k = this.skidT / 0.22; torsoPitch = -0.3 * k; setLegs((l) => { l.hip.rotation.x = 0.6 * k; l.knee.rotation.x = 0.4 * k; }); setArms((a) => { a.shoulder.rotation.x = -1.0 * k; }); hipY -= 0.1 * k; }
         break;
       }
       case 'jump':
       case 'fall': {
         const up = this.state === 'jump';
+        if (this.jumpT > 0) hipY += Math.sin(this.jumpT / 0.18 * Math.PI) * 0.08;   // takeoff stretch
         easeLegs((l) => (up ? -0.9 : -0.3) * (l.s > 0 ? 1 : 0.5), () => up ? 1.6 : 0.6, () => 0.2);
         easeArms(() => up ? -2.4 : -1.3, (a) => a.s * 0.5, () => -0.5, Math.min(1, dt * 10));
         torsoPitch = up ? -0.12 : 0.18;
@@ -308,6 +315,7 @@ export class Character {
         break;
       }
       default: { // idle + удаан зогсоход хувилбарууд
+        if (p.carry) { setArms((a) => { a.shoulder.rotation.x = -2.9 + Math.sin(t * 2) * 0.04; a.shoulder.rotation.z = a.s * 0.2; a.elbow.rotation.x = -0.3; }); easeLegs(() => 0, () => 0.06, () => 0, k8); hipY = Math.sin(t * 2.2) * 0.01; headPitch = -0.1; break; }
         const iv = this.idleT > 6 ? (Math.floor(this.idleT / 6) % 3) + 1 : 0;   // 1: эргэн тойрноо харах, 2: сунах, 3: хөл тогшилт
         const ph2 = (this.idleT % 6) / 6;
         easeLegs(() => 0, (l) => 0.06 + (iv === 3 && l.s > 0 ? Math.max(0, Math.sin(t * 6)) * 0.5 : 0), (l) => (iv === 3 && l.s > 0 ? -Math.max(0, Math.sin(t * 6)) * 0.4 : 0), k8);
@@ -338,6 +346,12 @@ export class Character {
         const a = this.arms[1];
         a.shoulder.rotation.x = lerp(a.shoulder.rotation.x, -1.9, bell); a.shoulder.rotation.z = lerp(a.shoulder.rotation.z, 0.2, bell); a.elbow.rotation.x = lerp(a.elbow.rotation.x, -0.3 + (q > 0.5 ? -0.8 : 0), bell);
         headPitch = lerp(headPitch, 0.35, bell);
+      } else if (this.action === 'throw') {
+        const w = q < 0.4 ? Math.sin(q / 0.4 * Math.PI / 2) : 1, sn = q >= 0.4 ? Math.min(1, (q - 0.4) / 0.25) : 0, ft = q >= 0.65 ? (q - 0.65) / 0.35 : 0;
+        setArms((a) => { a.shoulder.rotation.x = lerp(a.shoulder.rotation.x, -3.0 * w + 1.5 * sn * (1 - ft * 0.5), 0.8); a.shoulder.rotation.z = a.s * 0.3; a.elbow.rotation.x = -0.3; });
+        torsoPitch = -0.3 * w + 0.5 * sn - 0.2 * ft; headPitch = -0.15 * w + 0.25 * sn;
+      } else if (this.action === 'lift') {
+        setArms((a) => { a.shoulder.rotation.x = -2.9; a.shoulder.rotation.z = a.s * 0.2; a.elbow.rotation.x = -0.3; }); hipY += bell * 0.08;
       } else if (this.action === 'wave') {
         const a = this.arms[1];
         a.shoulder.rotation.x = lerp(a.shoulder.rotation.x, -Math.PI * 0.85, Math.min(1, q * 4));
@@ -389,9 +403,9 @@ export class Character {
 
     // Газардах squash
     if (this.landT > 0) {
-      const q = this.landT / 0.22;
-      hipY -= q * 0.16;
-      torsoPitch += q * 0.25;
+      const f = 0.6 + (this.landF ?? 0.5) * 0.8, q = Math.min(1, this.landT / 0.22);
+      hipY -= q * 0.16 * f; torsoPitch += q * 0.25 * f;
+      setLegs((l) => { l.knee.rotation.x = lerp(l.knee.rotation.x, 0.9 * q * f, 0.5); l.hip.rotation.x = lerp(l.hip.rotation.x, -0.5 * q * f, 0.5); });
     }
 
     // ---------- Толгой харах ----------

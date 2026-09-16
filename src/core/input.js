@@ -150,7 +150,7 @@ export class Input {
     canvas.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       active = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now() };
-      canvas.setPointerCapture(e.pointerId);
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointer аль хэдийн суларсан */ }
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!active || e.pointerId !== active.id) return;

@@ -240,11 +240,17 @@ export class Mascot {
     for (const a of this.arms) { a.sh.rotation.x = armsUp ? -2.3 : 0; a.sh.rotation.z = armsUp ? a.s * 0.55 : a.base; }
   }
   cheer() { this.cheerT = 1.6; this.setMood('happy', 1.6); }
-  play(action, dur = 0.7) { this.action = action; this.actionT = dur; this.actionDur = dur; const md = { wave: 'talk', hurt: 'hurt', pick: 'focus', dance: 'happy' }[action]; if (md) this.setMood(md, dur); }
+  play(action, dur = 0.7) { this.action = action; this.actionT = dur; this.actionDur = dur; const md = { wave: 'talk', hurt: 'hurt', pick: 'focus', dance: 'happy', throw: 'focus', lift: 'happy' }[action]; if (md) this.setMood(md, dur); }
   flip() { this.flipT = 0.55; this.setMood('surprised', 0.55); }
   roll(dur = 0.45) { this.rollT = dur; this.rollDur = dur; this.setMood('focus', dur); }
   /** Буудалтын ухралт (aim төлөвд гар хойш цохигдоно) */
   recoil(t = 0.14) { this.recoilT = t; }
+  /** Үсрэлт эхлэх: сунах (stretch) */
+  jumpStart() { this.jumpT = 0.18; }
+  /** Буулт: хүчээр хавчих (0..1) + сэргэлт */
+  land(force = 0.5) { this.landT = 0.22 + force * 0.12; this.landF = Math.min(1, force); }
+  /** Гулсах (тоормослох) */
+  skid(dur = 0.22) { this.skidT = dur; }
   get busy() { return this.actionT > 0; }
 
   update(dt, p) {
@@ -252,7 +258,9 @@ export class Mascot {
     const prev = this.state; this.state = p.state;
     const air = (s) => s === 'jump' || s === 'fall';
     if (air(prev) && !air(p.state) && p.state !== 'swim') this.landT = 0.22;
-    this.landT = Math.max(0, this.landT - dt);
+    this.landT = Math.max(0, this.landT - dt); this.jumpT = Math.max(0, (this.jumpT || 0) - dt); this.skidT = Math.max(0, (this.skidT || 0) - dt);
+    // Эргэлтийн хурд (банк): heading-ийн өөрчлөлт
+    const turn = p.turn || 0; this.turnV = lerp(this.turnV || 0, turn, Math.min(1, dt * 8));
     this.cheerT = Math.max(0, this.cheerT - dt);
     this.actionT = Math.max(0, this.actionT - dt); if (this.actionT === 0) this.action = null;
     this.flipT = Math.max(0, this.flipT - dt);
@@ -293,23 +301,32 @@ export class Mascot {
 
     switch (this.state) {
       case 'walk': case 'run': {
-        const amp = 0.6 + s * 0.6;
+        const amp = 0.6 + s * 0.7, run = s > 0.6;
+        if (p.carry) {
+          // Өргөж явах: хоёр гар дээш, толгой дээрх ачааг тэнцвэржүүлэн, намуухан алхаа
+          setLegs((l) => { l.hip.rotation.x = Math.sin(ph + (l.s > 0 ? 0 : Math.PI)) * amp * 0.7; });
+          setArms((a) => { a.sh.rotation.x = -2.9 + Math.sin(ph * 0.5) * 0.05; a.sh.rotation.z = a.s * 0.25; });
+          bodyY = Math.abs(Math.cos(ph)) * 0.03; torsoPitch = -0.05; torsoRoll = Math.sin(ph) * 0.04 - this.turnV * 0.15; headPitch = -0.1;
+          break;
+        }
         setLegs((l) => { l.hip.rotation.x = Math.sin(ph + (l.s > 0 ? 0 : Math.PI)) * amp; });
-        setArms((a) => { const v = Math.sin(ph + (a.s > 0 ? Math.PI : 0)); a.sh.rotation.x = v * amp * 0.7; a.sh.rotation.z = a.base + (s > 0.6 ? -a.s * 0.3 : 0); });
-        bodyY = Math.abs(Math.cos(ph)) * (0.04 + s * 0.08);
-        torsoPitch = 0.05 + s * 0.2;
-        torsoRoll = Math.sin(ph) * (0.08 + s * 0.06);   // хөгжилтэй дэгжин алхаа
-        headRoll = -Math.sin(ph) * 0.06;
-        headPitch = -0.04 - s * 0.06;
-        squash = -Math.abs(Math.cos(ph)) * 0.02 * s;
+        setArms((a) => { const v = Math.sin(ph + (a.s > 0 ? Math.PI : 0)); a.sh.rotation.x = v * amp * (run ? 0.95 : 0.7) - (run ? 0.35 : 0); a.sh.rotation.z = a.base + (run ? -a.s * 0.35 : 0); });
+        bodyY = Math.abs(Math.cos(ph)) * (0.04 + s * 0.1);
+        torsoPitch = 0.05 + s * 0.28;
+        torsoRoll = Math.sin(ph) * (0.08 + s * 0.05) - this.turnV * (0.25 + s * 0.2);   // дэгжин алхаа + эргэлтэд банк
+        headRoll = -Math.sin(ph) * 0.06 + this.turnV * 0.1;
+        headPitch = -0.04 - s * 0.08 + Math.cos(ph * 2) * 0.03 * s;                    // толгой алхаа бүрд бага зэрэг хоцорно
+        squash = -Math.abs(Math.cos(ph)) * 0.025 * s + Math.sin(ph * 2) * 0.01 * s;
+        if (this.skidT > 0) { const k = this.skidT / 0.22; torsoPitch = -0.35 * k; setLegs((l) => { l.hip.rotation.x = 0.7 * k * (l.s > 0 ? 1 : 0.6); }); setArms((a) => { a.sh.rotation.x = -1.2 * k; a.sh.rotation.z = a.base + a.s * 0.5 * k; }); bodyY -= 0.08 * k; headPitch = 0.2 * k; }
         break;
       }
       case 'jump': case 'fall': {
         const up = this.state === 'jump';
-        easeLegs((l) => up ? -0.5 : 0.3);
-        easeArms(() => up ? -2.6 : -1.6, (a) => a.base * 0.6, Math.min(1, dt * 10));
-        torsoPitch = up ? -0.1 : 0.15; headPitch = up ? -0.2 : 0.12;
-        squash = up ? 0.08 : -0.03;
+        if (p.carry) { easeLegs((l) => up ? -0.4 : 0.25); easeArms(() => -2.9, (a) => a.s * 0.25); torsoPitch = -0.05; squash = up ? 0.05 : -0.02; break; }
+        easeLegs((l) => up ? -0.6 + l.s * 0.15 : 0.35, Math.min(1, dt * 14));
+        easeArms(() => up ? -2.7 : -1.4, (a) => a.base * (up ? 0.5 : 0.9), Math.min(1, dt * 12));
+        torsoPitch = up ? -0.12 : 0.2; headPitch = up ? -0.25 : 0.15; torsoRoll = -this.turnV * 0.2;
+        squash = (up ? 0.1 : -0.04) + (this.jumpT > 0 ? Math.sin(this.jumpT / 0.18 * Math.PI) * 0.16 : 0);   // takeoff stretch
         break;
       }
       case 'swim': {
@@ -360,7 +377,10 @@ export class Mascot {
         const ph2 = (this.idleT % 6) / 6;
         easeLegs(() => 0, k8);
         if (iv === 2) { const st = Math.sin(ph2 * Math.PI); easeArms(() => -2.6 * st, (a) => a.base * (1 - st * 0.6), k8); bodyY = st * 0.05; headPitch = -0.2 * st; squash = st * 0.05; }
-        else { easeArms((a) => Math.sin(t * 2.2 + a.s) * 0.05, (a) => a.base + Math.sin(t * 2.2) * 0.03, k8); bodyY = Math.sin(t * 2.2) * 0.012; squash = Math.sin(t * 2.2) * 0.012; headPitch = Math.sin(t * 1.3) * 0.03; }
+        else { easeArms((a) => Math.sin(t * 2.2 + a.s) * 0.05, (a) => a.base + Math.sin(t * 2.2) * 0.03, k8); bodyY = Math.sin(t * 2.2) * 0.012; squash = Math.sin(t * 2.2) * 0.015; headPitch = Math.sin(t * 1.3) * 0.03; torsoRoll = Math.sin(t * 0.7) * 0.02; }
+        if (p.carry) { setArms((a) => { a.sh.rotation.x = -2.9 + Math.sin(t * 2) * 0.04; a.sh.rotation.z = a.s * 0.25; }); headPitch = -0.1; }
+        // Зогсоод эргэхэд хөл шаваасалж, бие банкална
+        if (Math.abs(this.turnV) > 0.6) { const tp = t * 14; setLegs((l) => { l.hip.rotation.x = Math.sin(tp + (l.s > 0 ? 0 : Math.PI)) * 0.25; }); bodyY += Math.abs(Math.sin(tp)) * 0.02; torsoRoll -= this.turnV * 0.12; }
         this.headYawIdle = iv === 1 ? Math.sin(ph2 * Math.PI * 2) * 0.7 : 0;
         if (iv === 3) { bodyY += Math.max(0, Math.sin(t * 6)) * 0.03; headRoll = Math.sin(t * 6) * 0.06; }
       }
@@ -370,8 +390,21 @@ export class Mascot {
     if (this.action) {
       const q = 1 - this.actionT / this.actionDur, bell = Math.sin(q * Math.PI);
       if (this.action === 'pick') {
-        torsoPitch = lerp(torsoPitch, 0.85, bell); bodyY -= bell * 0.15; headPitch = lerp(headPitch, 0.3, bell);
-        const a = this.arms[1]; a.sh.rotation.x = lerp(a.sh.rotation.x, -1.6, bell); a.sh.rotation.z = lerp(a.sh.rotation.z, 0.1, bell);
+        // 2 фаз: бөхийж авах (0–0.55) → өргөж дээш (0.55–1) + жижиг үсрэлт
+        const down = q < 0.55 ? Math.sin(q / 0.55 * Math.PI) : 0, up = q >= 0.55 ? Math.sin((q - 0.55) / 0.45 * Math.PI) : 0;
+        torsoPitch = lerp(torsoPitch, 0.9, down) - up * 0.15; bodyY += -down * 0.2 + up * 0.12; headPitch = lerp(headPitch, 0.35, down) - up * 0.2;
+        setLegs((l) => { l.hip.rotation.x = lerp(l.hip.rotation.x, -0.9 * down, 0.6); });
+        setArms((a) => { a.sh.rotation.x = lerp(a.sh.rotation.x, -1.5 * down - 2.9 * up, 0.7); a.sh.rotation.z = lerp(a.sh.rotation.z, 0.1 * down + a.s * 0.3 * up, 0.7); });
+        squash = -down * 0.06 + up * 0.05;
+      } else if (this.action === 'throw') {
+        // Wind-up (0–0.4: гар хойш, бие хойш) → snap (0.4–1: гар урагш, бие урагш, follow-through)
+        const w = q < 0.4 ? Math.sin(q / 0.4 * Math.PI / 2) : 1, sn = q >= 0.4 ? Math.min(1, (q - 0.4) / 0.25) : 0, ft = q >= 0.65 ? (q - 0.65) / 0.35 : 0;
+        setArms((a) => { a.sh.rotation.x = lerp(a.sh.rotation.x, -3.0 * w + 1.6 * sn * (1 - ft * 0.5), 0.8); a.sh.rotation.z = lerp(a.sh.rotation.z, a.s * 0.4, 0.5); });
+        torsoPitch = -0.3 * w + 0.55 * sn - 0.2 * ft; headPitch = -0.15 * w + 0.25 * sn; bodyY += sn * 0.06;
+        squash = 0.05 * w - 0.04 * sn;
+      } else if (this.action === 'lift') {
+        // Өргөж авсны дараа баярлан дээш тэлэх (богино)
+        setArms((a) => { a.sh.rotation.x = -2.9; a.sh.rotation.z = a.s * 0.25; }); bodyY += bell * 0.1; squash = bell * 0.06;
       } else if (this.action === 'wave') {
         const a = this.arms[1]; const k = Math.min(1, q * 4) * (q > 0.85 ? (1 - q) / 0.15 : 1);
         a.sh.rotation.x = lerp(a.sh.rotation.x, -2.8, k); a.sh.rotation.z = lerp(a.sh.rotation.z, 0.7 + Math.sin(t * 16) * 0.4, k);
@@ -404,7 +437,7 @@ export class Mascot {
       setLegs((l) => { l.hip.rotation.x = -1.5; }); setArms((a) => { a.sh.rotation.x = -1.0; a.sh.rotation.z = a.base * 0.3; });
       torsoPitch = 0.4; headPitch = 0.4;
     }
-    if (this.landT > 0) { const q = this.landT / 0.22; bodyY -= q * 0.1; squash -= q * 0.14; torsoPitch += q * 0.15; }
+    if (this.landT > 0) { const f = 0.6 + (this.landF ?? 0.5) * 0.8, q = Math.min(1, this.landT / 0.22); bodyY -= q * 0.12 * f; squash -= q * 0.14 * f; torsoPitch += q * 0.18 * f; setLegs((l) => { l.hip.rotation.x = lerp(l.hip.rotation.x, -0.5 * q * f, 0.5); }); if (!p.carry) setArms((a) => { a.sh.rotation.x = lerp(a.sh.rotation.x, -0.8 * q * f, 0.5); a.sh.rotation.z = lerp(a.sh.rotation.z, a.base + a.s * 0.5 * q * f, 0.5); }); }
 
     // Толгой харах
     let wantYaw = this.headYawIdle || 0, wantPitch = 0;

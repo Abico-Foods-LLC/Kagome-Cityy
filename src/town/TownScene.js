@@ -146,7 +146,7 @@ export class TownScene {
       if (this.vehicle) return;
       const p = this.player.pos, onBridge = Math.abs(p.x - CANAL.x) < 7 && BRIDGES_Z.some((b) => Math.abs(p.z - b) < 5);
       this.audio.step(this.player.stepI++, onBridge);
-      if (!onBridge) this.particles.dust(p, this.player.state === 'run' ? 2 : 1);
+      if (!onBridge) this.particles.dust(p, this.player.state === 'run' ? 3 : 1, { size: this.player.state === 'run' ? 0.38 : 0.3 });
     };
     // Жолооч — машинд суух үед харагдах хуулбар
     this.driver = createAvatar(kind, { scale: 0.72 }, this.state.wardrobe.equipped);
@@ -644,7 +644,8 @@ export class TownScene {
     this.carry = best; best.carried = true; best.target = null; best.chat = null; best.carryT = 0;
     if (this.net.active && best !== this.farmer) this.net.sendEvent({ t: 'npcCarry', i: this.citizens.indexOf(best) });
     this.bubbles.show(best.m.root, '😮', { dur: 1.4 });
-    this.character.play('pick', 0.5); this.audio.ui();
+    this.character.play('pick', 0.55); this.audio.ui(); this.audio.tone({ f: 260, f2: 420, type: 'triangle', dur: 0.14, vol: 0.05, delay: 0.25 });   // "хөп!"
+    this.particles.dust(this.player.pos, 3);
     if (!this.carryHinted) { this.carryHinted = true; toast('Q — шидэх · Товшилт — буулгах', 2800, '🙌'); }
   }
   updateCarry(dt, active) {
@@ -667,7 +668,8 @@ export class TownScene {
       return;
     }
     const r = e.m.root;
-    r.position.set(P.pos.x + Math.sin(P.heading) * 0.15, P.visualY + 2.0 + Math.sin(this.clock * 6) * 0.05, P.pos.z + Math.cos(P.heading) * 0.15);
+    const liftK = Math.min(1, ((e.carryT || 0) + dt) / 0.3), liftE = 1 - Math.pow(1 - liftK, 3);   // 0.3с-д доороос дээш зөөлөн өргөнө
+    r.position.set(P.pos.x + Math.sin(P.heading) * (0.9 - liftE * 0.75), P.visualY + 0.6 + liftE * 1.4 + Math.sin(this.clock * 6) * 0.05 * liftE, P.pos.z + Math.cos(P.heading) * (0.9 - liftE * 0.75));
     r.rotation.set(0, P.heading, 0);
     // Эхлээд гайхаж хөл савчина; 4 сек өргөж явбал таашааж эхэлнэ
     e.carryT = (e.carryT || 0) + dt;
@@ -696,7 +698,7 @@ export class TownScene {
     this.carry = null; e.carried = false;
     if (!this.blocked(x, z, 0.4)) e.m.root.position.set(x, 0, z); else e.m.root.position.set(P.pos.x, 0, P.pos.z);
     e.m.root.rotation.set(0, P.heading, 0);
-    e.wait = 1.5; e.target = null; e.m.setMood('happy', 1.5); e.m.play('wave', 1); e.joyed = false; e.lastBubble = 0;
+    e.wait = 1.5; e.target = null; e.m.setMood('happy', 1.5); e.m.play('wave', 1); e.joyed = false; e.lastBubble = 0; this.character.play('pick', 0.4);
     if (this.net.active && e !== this.farmer) this.net.sendEvent({ t: 'npcDrop', i: this.citizens.indexOf(e), x: e.m.root.position.x, z: e.m.root.position.z, h: P.heading });
     this.bubbles.show(e.m.root, '❤️', { dur: 1.5 });
     this.character.play('pick', 0.5); this.audio.ui();
@@ -707,7 +709,7 @@ export class TownScene {
     if (e.remote) {
       this.carry = null; const r = this.remote.get(e.remote); if (r) { r.carriedBy = null; this.bubbles.show(r.avatar.root, '😵', { dur: 1.6 }); }
       this.net.sendEvent({ t: 'throw', target: e.remote, vx: Math.sin(P.heading) * 9, vz: Math.cos(P.heading) * 9, vy: 5 });
-      this.character.play('pick', 0.5); this.audio.whoosh(); this.cam.shake = Math.max(this.cam.shake, 0.15);
+      this.character.play('throw', 0.6); this.audio.whoosh(); this.cam.shake = Math.max(this.cam.shake, 0.15);
       return;
     }
     if (e.dog) {
@@ -715,10 +717,11 @@ export class TownScene {
       this.dog.knock = { t: 1.0, vx: Math.sin(P.heading) * 8, vz: Math.cos(P.heading) * 8, vy: 4.5 };
       this.dog.root.position.y = 1.8;
       this.bubbles.show(this.dog.root, '😮', { dur: 1.2, y: 1.3, size: 0.7 });
-      this.character.play('pick', 0.5); this.audio.whoosh();
+      this.character.play('throw', 0.6); this.audio.whoosh();
       return;
     }
     this.carry = null; e.carried = false;
+    this.character.play('throw', 0.6);
     e.m.root.position.y = 1.8;
     e.knock = { t: 2.0, dur: 2.0, vx: Math.sin(P.heading) * 9, vz: Math.cos(P.heading) * 9, vy: 5 };
     e.m.play('hurt', 2); e.m.roll(0.7); e.joyed = false; e.lastBubble = 0; e.licked = false;
@@ -733,7 +736,7 @@ export class TownScene {
       c.chat = null; c.target = null; c.stareT = 2.2; c.stareAt = e.m.root.position;
       this.bubbles.show(c.m.root, '😮', { dur: 1.6 });
     }
-    this.character.play('pick', 0.5); this.audio.whoosh(); this.cam.shake = Math.max(this.cam.shake, 0.15);
+    this.audio.whoosh(); this.audio.tone({ f: 500, f2: 250, type: 'triangle', dur: 0.15, vol: 0.05 }); this.cam.shake = Math.max(this.cam.shake, 0.15);
     toast(['Аяа!', 'Хөөрхий… 😵', 'Өө-өө!'][Math.floor(Math.random() * 3)], 1400, '🙌');
   }
 
@@ -1312,7 +1315,7 @@ export class TownScene {
     // Дүр
     const speedNorm = this.vehicle ? 0 : Math.hypot(P.vel.x, P.vel.z) / RUN;
     const look = !this.vehicle && this.near ? new T.Vector3((this.near.dynamic ? this.near.dynamic() : this.near).x, 1.2, (this.near.dynamic ? this.near.dynamic() : this.near).z) : null;
-    this.character.update(dt, { state: P.state, speed: speedNorm, lean: this.vehicle ? 0 : P.lean || 0, lookAt: look, joy: P.carryJoy || 0 });
+    this.character.update(dt, { state: P.state, speed: speedNorm, lean: this.vehicle ? 0 : P.lean || 0, lookAt: look, joy: P.carryJoy || 0, turn: P.turnRate || 0, carry: !!this.carry });
     this.character.root.position.set(P.pos.x, P.visualY, P.pos.z);
     this.character.root.rotation.y = P.heading;
     if (this.vehicle) this.driver.update(dt, { state: 'sit', speed: 0, lean: -this.car.steer * 0.3 });
@@ -1361,6 +1364,8 @@ export class TownScene {
     if (rolling) { wx = Math.sin(P.heading); wz = Math.cos(P.heading); }   // өнхрөх: харсан зүг рүү
     const want = (rolling ? 1 : Math.min(1, len)) * maxSpeed;
     const tx = wx * want, tz = wz * want;
+    // Skid: хурдтай гүйж байгаад эсрэг чиглэл өгвөл гулсаж тоормослоно (тоос + дуу)
+    { const spNow = Math.hypot(P.vel.x, P.vel.z); if (len > 0.5 && spNow > 5.5 && (wx * P.vel.x + wz * P.vel.z) < -0.5 * spNow && P.grounded && !water && (P.skidCd || 0) <= 0) { P.skidCd = 0.7; ch.skid?.(0.26); this.particles.dust(P.pos, 8, { size: 0.35 }); this.audio.noise({ dur: 0.18, vol: 0.06, hp: 300, lp: 2200 }); } }
     const accel = (len > 0.05 || rolling ? ACCEL : DECEL) * (P.grounded ? 1 : AIR_CTRL) * (water ? 0.4 : 1);
     P.vel.x += (tx - P.vel.x) * Math.min(1, accel * dt / maxSpeed * 2.2);
     P.vel.z += (tz - P.vel.z) * Math.min(1, accel * dt / maxSpeed * 2.2);
@@ -1377,9 +1382,12 @@ export class TownScene {
     if (sp > 0.3 && !rolling) {
       const target = Math.atan2(P.vel.x, P.vel.z);
       const d = Math.atan2(Math.sin(target - P.heading), Math.cos(target - P.heading));
+      const prev = P.heading;
       P.heading += d * Math.min(1, dt * 14);
+      P.turnRate = T.MathUtils.clamp(Math.atan2(Math.sin(P.heading - prev), Math.cos(P.heading - prev)) / Math.max(dt, 0.001) * 0.35, -1.2, 1.2) * Math.min(1, sp / WALK);
       P.lean = T.MathUtils.clamp(d * 0.8, -0.5, 0.5) * (sp / RUN);
-    } else P.lean = 0;
+    } else { P.lean = 0; P.turnRate = (P.turnRate || 0) * Math.exp(-dt * 8); }
+    P.skidCd = Math.max(0, (P.skidCd || 0) - dt);
 
     // Усанд орох / гарах
     if (water && !P.wasWater) { this.progress('swim', 1); this.audio.splash(); this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 18, { speed: 2.5, up: 3, size: 0.2, life: 0.6, gravity: 8 }); P.yVel = 0; P.grounded = true; }
@@ -1393,8 +1401,8 @@ export class TownScene {
     if (P.grounded) P.jumps = 0;
     if (P.buffer > 0 && active && !rolling) {
       if (P.coyote > 0 || (water && P.grounded)) {
-        P.yVel = water ? JUMP_V * 0.75 : JUMP_V; P.grounded = false; P.coyote = 0; P.buffer = 0; P.jumps = 1;
-        this.audio.jump(); this.progress('jumps', 1);
+        P.yVel = water ? JUMP_V * 0.75 : JUMP_V; P.grounded = false; P.coyote = 0; P.buffer = 0; P.jumps = 1; P.airT = 0;
+        ch.jumpStart?.(); this.audio.jump(); this.audio.tone({ f: 380 + Math.random() * 60, f2: 620, type: 'triangle', dur: 0.09, vol: 0.035 }); this.progress('jumps', 1);
         if (water) this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 10, { speed: 2, up: 2, size: 0.18, life: 0.5 }); else this.particles.dust(P.pos, 4);
       } else if (P.jumps === 1 && !P.grounded) {
         // Давхар үсрэлт: урагш эргэлт
@@ -1416,8 +1424,12 @@ export class TownScene {
       if (P.y <= 0) {
         P.y = 0; P.grounded = true;
         if (this.inWater(P.pos.x, P.pos.z)) { this.audio.splash(); this.particles.burst(new T.Vector3(P.pos.x, 0, P.pos.z), 0xbff3ff, 20, { speed: 3, up: 3.5, size: 0.22, life: 0.6, gravity: 8 }); }
-        else { this.audio.land(); this.particles.dust(P.pos, 5); }
-        cam.shake = Math.max(cam.shake, Math.min(0.12, -P.yVel * 0.006));
+        else {
+          const force = Math.min(1, -P.yVel / 16);
+          ch.land?.(force); this.audio.land(); this.particles.dust(P.pos, 4 + Math.round(force * 6), { size: 0.3 + force * 0.3 });
+          if (force > 0.55) { this.particles.burst(new T.Vector3(P.pos.x, 0.1, P.pos.z), 0xd8caa0, 10, { speed: 3 + force * 3, up: 0.6, size: 0.14, life: 0.45, gravity: 4 }); }   // хүчтэй буулт: тоосны цагираг
+        }
+        cam.shake = Math.max(cam.shake, Math.min(0.14, -P.yVel * 0.007));
         P.yVel = 0;
       }
     }
