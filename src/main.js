@@ -10,12 +10,14 @@ import { TownScene } from './town/TownScene.js';
 import { RunnerScene } from './runner/RunnerScene.js';
 import { DefenseScene } from './defense/DefenseScene.js';
 import { ObbyScene } from './obby/ObbyScene.js';
+import { Voice } from './core/voice.js';
 
 class App {
   constructor() {
     this.state = GameState.load();
     this.input = new Input();
     this.audio = new AudioSystem(this.state);
+    this.voice = new Voice(this.audio, this.state);
     this.canvas = $('world');
     this.scenes = {};
     this.current = null;

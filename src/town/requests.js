@@ -62,7 +62,7 @@ export class CitizenRequests {
     sc.bubbles.show(c.m.root, '❤️', { dur: 2 });
     sc.particles.burst(c.m.root.position.clone().add(new T.Vector3(0, 1.8, 0)), 0xffa7c0, 16, { speed: 2.5, up: 3, size: 0.18, life: 0.9, gravity: 3 });
     sc.audio.correct();
-    toast(`${c.name}: «Баярлалаа!» +${GameState.REQUEST_REWARD} од`, 3000, '❤️');
+    toast(`${c.name}: «Баярлалаа!» +${GameState.REQUEST_REWARD} од`, 3000, '❤️'); sc.say?.(c.m.root, 'Баярлалаа! Чи үнэхээр сайн найз юм!', 1.6);
     sc.progress('request', 1);
     sc.state.save(); sc.updateHUD();
   }

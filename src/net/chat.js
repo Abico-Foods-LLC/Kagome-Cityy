@@ -34,7 +34,7 @@ export class Chat {
     const sc = this.scene, me = from === sc.net.selfId;
     const name = me ? (sc.state.settings.name || 'Та') : (sc.net.peers.get(from)?.name || 'Тоглогч');
     const root = me ? sc.character.root : sc.remote.get(from)?.avatar.root;
-    if (root) { if (EMOJIS.includes(text)) sc.bubbles.show(root, text, { dur: 2.2 }); else sc.bubbles.showText(root, text, { dur: 3 }); }
+    if (root) { if (EMOJIS.includes(text)) sc.bubbles.show(root, text, { dur: 2.2 }); else { sc.bubbles.showText(root, text, { dur: 3 }); const kind = me ? sc.state.settings.avatar : sc.net.peers.get(from)?.avatar; sc.app.voice?.speak(text, { pitch: 1.2 + ((kind || '').length % 5) * 0.12, interrupt: false }); } }
     this.log.push({ name, text, t: performance.now() });
     if (this.log.length > 5) this.log.shift();
     this.render();

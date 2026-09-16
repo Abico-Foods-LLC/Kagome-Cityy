@@ -23,12 +23,13 @@ import { RemotePlayers } from '../net/remote.js';
 import { WorldSync } from '../net/sync.js';
 import { Chat } from '../net/chat.js';
 import { packState } from '../net/proto.js';
+import { voicePitch } from '../core/voice.js';
 import { GameState } from '../core/state.js';
 import { Dog, createDuck, updateDuck, createCat, updateCat } from '../world/animals.js';
 import { Bubbles } from '../world/bubble.js';
 import * as P from '../world/props.js';
 import { bulbMaterial } from '../world/props.js';
-import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS, CITIZENS, CITIZEN_LINES, SHOP_BY_ID } from '../core/content.js';
+import { FRUITS, PRODUCTS, CHAPTERS, QUESTIONS, LANDMARKS, CITIZENS, CITIZEN_LINES, CITIZEN_CHAT, SHOP_BY_ID } from '../core/content.js';
 import { $, toast, modal, closeModal, isModalOpen, show, pop, fmt } from '../core/ui.js';
 
 const WALK = 5.6, RUN = 9.4, SWIM = 3.2, ROLL_SPEED = 12, ROLL_DUR = 0.45, ACCEL = 34, DECEL = 42, AIR_CTRL = 0.45, GRAVITY = 24, JUMP_V = 8.6, COYOTE = 0.12, BUFFER = 0.14;
@@ -381,8 +382,8 @@ export class TownScene {
         const pa = a.m.root.position, pb = b.m.root.position;
         if (Math.hypot(pa.x - pb.x, pa.z - pb.z) > 2.5) continue;
         this.chatCool[key] = this.clock;
-        const dur = 3.5 + Math.random() * 1.5;
-        a.chat = { t: dur, partner: b, turn: 0, speak: 0.2 }; b.chat = { t: dur, partner: a, turn: 1, speak: 1.3 };
+        const dur = 6.5 + Math.random() * 1.5, conv = CITIZEN_CHAT[Math.floor(Math.random() * CITIZEN_CHAT.length)];
+        a.chat = { t: dur, partner: b, turn: 0, speak: 0.2, conv, line: 0 }; b.chat = { t: dur, partner: a, turn: 1, speak: 2.4, conv, line: 1 };
         a.target = b.target = null; a.waved = b.waved = true;
         break;
       }
@@ -398,9 +399,16 @@ export class TownScene {
     c.heading += Math.atan2(Math.sin(h - c.heading), Math.cos(h - c.heading)) * Math.min(1, dt * 6);
     r.rotation.y = c.heading;
     if (ch.speak <= 0) {
-      ch.speak = 2.2;
+      ch.speak = 4.4;
       if (!c.m.busy) c.m.play(Math.random() < 0.7 ? 'wave' : 'dance', 1.1);
-      this.bubbles.show(r, ['💬', '😄', '🍎', '☀️', '🎵', '🥕'][Math.floor(Math.random() * 6)], { dur: 1.5 });
+      const line = ch.conv?.[ch.line];
+      if (line) {
+        // Үгээ текст бөмбөлгөөр харуулж, ойрхон (12м) байвал дуугарна
+        this.bubbles.showText(r, line, { dur: 2.6 });
+        const near = Math.hypot(this.player.pos.x - r.position.x, this.player.pos.z - r.position.z) < 12;
+        if (near && !this.app.voice?.speaking) this.app.voice?.speak(line, { pitch: voicePitch(c.m.kind), interrupt: false });
+        ch.line += 2;
+      } else this.bubbles.show(r, ['💬', '😄', '🍎', '☀️', '🎵', '🥕'][Math.floor(Math.random() * 6)], { dur: 1.5 });
     }
     c.m.update(dt, { state: 'idle', speed: 0, lookAt: new T.Vector3(pr.position.x, 1.5, pr.position.z) });
     if (ch.t <= 0) { c.chat = null; c.wait = 0.6 + Math.random(); c.m.setMood('happy', 1); }
@@ -459,7 +467,7 @@ export class TownScene {
     this.particles.burst(c.m.root.position.clone().add(new T.Vector3(0, 1.8, 0)), 0xffa7c0, 12, { speed: 2, up: 2.5, size: 0.16, life: 0.8, gravity: 3 });
     this.audio.tone({ f: 660, f2: 990, type: 'sine', dur: 0.2, vol: 0.08 });
     closeModal();
-    toast(`${c.name}: «Зүгээр, дараа болгоомжтой байгаарай!»`, 2600, '🙂');
+    toast(`${c.name}: «Зүгээр, дараа болгоомжтой байгаарай!»`, 2600, '🙂'); this.say(c.m.root, 'Зүгээр, дараа болгоомжтой байгаарай!', voicePitch(c.m.kind));
   }
   /** Машин хурдтай урдаас нь ирж байвал иргэн хажуу тийш үсрэн зайлна; true = зайлж байна */
   updateDodge(c, dt) {
@@ -644,7 +652,7 @@ export class TownScene {
     e.carryT = (e.carryT || 0) + dt;
     const joy = Math.max(0, Math.min(1, (e.carryT - 4) / 0.6));
     e.m.update(dt, { state: 'carried', speed: 0, joy }); e.m.setMood(joy > 0.5 ? 'happy' : 'surprised', 0.3);
-    if (e.carryT >= 4 && !e.joyed) { e.joyed = true; this.bubbles.show(r, '😄', { dur: 1.8 }); toast(`${e.name}: «Хөөх, өндөр юм!»`, 2000, '🙌'); this.audio.tone({ f: 660, f2: 1100, type: 'sine', dur: 0.18, vol: 0.08 }); }
+    if (e.carryT >= 4 && !e.joyed) { e.joyed = true; this.bubbles.show(r, '😄', { dur: 1.8 }); toast(`${e.name}: «Хөөх, өндөр юм!»`, 2000, '🙌'); this.say(r, 'Хөөх, өндөр юм!', voicePitch(e.m.kind) * 1.05); this.audio.tone({ f: 660, f2: 1100, type: 'sine', dur: 0.18, vol: 0.08 }); }
     else if (e.carryT > 5.5 && e.carryT - (e.lastBubble || 0) > 3) { e.lastBubble = e.carryT; this.bubbles.show(r, ['😄', '🎉', '☀️'][Math.floor(Math.random() * 3)], { dur: 1.5 }); }
     if (active && this.input.justPressed('camLeft')) this.throwCarry();
   }
@@ -717,6 +725,7 @@ export class TownScene {
     if (c.upset) {
       // Гомдсон: уучлалт гуйх хүртэл ярилцахгүй
       c.m.setMood('hurt', 3); this.bubbles.show(r, '😠', { dur: 1.5 });
+      this.say(r, 'Өө… чи намайг мөргөчихсөн шүү дээ. Өвдлөө…', voicePitch(c.m.kind) * 0.95);
       const fruits = FRUITS.map((f, i) => (this.state.inventory[i] || 0) > 0 ? `<button data-gift="${i}">${f.emoji} бэлэглэх</button>` : '').join('');
       modal(`<div class="npc-head"><div class="reward">😠</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${c.name}</h2></div></div><p>«Өө… чи намайг мөргөчихсөн шүү дээ. Өвдлөө…»</p><div class="row"><button id="npcSorry" class="primary">Уучлаарай 🙏</button>${fruits}<button id="npcBye" class="ghost">Дараа</button></div>`);
       $('npcSorry').onclick = () => this.apologize(c);
@@ -728,6 +737,7 @@ export class TownScene {
     if (!c.talked) { c.talked = true; this.progress('talk', 1); }
     const line = CITIZEN_LINES[Math.floor(Math.random() * CITIZEN_LINES.length)];
     const req = this.requests.of(c), panel = req ? this.requests.panel(c, req) : null;
+    this.say(c.m.root, req ? this.requests.text(req) : line, voicePitch(c.m.kind));
     modal(`<div class="npc-head"><div class="reward">${MASCOTS[c.m.kind]?.emoji || '🙂'}</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${c.name}</h2></div></div><p>«${line}»</p>${panel ? panel.html : ''}<div class="row"><button id="npcBye" class="${panel ? 'ghost' : 'primary'}">${panel ? 'Дараа' : 'Баярлалаа!'}</button></div>`);
     if (panel) panel.bind();
     $('npcBye').onclick = () => closeModal();
@@ -943,6 +953,7 @@ export class TownScene {
     this.progress('emotes', 1);
     if (kind === 'cheer') { this.character.cheer(); this.audio.tone({ f: 660, f2: 990, type: 'triangle', dur: 0.2, vol: 0.08 }); }
     else this.character.play(kind, kind === 'dance' ? 2.6 : 1.2);
+    this.say(this.character.root, { wave: 'Сайн уу!', cheer: 'Ура!', dance: 'Ла-ла-ла!' }[kind] || '', voicePitch(this.state.settings.avatar));
     if (kind === 'dance') this.particles.burst(this.player.pos.clone().add(new T.Vector3(0, 1.5, 0)), 0xffd1f0, 12, { speed: 2, up: 2, size: 0.15, life: 0.8, gravity: 1 });
   }
 
@@ -955,6 +966,7 @@ export class TownScene {
 
   talk(n) {
     const questBtn = n.quest ? `<button id="npcAction" class="primary">${n.quest === 'runner' ? 'Ширэнгэ рүү явах' : 'Сорилоо эхлэх'}</button>` : '';
+    this.say(n.obj?.position ? n.obj : null, n.lines, 1.3 + (n.type % 5) * 0.09);
     modal(`<div class="npc-head"><div class="reward">${FRUITS[n.type].emoji}</div><div><div class="eyebrow">ХОТЫН ИРГЭН</div><h2>${n.name}</h2></div></div><p>${n.lines}</p><div class="row">${questBtn}<button id="npcBye" class="ghost">Аяллаа үргэлжлүүлэх</button></div>`);
     $('npcBye').onclick = () => closeModal();
     const b = $('npcAction');
@@ -1073,6 +1085,13 @@ export class TownScene {
     }
   }
 
+  /** Дүр ярина: монгол TTS (байвал) эсвэл хүүхдийн babble; хэн ярьж байгааг зөөлөн бөмбөлгөөр (💬) тэмдэглэнэ */
+  say(root, text, pitch = 1.5) {
+    const v = this.app.voice; if (!v) return;
+    const clean = String(text).replace(/<[^>]+>/g, '');
+    if (v.speak(clean, { pitch }) && root && !v.hasMongolian) this.bubbles.show(root, '💬', { dur: Math.min(3, 0.6 + clean.length * 0.04) });
+  }
+
   /** Амжилтаа өрөөний бусдад мэдэгдэнэ (toast) */
   feat(text, icon = '🎉') { if (this.net.active) this.net.sendEvent({ t: 'feat', text, icon }); }
 
@@ -1158,6 +1177,7 @@ export class TownScene {
       <div class="settings">
         <label>Дуу <input type="checkbox" id="sSound" ${st.sound ? 'checked' : ''}></label>
         <label>Хөгжим <input type="checkbox" id="sMusic" ${st.music ? 'checked' : ''}></label>
+        <label>Дүрүүд ярих ${this.app.voice?.hasMongolian ? '(монгол хоолой)' : '(хүүхдийн дуу хоолой)'} <input type="checkbox" id="sVoice" ${st.voice !== false ? 'checked' : ''}></label>
         <label>Гүний бүдгэрэлт (DoF) <input type="checkbox" id="sDof" ${st.dof !== false ? 'checked' : ''}></label>
         <label>Сорилын түвшин <select id="sLevel"><option value="1">Бага (6–8 нас)</option><option value="2">Ахлах (9–12 нас)</option></select></label>
         <label>Графикийн чанар <select id="sQuality"><option value="auto">Автомат</option><option value="high">Өндөр</option><option value="medium">Дунд</option><option value="low">Бага</option></select></label>
@@ -1168,6 +1188,7 @@ export class TownScene {
     $('resume').onclick = closeModal;
     $('sSound').onchange = (e) => { st.sound = e.target.checked; this.audio.applySettings(); this.state.save(); };
     $('sMusic').onchange = (e) => { st.music = e.target.checked; this.audio.applySettings(); this.state.save(); };
+    $('sVoice').onchange = (e) => { st.voice = e.target.checked; this.state.save(); if (!e.target.checked) this.app.voice?.stop(); else this.say(this.character.root, 'Сайн уу! Би ярьж чадна!', voicePitch(st.avatar)); };
     $('sQuality').onchange = (e) => { st.quality = e.target.value; this.state.save(); this.app.applyQuality(); };
     $('sDof').onchange = (e) => { st.dof = e.target.checked; this.state.save(); this.app.applyQuality(); };
     $('help').onclick = () => this.help();
