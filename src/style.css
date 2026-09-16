@@ -385,3 +385,7 @@ body.obby #rollBtn, body.obby #ballBtn, body.obby #throwBtn, body.obby #actionBt
 .recipes { display: grid; gap: 8px; margin: 10px 0; } .recipes > div { background: #f0f6ea; border-radius: 12px; padding: 8px 12px; }
 body.cafe #rollBtn, body.cafe #jumpBtn, body.cafe #ballBtn, body.cafe #throwBtn, body.cafe #adsBtn { display: none; }
 @media (pointer: coarse) { #cafeOrders { width: 180px; top: 70px; } .ord b { font-size: 12px; } .ord small { font-size: 10px; } #cafePrompt { bottom: 190px; font-size: 14px; } }
+#cafeNext { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); background: rgba(255, 227, 138, .95); color: #5a3a10; font-weight: 900; padding: 8px 16px; border-radius: 999px; box-shadow: var(--shadow); pointer-events: none; }
+#cafeHand { position: absolute; left: 50%; bottom: 172px; transform: translateX(-50%); background: rgba(255, 255, 255, .95); border: 2px solid #ffa72e; color: #c8641c; font-weight: 900; padding: 6px 14px; border-radius: 999px; pointer-events: none; }
+#cafeHand.hidden { display: none; }
+@media (pointer: coarse) { #cafeHand { bottom: 250px; font-size: 13px; } #cafeNext { top: 70px; font-size: 13px; } }

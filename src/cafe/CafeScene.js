@@ -8,6 +8,7 @@ import { Particles } from '../gfx/particles.js';
 import { curveTree, toon, glow } from '../gfx/materials.js';
 import { Bubbles } from '../world/bubble.js';
 import * as P from '../world/props.js';
+import { textTexture } from '../gfx/textures.js';
 import { $, toast, modal, closeModal, isModalOpen, show } from '../core/ui.js';
 
 const WALK = 5.2, RUN = 8, ACCEL = 34, DECEL = 42;
@@ -29,6 +30,17 @@ export class CafeScene {
     this.bubbles = new Bubbles(this.scene, (icon) => this.app.scenes.town.hintTexture(icon));
     this.hint = new T.Sprite(new T.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false, toneMapped: false })); this.hint.scale.set(1.3, 1.3, 1); this.hint.visible = false; this.scene.add(this.hint);
     this.handMesh = new T.Group(); this.scene.add(this.handMesh);
+    // Станц бүрийн дээр төлөвийн label (text sprite) + тавьсан орцын дүрсүүд
+    this.labels = {}; this.itemGroups = {};
+    for (const [k, s] of Object.entries(STATION_POS)) {
+      const sp = new T.Sprite(new T.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false, toneMapped: false })); sp.scale.set(k === 'counter' ? 1.8 : 3.2, k === 'counter' ? 0.52 : 0.94, 1); sp.position.set(s.x, k === 'counter' ? 2.2 : 3.6, s.z - 0.3); sp.visible = false; this.scene.add(sp); this.labels[k] = { sp, text: '' };
+      const g = new T.Group(); g.position.set(s.x, 1.05, s.z - 0.3); this.scene.add(g); this.itemGroups[k] = g;
+    }
+    // Дараагийн алхмыг заах цагираг + сум
+    this.guide = new T.Group(); this.scene.add(this.guide);
+    const ring = P.mesh(new T.TorusGeometry(1.3, 0.08, 8, 40), glow(0xffe38a, 1.3), this.guide, 0, 0.06, 0); ring.rotation.x = Math.PI / 2; ring.castShadow = false; this.guideRing = ring;
+    const arrow = P.mesh(new T.ConeGeometry(0.3, 0.7, 4), glow(0xffe38a, 1.3), this.guide, 0, 3.9, 0); arrow.rotation.x = Math.PI; arrow.castShadow = false; this.guideArrow = arrow;
+    this.guide.visible = false;
     this.buildAvatar(this.state.settings.avatar);
     $('cafeExit').onclick = () => this.leave(); $('cafeRecipes').onclick = () => this.recipesModal(); $('cafePrompt').onclick = () => this.pressE();
     this.input.on('interact', () => { if (this.entered) this.pressE(); });
@@ -81,6 +93,7 @@ export class CafeScene {
   }
   hintWhy(st) {
     const c = this.core, h = c.hand;
+    if (c.events.some((e) => e.t === 'nofit')) { c.events = c.events.filter((e) => e.t !== 'nofit'); toast('Энэ орц энд таарахгүй — 📖 жор хар', 1500, '🤔'); return; }
     const msg = st === 'counter' ? (h?.kind === 'dish' ? 'Энэ хоолыг хэн ч захиалаагүй' : 'Гартаа бэлэн хоол байхгүй') : st === 'chop' ? (h ? 'Самбар дүүрэн' : 'Зүсэх орц тавь') : st === 'plate' ? 'Зүссэн орцоо энд тавь' : (st === 'stove' || st === 'oven') ? (h ? 'Эхлээд зүс (самбар дээр)' : 'Хүлээж байна…') : 'Орц тавиад E барь';
     toast(msg, 1300, '💡');
   }
@@ -119,6 +132,8 @@ export class CafeScene {
     if (c.st.chop.state === 'working') W.chop.userData.knife.position.y = 1.05 + Math.abs(Math.sin(t * 14)) * 0.1;
     // Захиалагчид
     this.updateCustomers(dt);
+    this.labelT = (this.labelT || 0) + dt; if (this.labelT > 0.15) { this.labelT = 0; this.updateLabels(); }
+    this.updateGuide(dt);
     // Hint sprite: ойрын станц
     if (st && !this.done) { const s = STATION_POS[st]; this.hint.visible = true; this.hint.material.map = this.app.scenes.town.hintTexture(s.icon); this.hint.material.needsUpdate = true; this.hint.position.set(s.x, 2.6 + Math.sin(t * 4) * 0.1, s.z); $('cafePrompt').querySelector('span').textContent = this.promptFor(st); $('cafePrompt').classList.add('on'); }
     else { this.hint.visible = false; $('cafePrompt').classList.remove('on'); }
@@ -128,6 +143,58 @@ export class CafeScene {
     this.camera.position.lerp(desired, Math.min(1, dt * 6)); this.camera.lookAt(P.pos.x * 0.6, 1.0, P.pos.z * 0.6);
     this.particles.update(dt, this.camera); this.bubbles.update(dt);
     this.hudT = (this.hudT || 0) + dt; if (this.hudT > 0.15) { this.hudT = 0; this.updateHud(); }
+  }
+  /** Станц бүрийн төлөвийн текст (label) */
+  stationText(st) {
+    const c = this.core, s = c.st[st], E = (i) => INGREDIENTS[i.id].emoji;
+    if (st === 'fridge') { const n = c.neededIngredient(); return n ? `Дараах: ${INGREDIENTS[n].emoji} ${INGREDIENTS[n].name}` : ''; }
+    if (st === 'counter') return c.queue.length ? `${c.queue.map((q) => RECIPES[q.recipe].emoji).join(' ')} хүлээж байна` : '';
+    if (st === 'trash') return '';
+    const bar = (k) => { const n = Math.round(k * 8); return '▓'.repeat(n) + '░'.repeat(8 - n); };
+    if (st === 'chop') return s.state === 'working' ? `🔪 Зүсэж байна ${s.taps}/${CHOP_TAPS} — E дар!` : s.state === 'ready' ? `✅ Зүссэн ${E(s.items[0])} — авах` : '';
+    if (st === 'juicer' || st === 'blender') { if (s.state === 'ready') return `✅ ${RECIPES[s.recipe].emoji} Бэлэн — авах`; if (s.items.length) { const r = this.recipeFor(st, s.items); return `${s.items.map(E).join('+')}${r ? ' — E барь ' + bar(s.progress) : ' + ' + this.missingFor(st, s.items)}`; } return ''; }
+    if (st === 'stove' || st === 'oven') { if (s.state === 'burnt') return '🔥 Түлэгдлээ… авч хая'; if (s.state === 'ready') return `✅ ${RECIPES[s.recipe].emoji} Бэлэн — хурдан ав!`; if (s.state === 'working') return `${RECIPES[s.recipe].emoji} Болж байна ${bar(s.progress)}`; if (s.items.length) return `${s.items.map(E).join('+')} + ${this.missingFor(st, s.items)}`; return ''; }
+    if (st === 'plate') { if (s.state === 'ready') return `✅ ${RECIPES[s.recipe].emoji} Бэлэн — авах`; if (s.items.length) return `${s.items.map(E).join('+')} + ${this.missingFor('chop', s.items)}`; return ''; }
+    return '';
+  }
+  recipeFor(station, items) { return this.core.matchRecipe(station, items); }
+  /** Тухайн станцад тавьсан орцоор бүтэх жорын дутуу орц */
+  missingFor(station, items) {
+    const ids = items.map((i) => i.id);
+    for (const r of Object.values(RECIPES)) if (r.station === station && ids.every((i) => r.items.includes(i))) { const miss = r.items.filter((i) => !ids.includes(i)); return miss.length ? miss.map((i) => INGREDIENTS[i].emoji).join('') + ' дутуу' : ''; }
+    return '❓ буруу орц — хая';
+  }
+  updateLabels() {
+    const c = this.core;
+    for (const [k, L] of Object.entries(this.labels)) {
+      const text = this.stationText(k);
+      if (text !== L.text) { L.text = text; if (text) { L.sp.material.map?.dispose(); L.sp.material.map = textTexture(text, { bg: 'rgba(255,255,255,0.94)', fg: '#1e6b45', font: '800 76px Arial, sans-serif', w: 1024, h: 300, radius: 60 }); L.sp.material.needsUpdate = true; } L.sp.visible = !!text; }
+      // Тавьсан орцын дүрс
+      const g = this.itemGroups[k], items = c.st[k]?.items || [];
+      if (g.userData.n !== items.length || g.userData.sig !== items.map((i) => i.id + i.kind).join()) {
+        g.userData.n = items.length; g.userData.sig = items.map((i) => i.id + i.kind).join(); while (g.children.length) g.children[0].removeFromParent();
+        items.forEach((it, i) => { const x = (i - (items.length - 1) / 2) * 0.45; P.sphere(toon(ING_COLOR[it.id], { key: 'cafeIng_' + it.id }), g, x, 0.18, 0, it.kind === 'prep' ? 0.16 : 0.22); if (it.kind === 'prep') P.sphere(toon(ING_COLOR[it.id], { key: 'cafeIng_' + it.id }), g, x + 0.2, 0.12, 0.15, 0.1); });
+      }
+    }
+  }
+  /** Дараа нь очих станц: гарт юу байгаагаас + станцын төлөвөөс */
+  nextStation() {
+    const c = this.core, h = c.hand, q = c.queue[0];
+    if (h?.kind === 'dish') return 'counter';
+    if (h?.kind === 'ing') { const r = q ? RECIPES[q.recipe] : null; if (r && (r.prep === 'chop' || r.station === 'chop')) return 'chop'; return r ? r.station : 'chop'; }
+    if (h?.kind === 'prep') { const r = q ? RECIPES[q.recipe] : null; return r ? (r.station === 'chop' ? 'plate' : r.station) : 'plate'; }
+    for (const k of ['stove', 'oven', 'juicer', 'blender', 'plate', 'chop']) if (c.st[k].state === 'ready' || c.st[k].state === 'burnt') return k;
+    if (c.st.chop.state === 'working') return 'chop';
+    for (const k of ['juicer', 'blender']) if (c.st[k].items.length && this.recipeFor(k, c.st[k].items)) return k;
+    return q ? 'fridge' : null;
+  }
+  updateGuide(dt) {
+    const st = this.nextStation();
+    this.guide.visible = !!st && !this.done;
+    if (!st) return;
+    const s = STATION_POS[st]; this.guide.position.set(s.x, 0, s.z + (st === 'counter' ? 0 : -0.3));
+    this.guideArrow.position.y = 3.9 + Math.sin(this.clock * 5) * 0.2; this.guideRing.scale.setScalar(1 + Math.sin(this.clock * 4) * 0.06);
+    $('cafeNext').textContent = `➡ ${s.icon} ${s.label}`;
   }
   promptFor(st) {
     const c = this.core, h = c.hand, s = c.st[st], S = STATION_POS[st];
@@ -174,7 +241,11 @@ export class CafeScene {
   /** Гарт байгаа зүйлийг толгой дээр харуулна */
   updateHand() {
     const h = this.core.hand; while (this.handMesh.children.length) this.handMesh.children[0].removeFromParent();
-    if (!h) return;
+    const badge = $('cafeHand');
+    if (!h) { badge.classList.add('hidden'); return; }
+    const txt = h.kind === 'dish' ? `${RECIPES[h.recipe].emoji} ${RECIPES[h.recipe].name}${h.burnt ? ' (түлэгдсэн)' : ''}` : `${INGREDIENTS[h.id].emoji} ${INGREDIENTS[h.id].name}${h.kind === 'prep' ? ' (зүссэн)' : ''}`;
+    badge.textContent = 'Гарт: ' + txt; badge.classList.remove('hidden');
+    const lbl = new T.Sprite(new T.SpriteMaterial({ map: textTexture(txt, { bg: 'rgba(255,255,255,0.94)', fg: '#c8641c', font: '800 60px Arial, sans-serif', w: 1024, h: 300, radius: 60 }), transparent: true, depthWrite: false, depthTest: false, toneMapped: false })); lbl.scale.set(2.4, 0.7, 1); lbl.position.y = 0.7; this.handMesh.add(lbl);
     if (h.kind === 'dish') { const r = RECIPES[h.recipe]; P.mesh(new T.CylinderGeometry(0.4, 0.4, 0.04, 16), toon(0xffffff, { key: 'cafePlate' }), this.handMesh, 0, 0, 0); P.sphere(toon(h.burnt ? 0x444444 : dishColor[h.recipe], { key: 'cafeDish' + (h.burnt ? 'B' : h.recipe) }), this.handMesh, 0, 0.18, 0, 0.3, 0.2, 0.3); this.bubbles.show(this.character.root, r.emoji, { dur: 1.2 }); }
     else { P.sphere(toon(ING_COLOR[h.id], { key: 'cafeIng_' + h.id }), this.handMesh, 0, 0, 0, h.kind === 'prep' ? 0.18 : 0.26); if (h.kind === 'prep') for (const s of [-1, 1]) P.sphere(toon(ING_COLOR[h.id], { key: 'cafeIng_' + h.id }), this.handMesh, s * 0.28, 0, 0, 0.14); }
   }

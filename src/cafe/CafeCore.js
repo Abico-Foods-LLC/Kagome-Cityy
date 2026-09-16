@@ -64,7 +64,7 @@ export class CafeCore {
     if (station === 'counter') return this.serve();
     if (station === 'plate') {
       if (h?.kind === 'dish') return false;
-      if (h?.kind === 'prep' || h?.kind === 'ing') { s.items.push(h); this.hand = null; return this.tryPlate(); }
+      if (h?.kind === 'prep' || h?.kind === 'ing') { if (!this.fits('chop', s.items, h.id)) { this.emit('nofit', { station }); return false; } s.items.push(h); this.hand = null; return this.tryPlate(); }
       if (s.state === 'ready' && !h) { this.hand = { kind: 'dish', recipe: s.recipe }; this.st.plate = this.mk(); this.emit('pickDish', { recipe: this.hand.recipe }); return true; }
       return false;
     }
@@ -75,12 +75,12 @@ export class CafeCore {
       return false;
     }
     if (station === 'juicer' || station === 'blender') {
-      if (h?.kind === 'ing') { s.items.push(h); this.hand = null; this.emit('put', { station, id: h.id }); return true; }
+      if (h?.kind === 'ing') { if (!this.fits(station, s.items, h.id)) { this.emit('nofit', { station }); return false; } s.items.push(h); this.hand = null; this.emit('put', { station, id: h.id }); return true; }
       if (s.state === 'ready' && !h) { this.hand = { kind: 'dish', recipe: s.recipe }; this.st[station] = this.mk(); this.emit('pickDish', { recipe: this.hand.recipe }); return true; }
       return false;
     }
     if (station === 'stove' || station === 'oven') {
-      if (h?.kind === 'prep' || h?.kind === 'ing') { if (s.state !== 'idle') return false; s.items.push(h); this.hand = null; this.emit('put', { station, id: h.id }); const r = this.matchRecipe(station, s.items); if (r) { s.recipe = r; s.state = 'working'; s.progress = 0; } return true; }
+      if (h?.kind === 'prep' || h?.kind === 'ing') { if (s.state !== 'idle') return false; if (!this.fits(station, s.items, h.id)) { this.emit('nofit', { station }); return false; } s.items.push(h); this.hand = null; this.emit('put', { station, id: h.id }); const r = this.matchRecipe(station, s.items); if (r) { s.recipe = r; s.state = 'working'; s.progress = 0; } return true; }
       if ((s.state === 'ready' || s.state === 'burnt') && !h) { const burnt = s.state === 'burnt'; this.hand = burnt ? { kind: 'dish', recipe: s.recipe, burnt: true } : { kind: 'dish', recipe: s.recipe }; this.st[station] = this.mk(); this.emit('pickDish', { recipe: this.hand.recipe, burnt }); return true; }
       return false;
     }
@@ -93,6 +93,12 @@ export class CafeCore {
     s.state = 'working'; s.progress = Math.min(1, s.progress + dt / HOLD_T);
     if (s.progress >= 1) { s.state = 'ready'; s.recipe = r; this.emit('ready', { station }); }
     return true;
+  }
+  /** Орц энэ станцын аль нэг жорд тохирох уу (давхардалгүй, ≤ жорын орц) */
+  fits(station, items, id) {
+    const ids = [...items.map((i) => i.id), id];
+    if (items.some((i) => i.id === id)) return false;
+    return Object.values(RECIPES).some((r) => r.station === station && ids.every((x) => r.items.includes(x)));
   }
   matchRecipe(station, items) {
     const ids = items.map((i) => i.id).sort().join(',');

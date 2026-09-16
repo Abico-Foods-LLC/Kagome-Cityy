@@ -31,6 +31,7 @@ describe('CafeCore', () => {
     run(c, 6.5); expect(c.st.stove.state).toBe('burnt'); c.act('stove'); expect(c.hand.burnt).toBe(true);
     const coins = c.coins; c.serve(); expect(c.coins - coins).toBe(Math.round(RECIPES.soup.price * 0.3));
   });
+  it('таарахгүй орц станцад орохгүй', () => { const c = new CafeCore({ rand: () => 0 }); c.takeIngredient('apple'); expect(c.act('juicer')).toBe(false); expect(c.hand.id).toBe('apple'); c.trash(); c.takeIngredient('carrot'); c.act('juicer'); c.takeIngredient('carrot'); expect(c.act('juicer')).toBe(false); });
   it('буруу хоол өгвөл false, хогийн сав', () => {
     const c = new CafeCore({ rand: () => 0 }); c.tick(2.1); c.hand = { kind: 'dish', recipe: 'pizza' };
     expect(c.serve()).toBe(false); expect(c.trash()).toBe(true); expect(c.hand).toBeNull();
