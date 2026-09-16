@@ -6,11 +6,13 @@ import { Particles } from '../gfx/particles.js';
 import { curveTree, toon, glow } from '../gfx/materials.js';
 import { createSky } from '../gfx/sky.js';
 import * as P from '../world/props.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { buildObbyWorld, updateObbyWorld, STAGE_PALETTE, stageColor } from './obbyWorld.js';
 import { RemotePlayers } from '../net/remote.js';
 import { packState } from '../net/proto.js';
 import { $, toast, modal, closeModal, isModalOpen, show } from '../core/ui.js';
 
-const WALK = 5.2, RUN = 8.2, ACCEL = 30, DECEL = 40, GRAVITY = 24, JUMP_V = 8.4, COYOTE = 0.12, BUFFER = 0.14;
+const WALK = 5.2, RUN = 8.2, ACCEL = 30, DECEL = 40, GRAVITY = 24, JUMP_V = 8.9, COYOTE = 0.12, BUFFER = 0.14;
 
 export class ObbyScene {
   constructor(app) {
@@ -36,10 +38,7 @@ export class ObbyScene {
     this.plats = new Map();
     this.buildTower();
     // Зөөлөн үүл, бөмбөлөг (motes)
-    const n = 200, pos = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { const a = Math.random() * 6.3, r = 4 + Math.random() * 22; pos[i * 3] = Math.sin(a) * r; pos[i * 3 + 1] = Math.random() * 70; pos[i * 3 + 2] = Math.cos(a) * r; }
-    this.motes = new T.Points(new T.BufferGeometry().setAttribute('position', new T.BufferAttribute(pos, 3)), new T.PointsMaterial({ color: 0xffffff, size: 0.18, transparent: true, opacity: 0.55, depthWrite: false })); scene.add(this.motes);
-    for (let i = 0; i < 14; i++) { const a = i / 14 * 6.3, r = 26 + (i % 3) * 8; const c = P.sphere(toon(0xffffff, { key: 'obbyCloud' }), scene, Math.sin(a) * r, 6 + (i * 5.3) % 60, Math.cos(a) * r, 3 + (i % 3), 1.4, 2.2 + (i % 2)); c.castShadow = false; }
+    this.world = buildObbyWorld(scene, this.tower);
     this.remote = new RemotePlayers(this, 3);
     this.net.on('hello', (id, p) => this.remote.add(id, p)).on('state', (id, arr) => this.remote.onState(id, arr)).on('peerLeave', (id) => this.remote.remove(id));
     this.buildAvatar(this.state.settings.avatar);
@@ -50,16 +49,22 @@ export class ObbyScene {
     // Төв багана (пастел цагирагтай)
     const top = this.tower[this.tower.length - 1].y + 6;
     P.mesh(new T.CylinderGeometry(3.2, 3.6, top + 4, 24), toon(0xf6e8ff, { key: 'obbyCol' }), scene, 0, top / 2 - 2, 0).receiveShadow = true;
-    for (let y = 2; y < top; y += 4) P.mesh(new T.TorusGeometry(3.45, 0.18, 8, 32), toon([0xffc2e2, 0xc7e8ff, 0xd9ffd6][Math.floor(y / 4) % 3], { key: 'obbyRing' + (Math.floor(y / 4) % 3) }), scene, 0, y, 0).rotation.x = Math.PI / 2;
+    for (let y = 2; y < top; y += 4) { const st = Math.min(5, Math.floor(y / (top / 6))); P.mesh(new T.TorusGeometry(3.45, 0.18, 8, 32), toon(STAGE_PALETTE[st].ring, { key: 'obbyRing' + st }), scene, 0, y, 0).rotation.x = Math.PI / 2; }
+    // Шат бүрийн нэрийн самбар баганад
+    for (let st = 0; st < 6; st++) { const p = this.tower[st * 10]; const sign = P.sign(scene, STAGE_PALETTE[st].name.toUpperCase(), 0, p.y + 2.2, 0, { width: 3.2, bg: '#fff8fb', fg: '#7a4b8f', border: '#' + STAGE_PALETTE[st].ring.toString(16).padStart(6, '0'), post: false, double: true }); sign.rotation.y = p.angle; sign.position.set(Math.sin(p.angle) * 3.7, p.y + 2.2, Math.cos(p.angle) * 3.7); }
     // Газар: зөөлөн диск + элсэн тойрог
     const g = P.mesh(new T.CylinderGeometry(24, 26, 1.2, 40), toon(0xd9ffd6, { key: 'obbyGround' }), scene, 0, -0.6, 0); g.receiveShadow = true;
     for (const p of this.tower) {
       const def = TYPES[p.type];
       const grp = new T.Group(); grp.position.set(p.x, p.y, p.z); scene.add(grp);
-      const color = p.type === 'check' ? 0xffe38a : p.type === 'jelly' ? 0xa0f0d8 : p.type === 'sand' ? 0xf5dcb0 : p.type === 'slime' ? 0xb8ff9a : p.color;
-      const mat = p.type === 'jelly' || p.type === 'slime' ? new T.MeshToonMaterial({ color, transparent: true, opacity: 0.85 }) : toon(color, { key: 'obbyP' + p.id });
-      const geo = p.type === 'pop' ? new T.CylinderGeometry(def.w / 2, def.w / 2, 0.6, 24) : new T.BoxGeometry(def.w, 0.6, def.d);
+      const color = p.type === 'check' ? 0xffe38a : p.type === 'jelly' ? 0xa0f0d8 : p.type === 'sand' ? 0xf5dcb0 : p.type === 'slime' ? 0xb8ff9a : stageColor(p.stage, (p.id % 10) / 10);
+      const mat = p.type === 'jelly' || p.type === 'slime' ? new T.MeshToonMaterial({ color, transparent: true, opacity: 0.85 }) : new T.MeshToonMaterial({ color });
+      const geo = p.type === 'pop' ? new T.CylinderGeometry(def.w / 2, def.w / 2, 0.6, 24) : new RoundedBoxGeometry(def.w, 0.6, def.d, 3, 0.18);
       const m = P.mesh(geo, mat, grp, 0, 0, 0); m.receiveShadow = true;
+      // Цагаан ирмэг (чихрийн шил)
+      const rim = P.mesh(p.type === 'pop' ? new T.TorusGeometry(def.w / 2, 0.06, 6, 32) : new T.TorusGeometry(def.w * 0.68, 0.05, 6, 4), toon(0xffffff, { key: 'obbyRim' }), grp, 0, 0.3, 0); rim.rotation.x = Math.PI / 2; if (p.type !== 'pop') rim.rotation.z = Math.PI / 4; rim.castShadow = false;
+      if (p.type === 'spin') { const bar = new T.Group(); bar.position.y = 0.95; grp.add(bar); P.box(toon(0xff8fbf, { key: 'obbySpin' }), bar, 0, 0, 0, def.w * 1.1, 0.25, 0.25); P.sphere(toon(0xffffff, { key: 'obbyRim' }), bar, 0, 0, 0, 0.3); grp.userData.bar = bar; P.mesh(new T.CylinderGeometry(0.1, 0.1, 0.7, 8), toon(0xffffff, { key: 'obbyRim' }), grp, 0, 0.6, 0); }
+      if (p.type === 'move') for (const s of [-1, 1]) P.mesh(new T.ConeGeometry(0.18, 0.4, 3), toon(0xffffff, { key: 'obbyRim' }), grp, Math.cos(p.angle) * s * 0.7, 0.34, -Math.sin(p.angle) * s * 0.7).rotation.set(Math.PI / 2, 0, -p.angle + (s > 0 ? Math.PI / 2 : -Math.PI / 2));
       if (p.type === 'check') { P.mesh(new T.CylinderGeometry(0.05, 0.05, 2.2, 6), toon(0xffffff, { key: 'obbyPole' }), grp, def.w / 2 - 0.3, 1.4, -def.d / 2 + 0.3); const flag = P.mesh(new T.PlaneGeometry(0.9, 0.55), new T.MeshBasicMaterial({ color: 0xff7ab8, side: T.DoubleSide, toneMapped: false }), grp, def.w / 2 - 0.3 + 0.45, 2.2, -def.d / 2 + 0.3); flag.userData.flag = true; grp.userData.flag = flag; }
       if (p.type === 'jelly') for (let k = 0; k < 6; k++) P.sphere(glow(0xffffff, 0.6), grp, (Math.random() - 0.5) * 1.4, 0.1 + Math.random() * 0.2, (Math.random() - 0.5) * 1.4, 0.08);
       if (p.type === 'pop') for (let k = 0; k < 7; k++) { const a = k / 7 * 6.3; P.sphere(toon(0xffffff, { key: 'obbyBubble' }), grp, Math.sin(a) * 0.75, 0.32, Math.cos(a) * 0.75, 0.22, 0.12, 0.22).userData.bubble = true; }
@@ -81,7 +86,7 @@ export class ObbyScene {
   enter() {
     this.entered = true; show('obbyHud', true); show('touchHud', true); document.body.classList.add('obby');
     this.app.post.setScene(this.scene); this.app.post.setCamera(this.camera); this.resize();
-    this.audio.startMusic('winter'); this.newRun();
+    this.audio.startMusic('asmr'); this.newRun();
     toast('Дээшээ авир! Гишгэх бүр аялгуу 🎵 · Space/↑ үсрэх (давхар үсрэлт) · унавал checkpoint-с', 4500, '🍬');
   }
   exit() { this.entered = false; show('obbyHud', false); show('touchHud', false); document.body.classList.remove('obby'); this.audio.stopMusic(); closeModal(); }
@@ -98,7 +103,7 @@ export class ObbyScene {
     if (!this.entered) return;
     this.clock += dt; const t = this.clock;
     const active = !isModalOpen(), input = this.input, P = this.player, run = this.run;
-    run.tick(dt);
+    run.tick(dt); this.spinCd = Math.max(0, (this.spinCd || 0) - dt);
     if (active) { this.cam.yaw -= input.look.dx; this.cam.pitch = T.MathUtils.clamp(this.cam.pitch + input.look.dy, 0.05, 1.2); if (input.zoom) this.cam.dist = T.MathUtils.clamp(this.cam.dist + input.zoom * 0.6, 4, 14); }
     // Хөдөлгөөн (камерын чиглэлээр), слайм дээр гулсамтгай
     const axis = active && !this.done ? input.axis() : { x: 0, y: 0 }, len = Math.hypot(axis.x, axis.y);
@@ -108,7 +113,8 @@ export class ObbyScene {
     const slippery = P.grounded && P.on?.type === 'slime';
     const maxSpeed = sprint ? RUN : WALK, want = Math.min(1, len) * maxSpeed;
     const accel = (len > 0.05 ? ACCEL : DECEL) * (P.grounded ? (slippery ? 0.18 : 1) : 0.45), ka = Math.min(1, accel * dt / maxSpeed * 2.2);
-    P.vel.x += (wx * want - P.vel.x) * ka; P.vel.z += (wz * want - P.vel.z) * ka;
+    this.pushT = Math.max(0, (this.pushT || 0) - dt);
+    if (this.pushT <= 0) { P.vel.x += (wx * want - P.vel.x) * ka; P.vel.z += (wz * want - P.vel.z) * ka; }
     // Үсрэлт: coyote + buffer, давхар үсрэлт
     P.coyote = P.grounded ? COYOTE : Math.max(0, P.coyote - dt); P.buffer = Math.max(0, P.buffer - dt);
     if (active && !this.done && input.justPressed('jump')) P.buffer = BUFFER;
@@ -116,7 +122,7 @@ export class ObbyScene {
       const dbl = P.coyote <= 0;
       P.yVel = JUMP_V * (dbl ? 0.9 : 1); P.grounded = false; P.coyote = 0; P.buffer = 0; P.jumps = dbl ? 1 : 0;
       if (dbl) { this.character.flip?.(); this.particles.burst(P.pos.clone().add(new T.Vector3(0, 0.3, 0)), 0xffffff, 10, { speed: 2, up: 0.5, size: 0.14, life: 0.5, gravity: 2 }); }
-      this.audio.jump(); this.audio.tone({ f: 520, f2: 780, type: 'sine', dur: 0.12, vol: 0.05 });
+      this.audio.swish(0.04); this.audio.tone({ f: 520, f2: 780, type: 'sine', dur: 0.1, vol: 0.035 });
       if (P.on) this.squash(P.on.id, 0.5);
       P.on = null;
     }
@@ -126,6 +132,7 @@ export class ObbyScene {
     const carry = P.on && P.grounded ? moveOffset(P.on, t) : null, carryPrev = P.on && P.grounded ? moveOffset(P.on, t - dt) : null;
     if (carry) { P.pos.x += carry.x - carryPrev.x; P.pos.z += carry.z - carryPrev.z; }
     P.pos.x += P.vel.x * dt; P.pos.z += P.vel.z * dt;
+    this.collide(P, t);
     if (P.yVel <= 0) {
       const hit = landOn(this.tower, P.pos.x, P.pos.z, yPrev, P.y, t, new Set(run.crumbled.keys()));
       if (hit) { if (!P.grounded) this.onLand(hit.p, -P.yVel); P.y = hit.top; P.yVel = 0; P.grounded = true; P.jumps = 0; P.on = hit.p; }
@@ -149,35 +156,65 @@ export class ObbyScene {
       const crumbled = run.crumbled.has(p.id); v.grp.visible = !crumbled || run.crumbled.get(p.id) < 0.6; if (crumbled) v.grp.scale.setScalar(Math.min(1, (0.6 - run.crumbled.get(p.id)) / 0.6 + 0.05));
       else v.grp.scale.setScalar(1);
       if (p.type === 'jelly') v.mesh.position.y = Math.sin(t * 2 + p.phase) * 0.04;
+      if (v.grp.userData.bar) {
+        const bar = v.grp.userData.bar; bar.rotation.y = t * TYPES.spin.spinSpeed + p.phase;
+        if (P.on === p && P.grounded && (this.spinCd || 0) <= 0) {
+          // Саваа (локал x тэнхлэг, ry эргэлт) тоглогчийг дайрвал перпендикуляр түлхэнэ
+          const ax = Math.cos(bar.rotation.y), az = -Math.sin(bar.rotation.y), dx = P.pos.x - v.grp.position.x, dz = P.pos.z - v.grp.position.z;
+          const along = dx * ax + dz * az, cross = dx * az - dz * ax;
+          if (Math.abs(cross) < 0.5 && Math.abs(along) < p.w * 0.55) { const sg = Math.sign(cross) || 1; P.vel.set(az * sg * 11, 0, -ax * sg * 11); P.yVel = 5; P.grounded = false; P.on = null; this.spinCd = 0.8; this.pushT = 0.45; this.audio.squish(0.07); this.character.roll?.(0.5); toast('Саваанд цохиулав! 💫', 1200, '🌀'); }
+        }
+      }
+      // Ойрхон платформ зөөлөн гэрэлтэнэ (дараагийн алхмыг заана)
+      if (v.mat.emissive) { const near = P.on && (p.id === P.on.id + 1); v.mat.emissive.setHex(near ? 0x443344 : 0x000000); }
       if (v.grp.userData.flag) v.grp.userData.flag.rotation.y = Math.sin(t * 5 + p.phase) * 0.25;
     }
-    if (this.crumbleT !== undefined && this.crumbleT > 0) { this.crumbleT -= dt; if (this.crumbleT <= 0 && this.crumblePending !== undefined) { const id = this.crumblePending; run.crumble(id); const v = this.plats.get(id); this.particles.burst(v.grp.position.clone().add(new T.Vector3(0, 0.4, 0)), 0xe8c98a, 18, { speed: 2, up: 1, size: 0.14, life: 0.8, gravity: 6 }); this.audio.noise({ dur: 0.25, vol: 0.06, hp: 300, lp: 2500 }); this.crumblePending = undefined; } }
+    if (this.crumbleT !== undefined && this.crumbleT > 0) { this.crumbleT -= dt; if (this.crumbleT <= 0 && this.crumblePending !== undefined) { const id = this.crumblePending; run.crumble(id); const v = this.plats.get(id); this.particles.burst(v.grp.position.clone().add(new T.Vector3(0, 0.4, 0)), 0xe8c98a, 18, { speed: 2, up: 1, size: 0.14, life: 0.8, gravity: 6 }); this.audio.hiss(0.07, 0.5); this.crumblePending = undefined; } }
     // Камер: орбит
     const h = Math.sin(this.cam.pitch) * this.cam.dist, r = Math.cos(this.cam.pitch) * this.cam.dist;
     const desired = new T.Vector3(P.pos.x + Math.sin(this.cam.yaw) * r, P.y + 1.6 + h, P.pos.z + Math.cos(this.cam.yaw) * r);
     this.camera.position.lerp(desired, Math.min(1, dt * 9)); this.camera.lookAt(P.pos.x, P.y + 1.2, P.pos.z);
     this.sun.position.set(P.pos.x + 20, P.y + 60, P.pos.z + 10); this.sun.target.position.set(P.pos.x, P.y, P.pos.z);
-    this.motes.rotation.y = t * 0.02; this.sky.uniforms.uTime.value = t;
+    updateObbyWorld(this.world, dt, t); this.sky.uniforms.uTime.value = t;
     this.particles.update(dt, this.camera);
     // Net
     if (this.net.active) { this.netTick = (this.netTick || 0) + dt; if (this.netTick >= 1 / 15) { this.netTick = 0; this.net.sendState(packState({ x: P.pos.x, y: P.y, z: P.pos.z, h: P.heading, anim: P.state, speed: sp / RUN, inCar: false, zone: 3 })); } this.remote.update(dt); }
     this.hudT = (this.hudT || 0) + dt; if (this.hudT > 0.15) { this.hudT = 0; this.updateHud(); }
   }
 
+  /** Хажуугийн мөргөлдөөн: төв багана + платформын хажуу/доод тал нэвтрэхгүй */
+  collide(P, t) {
+    const R = 3.6 + 0.4, dc = Math.hypot(P.pos.x, P.pos.z);
+    if (dc < R && dc > 0.001) { const k = R / dc; P.pos.x *= k; P.pos.z *= k; const nx = P.pos.x / R, nz = P.pos.z / R, vn = P.vel.x * nx + P.vel.z * nz; if (vn < 0) { P.vel.x -= vn * nx; P.vel.z -= vn * nz; } }
+    const head = P.y + 2.0, r = 0.35;
+    for (const p of this.tower) {
+      const top = p.y + 0.3, bottom = p.y - 0.3;
+      if (P.y >= top - 0.06 || head <= bottom) continue;                 // дээр нь эсвэл доогуур нь
+      if (this.run.crumbled.has(p.id)) continue;
+      const off = moveOffset(p, t), px = p.x + off.x, pz = p.z + off.z, hw = p.w / 2 + r, hd = p.d / 2 + r;
+      const dx = P.pos.x - px, dz = P.pos.z - pz;
+      if (Math.abs(dx) >= hw || Math.abs(dz) >= hd) continue;
+      // Доороос толгойгоор мөргөх: доошоо унагана
+      if (P.yVel > 0 && head - P.yVel * 0.02 <= bottom + 0.3 && P.y < bottom - 1.0) { P.yVel = -1; continue; }
+      const penX = hw - Math.abs(dx), penZ = hd - Math.abs(dz);
+      if (penX < penZ) { P.pos.x = px + Math.sign(dx || 1) * hw; if (Math.sign(P.vel.x) === -Math.sign(dx || 1)) P.vel.x = 0; }
+      else { P.pos.z = pz + Math.sign(dz || 1) * hd; if (Math.sign(P.vel.z) === -Math.sign(dz || 1)) P.vel.z = 0; }
+    }
+  }
+
   /** Буулт: ноот, хавчилт, цагираг, төрлийн эффект */
   onLand(p, speed) {
     const run = this.run, v = this.plats.get(p.id), r = run.land(p);
     this.squash(p.id, 1); v.ringT = 0.5;
-    const vol = Math.min(0.14, 0.05 + speed * 0.008);
-    this.audio.tone({ f: r.note, type: 'sine', dur: 0.35, vol }); this.audio.tone({ f: r.note * 2, type: 'triangle', dur: 0.2, vol: vol * 0.35, delay: 0.02 });
-    this.audio.noise({ dur: 0.05, vol: 0.03, hp: 1500, lp: 6000 });
+    const vol = Math.min(0.16, 0.06 + speed * 0.009);
+    if (p.type !== 'pop' && p.type !== 'sand') this.audio.pluck(r.note, vol);
     this.particles.burst(v.grp.position.clone().add(new T.Vector3(0, 0.4, 0)), v.base, 8, { speed: 1.4, up: 1.2, size: 0.1, life: 0.45, gravity: 3 });
-    if (p.type === 'jelly') { this.player.yVel = JUMP_V * TYPES.jelly.bounce; this.player.grounded = false; this.player.jumps = 0; this.player.on = null; this.audio.tone({ f: 200, f2: 900, type: 'sine', dur: 0.25, vol: 0.09 }); this.character.flip?.(); this.particles.burst(v.grp.position.clone().add(new T.Vector3(0, 0.5, 0)), 0xa0f0d8, 14, { speed: 2.5, up: 3, size: 0.14, life: 0.6, gravity: 3 }); }
-    if (p.type === 'pop') { for (let i = 0; i < 4; i++) this.audio.tone({ f: 1400 + Math.random() * 600, type: 'square', dur: 0.03, vol: 0.05, delay: i * 0.045 }); v.grp.children.forEach((c) => { if (c.userData.bubble) c.scale.y = 0.03; }); }
-    if (p.type === 'sand') { this.crumblePending = p.id; this.crumbleT = TYPES.sand.crumble; this.audio.noise({ dur: 0.15, vol: 0.04, hp: 400, lp: 3000 }); }
-    if (p.type === 'slime') this.audio.tone({ f: 300, f2: 180, type: 'sine', dur: 0.2, vol: 0.06 });
+    if (p.type === 'jelly') { this.player.yVel = JUMP_V * TYPES.jelly.bounce; this.player.grounded = false; this.player.jumps = 0; this.player.on = null; this.audio.squish(0.11); this.character.flip?.(); this.particles.burst(v.grp.position.clone().add(new T.Vector3(0, 0.5, 0)), 0xa0f0d8, 14, { speed: 2.5, up: 3, size: 0.14, life: 0.6, gravity: 3 }); }
+    if (p.type === 'pop') { this.audio.pops(5, 0.09); this.audio.pluck(r.note, vol * 0.5, { echo: false }); v.grp.children.forEach((c) => { if (c.userData.bubble) c.scale.y = 0.03; }); }
+    if (p.type === 'sand') { this.crumblePending = p.id; this.crumbleT = TYPES.sand.crumble; this.audio.hiss(0.06, 0.35); this.audio.pluck(r.note, vol * 0.6, { echo: false }); }
+    if (p.type === 'slime') this.audio.gloop(0.08);
     if (r.checkpoint) {
-      [523, 659, 784, 1047].forEach((f, i) => this.audio.tone({ f, type: 'triangle', dur: 0.3, vol: 0.12, delay: i * 0.08 }));
+      [523, 659, 784, 1047].forEach((f, i) => this.audio.bell(f, 0.1, i * 0.12));
       this.character.cheer?.(); this.particles.burst(v.grp.position.clone().add(new T.Vector3(0, 1.5, 0)), 0xffe38a, 24, { speed: 3, up: 3, size: 0.16, life: 0.9, gravity: 4 });
       this.state.stars += r.stars; this.state.save(); this.app.scenes.town.updateHUD?.();
       if (r.finish) this.finish(); else toast(`Checkpoint ${p.id / 10}/5 · +${r.stars} од`, 2000, '🚩');
@@ -186,7 +223,7 @@ export class ObbyScene {
   squash(id, k) { const v = this.plats.get(id); if (v) v.squash = Math.max(v.squash, k); }
   fall() {
     const s = this.run.respawn();
-    this.audio.tone({ f: 600, f2: 200, type: 'sine', dur: 0.4, vol: 0.08 });
+    this.audio.tone({ f: 600, f2: 200, type: 'sine', dur: 0.4, vol: 0.06 }); this.audio.swish(0.05);
     this.player.pos.set(s.x, s.y, s.z); this.player.y = s.y; this.player.vel.set(0, 0, 0); this.player.yVel = 0; this.player.grounded = true; this.player.on = this.tower[this.run.checkpoint];
     this.app.post.flash(0xffffff, 0.5); setTimeout(() => this.app.post.flash(0xffffff, 0), 120);
     toast('Оо! Checkpoint-с дахин 🍬', 1400, '💫');

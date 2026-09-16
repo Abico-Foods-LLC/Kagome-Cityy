@@ -71,6 +71,27 @@ export class AudioSystem {
     src.start(t);
   }
 
+  // ---------- ASMR (obby) дуунууд: зөөлөн, богино, цуурайтай ----------
+  /** Калимба/маримба маягийн pluck: үндсэн + 2 гармоник, хурдан унтрах, зөөлөн цуурай */
+  pluck(f, vol = 0.12, { echo = true } = {}) {
+    if (!this.ctx || !this.enabled) return;
+    const hit = (d, v) => { this.tone({ f, type: 'sine', dur: 0.7, vol: v, attack: 0.003, delay: d }); this.tone({ f: f * 2.01, type: 'sine', dur: 0.25, vol: v * 0.35, attack: 0.002, delay: d }); this.tone({ f: f * 3.99, type: 'triangle', dur: 0.08, vol: v * 0.15, attack: 0.001, delay: d }); };
+    hit(0, vol); if (echo) { hit(0.19, vol * 0.32); hit(0.38, vol * 0.12); }
+    this.noise({ dur: 0.03, vol: vol * 0.25, hp: 2500, lp: 7000 });   // модны "тик"
+  }
+  /** Bubble wrap: 3–5 pop дараалан */
+  pops(n = 4, vol = 0.09) { for (let i = 0; i < n; i++) { const d = i * 0.055 + Math.random() * 0.02; this.tone({ f: 900 + Math.random() * 900, f2: 300, type: 'sine', dur: 0.06, vol, attack: 0.001, delay: d }); this.noise({ dur: 0.03, vol: vol * 0.5, hp: 1500, lp: 6000, delay: d }); } }
+  /** Желе: доороос дээш "boing" + чичиргээ */
+  squish(vol = 0.1) { this.tone({ f: 140, f2: 620, type: 'sine', dur: 0.32, vol, attack: 0.01 }); this.tone({ f: 260, f2: 900, type: 'triangle', dur: 0.22, vol: vol * 0.4, attack: 0.02, delay: 0.03 }); this.noise({ dur: 0.08, vol: vol * 0.3, hp: 300, lp: 1800 }); }
+  /** Элс: зөөлөн шиширгэх */
+  hiss(vol = 0.07, dur = 0.5) { this.noise({ dur, vol, hp: 500, lp: 4500, pitchDecay: true }); this.noise({ dur: dur * 0.6, vol: vol * 0.5, hp: 2000, lp: 8000, delay: 0.05 }); }
+  /** Слайм: доошоо "gloop" */
+  gloop(vol = 0.09) { this.tone({ f: 420, f2: 110, type: 'sine', dur: 0.3, vol, attack: 0.01 }); this.tone({ f: 600, f2: 200, type: 'sine', dur: 0.18, vol: vol * 0.4, delay: 0.06 }); }
+  /** Хонх (checkpoint): партиалтай */
+  bell(f = 880, vol = 0.12, delay = 0) { for (const [m, v, d] of [[1, 1, 1.6], [2.76, 0.35, 1.0], [5.4, 0.15, 0.5]]) this.tone({ f: f * m, type: 'sine', dur: d, vol: vol * v, attack: 0.002, delay }); }
+  /** Салхи шиг зөөлөн whoosh (үсрэлт) */
+  swish(vol = 0.05) { this.noise({ dur: 0.22, vol, hp: 600, lp: 3000 }); }
+
   // ---------- Тоглоомын дуунууд ----------
   ui() { this.tone({ f: 880, f2: 1200, type: 'triangle', dur: 0.08, vol: 0.12 }); }
   pickup(i = 0) {
@@ -173,6 +194,7 @@ export class AudioSystem {
     night: { chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [5, 8, 12, 15], [-2, 2, 5, 9]], root: 196, bpm: 72, type: 'sine', vol: 0.06, bass: 0.1, dur: 1.4 },
     car: { chords: [[0, 4, 7, 11], [5, 9, 12, 16], [7, 11, 14, 17], [2, 5, 9, 12]], root: 261.63, bpm: 124, type: 'square', vol: 0.05, bass: 0.12, hat: true, bass8: true },
     winter: { chords: [[0, 4, 7, 11], [5, 9, 12, 16], [7, 11, 14, 17], [2, 5, 9, 12]], root: 523.25, bpm: 84, type: 'triangle', vol: 0.07, bass: 0, dur: 1.6, bell: true },
+    asmr: { chords: [[0, 4, 7, 11], [2, 5, 9, 12], [-3, 0, 4, 7], [5, 9, 12, 16]], root: 392, bpm: 60, type: 'sine', vol: 0.045, bass: 0.06, dur: 2.2, bell: true },
     runner: { chords: [[0, 3, 7, 10], [-2, 2, 5, 9], [3, 7, 10, 14], [5, 8, 12, 15]], root: 196, bpm: 138, type: 'square', vol: 0.06, bass: 0.14, hat: true },
   };
 

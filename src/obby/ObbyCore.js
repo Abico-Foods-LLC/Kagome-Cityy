@@ -6,9 +6,10 @@ export const TYPES = {
   move: { w: 2.0, d: 2.0, amp: 2.4, speed: 1.1 },
   pop: { w: 2.4, d: 2.4 },
   slime: { w: 2.6, d: 2.6, slippery: true },
+  spin: { w: 3.0, d: 3.0, spinSpeed: 1.6 },
   check: { w: 3.2, d: 3.2, checkpoint: true },
 };
-export const PLATFORMS_N = 60, CHECK_EVERY = 10, STAGE_TYPES = ['tile', 'pop', 'jelly', 'sand', 'move', 'slime'];
+export const PLATFORMS_N = 60, CHECK_EVERY = 10, STAGE_TYPES = ['tile', 'pop', 'jelly', 'sand', 'move', 'spin'];
 export const FALL_MARGIN = 9, STARS_CHECK = 5, STARS_FINISH = 50;
 const PENTA = [0, 2, 4, 7, 9];
 
@@ -24,6 +25,7 @@ export function generateTower(seed = 1) {
     const isCheck = i > 0 && i % CHECK_EVERY === 0, isLast = i === PLATFORMS_N - 1;
     let type = i === 0 ? 'check' : isCheck || isLast ? 'check' : STAGE_TYPES[stage % STAGE_TYPES.length];
     if (type !== 'check' && rand() < 0.3) type = 'tile';   // хольц — амьсгаа авах хавтан
+    if (type === 'tile' && stage >= 4 && rand() < 0.35) type = 'slime';
     const def = TYPES[type];
     if (i > 0) { angle += 0.36 + rand() * 0.12; y += 0.85 + rand() * 0.3; r = 7.5 + Math.sin(i * 0.37) * 1.2; }
     out.push({ id: i, type, x: Math.sin(angle) * r, y, z: Math.cos(angle) * r, w: def.w, d: def.d, angle, stage, color: colorFor(i), note: noteFor(i), phase: rand() * 6 });
