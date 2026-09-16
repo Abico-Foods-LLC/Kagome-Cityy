@@ -79,8 +79,8 @@ kbd { font: inherit; font-weight: 900; background: rgba(255, 255, 255, .95); col
 @keyframes urgent { from { background: var(--card); } to { background: #ffd9d9; } }
 @media (max-width: 520px) { #deliveryHud { top: 140px; right: 10px; font-size: 12px; padding: 8px 10px; max-width: 60vw; } }
 #minimap { position: absolute; left: 20px; bottom: 20px; width: 170px; height: 170px; border-radius: 50%; border: 5px solid #fff; box-shadow: var(--shadow); background: #b2df87; }
-#prompt { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%) translateY(10px); background: #fff; border: 3px solid var(--gold); padding: 10px 18px 10px 12px; border-radius: 18px; font-weight: 900; display: flex; gap: 10px; align-items: center; opacity: 0; transition: opacity .18s, transform .18s; max-width: 86vw; box-shadow: var(--shadow); }
-#prompt.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+#prompt { pointer-events: none; cursor: pointer; position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%) translateY(10px); background: #fff; border: 3px solid var(--gold); padding: 10px 18px 10px 12px; border-radius: 18px; font-weight: 900; display: flex; gap: 10px; align-items: center; opacity: 0; transition: opacity .18s, transform .18s; max-width: 86vw; box-shadow: var(--shadow); }
+#prompt.on { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
 #prompt.urgent { border-color: var(--red); animation: urgent .35s infinite alternate; }
 #reelBar { position: absolute; left: 50%; bottom: 178px; transform: translateX(-50%); width: 300px; background: var(--card); border-radius: 14px; padding: 8px 10px; box-shadow: var(--shadow); }
 #reelBar .track { position: relative; height: 18px; border-radius: 7px; background: #e3ecee; }
@@ -253,6 +253,7 @@ body.photo #townHud > *:not(#photoBar) { display: none !important; }
   #stick { width: 124px; height: 124px; background: rgba(255, 255, 255, .35); border: 3px solid rgba(255, 255, 255, .7); border-radius: 50%; touch-action: none; pointer-events: auto; position: relative; }
   #knob { width: 52px; height: 52px; background: rgba(255, 255, 255, .92); border-radius: 50%; position: absolute; left: 33px; top: 33px; box-shadow: 0 4px 0 rgba(23, 67, 46, .3); }
   #ballBtn { position: absolute; right: 0; bottom: 170px; pointer-events: auto; } #ballBtn.hidden { display: none; }
+  #throwBtn { position: absolute; right: 0; bottom: 170px; pointer-events: auto; background: #fff0b3; } #throwBtn.hidden { display: none; }
   .actions { position: absolute; bottom: 0; right: 0; display: grid; grid-template-columns: auto auto; gap: 10px; justify-items: end; align-items: end; pointer-events: auto; }
   .act { border-radius: 50%; width: 62px; height: 62px; padding: 6px; font-size: 20px; touch-action: none; background: rgba(255, 249, 209, .92); display: grid; place-items: center; line-height: 1; }
   .act.big { width: 76px; height: 76px; font-size: 24px; }

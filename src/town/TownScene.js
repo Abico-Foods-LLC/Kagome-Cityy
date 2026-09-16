@@ -240,7 +240,8 @@ export class TownScene {
     else if (this.dogMode === 'return') this.dog.update(dt, pp, this.blocked, 'idle', 1.4);
     else if (this.state.pet) this.dog.update(dt, this.vehicle ? this.vehicle.position : pp, this.blocked, this.player.state);
     else { this.dog.update(dt, this.dog.root.position, this.blocked, 'idle'); }
-    $('ballBtn').classList.toggle('hidden', !this.state.pet);
+    $('ballBtn').classList.toggle('hidden', !this.state.pet || !!this.carry);
+    $('throwBtn').classList.toggle('hidden', !this.carry);
     // Нугас
     this.duckTick = (this.duckTick || 0) + dt;
     const checkDucks = this.app.quality !== 'low' || this.duckTick > 0.2;
@@ -823,6 +824,9 @@ export class TownScene {
     input.bindButton($('runBtn'), 'run');
     input.bindButton($('rollBtn'), 'roll');
     input.bindButton($('ballBtn'), 'ball');
+    // Утсан дээр prompt-ыг дарахад E-тэй адил; 🙌 товч = шидэх (Q)
+    $('prompt').onclick = () => this.interact();
+    $('throwBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); if (this.carry) this.throwCarry(); });
     $('mapButton').onclick = () => this.showMap();
     $('collectionButton').onclick = () => this.collection();
     $('pauseButton').onclick = () => this.pauseMenu();
@@ -1632,12 +1636,13 @@ export class TownScene {
       this.hint.scale.setScalar(1.25 + Math.sin(this.clock * 4) * 0.08);
     } else this.hint.visible = false;
     const pr = $('prompt');
-    const showP = active && (best || this.vehicle || ov);
+    const carryOv = this.carry && !best && !this.vehicle && this.input.isTouch ? `${this.carry.name || 'Иргэн'} — дэлгэц товшвол буулгана` : null;
+    const showP = active && (best || this.vehicle || ov || carryOv);
     pr.classList.toggle('on', !!showP);
     pr.classList.toggle('urgent', !!ov && this.fishing.phase === 'bite');
     if (showP) {
       const icon = typeof best?.icon === 'function' ? best.icon() : best?.icon, label = typeof best?.label === 'function' ? best.label() : best?.label;
-      $('promptText').textContent = ov ?? (this.vehicle ? 'Машинаас буух' + (this.state.chapter === 4 ? ' · Алтан хаалгаар дарааллаар яв' : '') : icon + ' ' + label);
+      $('promptText').textContent = ov ?? carryOv ?? (this.vehicle ? 'Машинаас буух' + (this.state.chapter === 4 ? ' · Алтан хаалгаар дарааллаар яв' : '') : icon + ' ' + label);
     }
   }
 
