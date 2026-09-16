@@ -19,6 +19,7 @@ class App {
     this.current = null;
     this.last = performance.now();
     this.fpsSamples = [];
+    if (/[?&]fps/.test(location.search)) { const el = document.createElement('div'); el.id = 'fps'; el.textContent = '… fps'; document.body.appendChild(el); this.fpsEl = el; }
     this.autoQuality = 'high';
     this.timeScale = 1;   // debug: удаашруулах
   }
@@ -86,6 +87,7 @@ class App {
     if (this.post.bloomPass) this.post.bloomPass.enabled = q === 'high';
     this.post.bokeh.enabled = q === 'high' && this.state.settings.dof !== false;
     this.post.setSize(innerWidth, innerHeight);
+    for (const s of Object.values(this.scenes)) if (s.bubbles) s.bubbles.scale = q === 'low' ? 0.9 : 1;
     for (const s of Object.values(this.scenes)) if (s.sun) { s.sun.castShadow = q !== 'low'; s.sun.shadow.mapSize.setScalar(q === 'high' ? 2048 : 1024); if (s.sun.shadow.map) { s.sun.shadow.map.dispose(); s.sun.shadow.map = null; } }
   }
 
@@ -133,6 +135,8 @@ class App {
     this.current.update(dt);
     this.current.render();
     this.input.endFrame();
+    // ?fps — зүүн доод буланд FPS overlay (утсан дээр шалгахад)
+    if (this.fpsEl) { this.fpsAcc = (this.fpsAcc || 0) + dt; this.fpsN = (this.fpsN || 0) + 1; if (this.fpsAcc >= 1) { this.fpsEl.textContent = `${Math.round(this.fpsN / this.fpsAcc)} fps · ${this.quality}`; this.fpsAcc = 0; this.fpsN = 0; } }
     // Автомат чанар: тоглоом эхэлснээс 8 сек-ийн дараа, 3 сек дараалан удаан бол бууруулна
     this.runTime = (this.runTime || 0) + dt;
     if (this.state.settings.quality === 'auto' && dt > 0 && this.runTime > 8 && !document.getElementById('panel').open) {

@@ -236,7 +236,10 @@ export class TownScene {
     else { this.dog.update(dt, this.dog.root.position, this.blocked, 'idle'); }
     $('ballBtn').classList.toggle('hidden', !this.state.pet);
     // Нугас
-    const threats = [this.vehicle ? this.vehicle.position : pp]; if (this.state.pet) threats.push(this.dog.root.position);
+    this.duckTick = (this.duckTick || 0) + dt;
+    const checkDucks = this.app.quality !== 'low' || this.duckTick > 0.2;
+    const threats = checkDucks ? [this.vehicle ? this.vehicle.position : pp] : []; if (checkDucks && this.state.pet) threats.push(this.dog.root.position);
+    if (checkDucks) this.duckTick = 0;
     for (const d of this.ducks) updateDuck(d, dt, t, CANAL.x, d.userData.cz, 2.6, threats, (g) => this.duckFlee(g));
     for (const c of this.cats) { updateCat(c, dt, t); this.updateCatMove(c, dt); }
     // Тариаланч: талбайн мөрөөр алхаж, зогсоод усална
@@ -285,6 +288,10 @@ export class TownScene {
 
   updateCitizens(dt) {
     const N = this.roadNodes, E = this.roadEdges, pp = this.player.pos;
+    // Бага чанарт ойр/харах/яриа шалгалтыг 0.25с тутам (кэш) — утсан дээр хэмнэнэ
+    const low = this.app.quality === 'low';
+    this.lowTick = (this.lowTick || 0) + dt;
+    const doNear = !low || this.lowTick > 0.25;
     for (const c of this.citizens) {
       const r = c.m.root;
       if (c.carried) continue;   // тоглогч өргөж яваа — updateCarry байрлуулна
@@ -300,7 +307,8 @@ export class TownScene {
       }
       if (c.wait > 0) {
         c.wait -= dt;
-        const near = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 4;
+        if (doNear) c.nearCache = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 4;
+        const near = !!c.nearCache;
         c.m.update(dt, { state: 'idle', speed: 0, lookAt: near ? new T.Vector3(pp.x, 1.5, pp.z) : null });
         if (near && !c.waved && !c.m.busy) { c.m.play('wave', 1.2); c.waved = true; this.bubbles.show(r, '👋', { dur: 1.3 }); }
         continue;
@@ -333,10 +341,10 @@ export class TownScene {
         if (!found) { c.wait = 0.6; c.target = null; continue; }
       }
       r.position.x = nx; r.position.z = nz;
-      const near = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 5;
-      c.m.update(dt, { state: 'walk', speed: 0.45, lookAt: near ? new T.Vector3(pp.x, 1.5, pp.z) : null });
+      if (doNear) c.nearCache = Math.hypot(pp.x - r.position.x, pp.z - r.position.z) < 5;
+      c.m.update(dt, { state: 'walk', speed: 0.45, lookAt: c.nearCache ? new T.Vector3(pp.x, 1.5, pp.z) : null });
     }
-    this.startChats();
+    if (doNear) { this.startChats(); this.lowTick = 0; }
   }
 
   // ---------------------------------------------------------------- Иргэд хоорондоо ярилцана
