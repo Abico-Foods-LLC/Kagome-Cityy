@@ -195,7 +195,7 @@ export class TownScene {
     scene.add(this.dog.root);
     this.interactables.push({ x: 5, z: -9, r: 3, low: true, label: this.state.pet ? 'Луувсайг илэх' : 'Луувсайг дагуулах', icon: '🐶', dynamic: () => this.dog.root.position, action: () => {
       if (!this.state.pet) { this.state.pet = true; this.state.save(); toast('Луувсай одооноос чамайг дагана! 🐾', 3000, '🐶'); this.character.cheer(); this.interactables.find((i) => i.icon === '🐶').label = 'Луувсайг илэх'; }
-      else { this.character.play('pick', 0.8); this.dog.happy = 2; this.bubbles.show(this.dog.root, '❤️', { dur: 1.4, y: 1.3, size: 0.7 }); this.particles.burst(this.dog.root.position.clone().add(new T.Vector3(0, 0.8, 0)), 0xffa7c0, 8, { speed: 1.5, up: 2, size: 0.15, life: 0.7 }); this.audio.tone({ f: 880, f2: 1400, type: 'sine', dur: 0.15, vol: 0.08 }); }
+      else { this.character.play('pick', 0.8); this.dog.happy = 2; this.audio.bark(1, 0.1); this.bubbles.show(this.dog.root, '❤️', { dur: 1.4, y: 1.3, size: 0.7 }); this.particles.burst(this.dog.root.position.clone().add(new T.Vector3(0, 0.8, 0)), 0xffa7c0, 8, { speed: 1.5, up: 2, size: 0.15, life: 0.7 }); this.audio.tone({ f: 880, f2: 1400, type: 'sine', dur: 0.15, vol: 0.08 }); }
       this.audio.ui();
     } });
     // Нугас — сувагт
@@ -242,6 +242,7 @@ export class TownScene {
     else if (this.state.pet) this.dog.update(dt, this.vehicle ? this.vehicle.position : pp, this.blocked, this.player.state);
     else { this.dog.update(dt, this.dog.root.position, this.blocked, 'idle'); }
     $('ballBtn').classList.toggle('hidden', !this.state.pet || !!this.carry);
+    this.updateAmbientVoices(dt, pp);
     $('throwBtn').classList.toggle('hidden', !this.carry);
     // Нугас
     this.duckTick = (this.duckTick || 0) + dt;
@@ -272,6 +273,26 @@ export class TownScene {
     this.fisher.catchT = (this.fisher.catchT || 0) - dt;
     if (this.fisher.catchT <= 0) { this.fisher.catchT = 12 + Math.random() * 15; this.fisher.cheer(); this.particles.burst(this.float.position.clone(), 0xbff3ff, 12, { speed: 2, up: 3, size: 0.16, life: 0.6, gravity: 8 }); if (Math.hypot(pp.x - 16, pp.z + 20) < 10) this.audio.splash(); }
     this.line.geometry.attributes.position.setY(1, this.float.position.y); this.line.geometry.attributes.position.needsUpdate = true;
+  }
+
+  /** Амьтад/NPC-ийн байнгын дуу: нохой хуцна, муур мяалдана, нугас ганганана, иргэд мэндэлнэ, ажилчид өөрсдийн үгээ хэлнэ (ойрхон үед л) */
+  updateAmbientVoices(dt, pp) {
+    const A = this.amb = this.amb || { dog: 6, cat: 10, duck: 8, npc: 5 };
+    const near = (p, r) => Math.hypot(p.x - pp.x, p.z - pp.z) < r;
+    A.dog -= dt; if (A.dog <= 0) { A.dog = 9 + Math.random() * 12; if (near(this.dog.root.position, 14)) { this.audio.bark(1 + Math.round(Math.random()), 0.09); this.bubbles.show(this.dog.root, '🐾', { dur: 1, y: 1.3, size: 0.6 }); } }
+    A.cat -= dt; if (A.cat <= 0) { A.cat = 14 + Math.random() * 16; const c = this.cats.find((x) => near(x.position, 12)); if (c) { this.audio.meow(0.07); this.bubbles.show(c, '🐱', { dur: 1.2, y: 1.1, size: 0.6 }); } }
+    A.duck -= dt; if (A.duck <= 0) { A.duck = 10 + Math.random() * 14; const d = this.ducks.find((x) => near(x.position, 16)); if (d) { this.audio.quack(1 + Math.round(Math.random() * 2)); this.bubbles.show(d, '🦆', { dur: 1, y: 0.9, size: 0.6 }); } }
+    A.npc -= dt; if (A.npc <= 0) {
+      A.npc = 7 + Math.random() * 8;
+      const v = this.app.voice; if (!v || v.speaking) return;
+      // Ойрхон иргэн мэндэлнэ (иргэн бүр 25с-д нэг удаа)
+      const c = this.citizens.find((x) => !x.knock && !x.carried && !x.upset && near(x.m.root.position, 5) && this.clock - (x.saidAt || -99) > 25);
+      if (c) { c.saidAt = this.clock; const line = ['Сайн уу!', 'Өдрийн мэнд!', 'Сайхан аялаарай!', 'Хөөе, найзаа!'][Math.floor(Math.random() * 4)]; this.bubbles.showText(c.m.root, line, { dur: 2 }); v.speak(line, { pitch: voicePitch(c.m.kind), interrupt: false }); return; }
+      const F = this.farmer.m.root, V = this.vendor.root, Fi = this.fisher.root;
+      if (near(F.position, 6) && this.clock - (this.farmerSaid || -99) > 30) { this.farmerSaid = this.clock; const line = ['Ургац сайн байна!', 'Лууван ус хэрэгтэй!', 'Талбай минь…'][Math.floor(Math.random() * 3)]; this.bubbles.showText(F, line, { dur: 2 }); v.speak(line, { pitch: 1.35, interrupt: false }); }
+      else if (near(V.position, 6) && this.clock - (this.vendorSaid || -99) > 30) { this.vendorSaid = this.clock; const line = ['Шүүс аваарай!', 'Kagome шүүс — амттай!', 'Хямдрал байна!'][Math.floor(Math.random() * 3)]; this.bubbles.showText(V, line, { dur: 2 }); v.speak(line, { pitch: 1.45, interrupt: false }); }
+      else if (near(Fi.position, 6) && this.clock - (this.fisherSaid || -99) > 30) { this.fisherSaid = this.clock; const line = ['Чшш… загас ирж байна.', 'Өнөөдөр гурвыг барилаа.', 'Тэвчээр хэрэгтэй!'][Math.floor(Math.random() * 3)]; this.bubbles.showText(Fi, line, { dur: 2 }); v.speak(line, { pitch: 1.3, rate: 0.95, interrupt: false }); }
+    }
   }
 
   /** Улирал: 5 минут тутамд солигдоно — навчны өнгө, газар, унах зүйлс */
@@ -417,7 +438,7 @@ export class TownScene {
 
   // ---------------------------------------------------------------- Муур илэх / нугас зугтах
   petCat(cat) {
-    this.character.play('pick', 0.9); this.audio.purr();
+    this.character.play('pick', 0.9); this.audio.meow(0.09); setTimeout(() => this.audio.purr(), 500);
     cat.userData.pet = 1.8;
     this.bubbles.show(cat, '❤️', { dur: 1.6, y: 1.2, size: 0.7 });
     this.particles.burst(cat.position.clone().add(new T.Vector3(0, 0.6, 0)), 0xffa7c0, 8, { speed: 1.2, up: 1.8, size: 0.14, life: 0.8, gravity: 1 });

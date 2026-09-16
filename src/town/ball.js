@@ -27,7 +27,7 @@ export class FetchBall {
     this.v.set(Math.sin(h) * 9, 6, Math.cos(h) * 9);
     this.state = 'air'; this.bounced = false; this.mesh.visible = true;
     sc.character.play('pick', 0.4); sc.audio.whoosh();
-    sc.bubbles.show(sc.dog.root, '🎾', { dur: 1.2, y: 1.3, size: 0.7 });
+    sc.bubbles.show(sc.dog.root, '🎾', { dur: 1.2, y: 1.3, size: 0.7 }); sc.audio.bark(2, 0.1);
     sc.dogMode = 'fetch';
     if (!this.hinted) { this.hinted = true; toast('Луувсай бөмбөг авчирна!', 2200, '🎾'); }
   }
@@ -59,7 +59,7 @@ export class FetchBall {
       if (Math.hypot(dog.root.position.x - pp.x, dog.root.position.z - pp.z) < 1.8) {
         this.state = 'ground'; sc.dogMode = null; dog.happy = 2;
         m.position.set(dog.root.position.x + Math.sin(dog.heading) * 0.6, 0.18, dog.root.position.z + Math.cos(dog.heading) * 0.6);
-        sc.bubbles.show(dog.root, '❤️', { dur: 1.4, y: 1.3, size: 0.7 });
+        sc.bubbles.show(dog.root, '❤️', { dur: 1.4, y: 1.3, size: 0.7 }); sc.audio.bark(1, 0.08);
         sc.audio.tone({ f: 880, f2: 1400, type: 'sine', dur: 0.15, vol: 0.08 });
       }
     }

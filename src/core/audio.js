@@ -92,6 +92,12 @@ export class AudioSystem {
   /** Салхи шиг зөөлөн whoosh (үсрэлт) */
   swish(vol = 0.05) { this.noise({ dur: 0.22, vol, hp: 600, lp: 3000 }); }
 
+  // ---------- Амьтдын дуу ----------
+  /** Нохой: "уф-уф" — богино доод sweep + шуугиан, 2 удаа */
+  bark(n = 2, vol = 0.12) { for (let i = 0; i < n; i++) { const d = i * 0.22; this.tone({ f: 420, f2: 160, type: 'sawtooth', dur: 0.12, vol: vol * 0.7, attack: 0.008, delay: d }); this.tone({ f: 700, f2: 250, type: 'square', dur: 0.08, vol: vol * 0.25, attack: 0.005, delay: d }); this.noise({ dur: 0.1, vol: vol * 0.5, hp: 400, lp: 2500, delay: d }); } }
+  /** Муур: "мяа-ау" — өгсөөд уруудах sine + гармоник */
+  meow(vol = 0.1) { this.tone({ f: 520, f2: 880, type: 'sine', dur: 0.28, vol, attack: 0.03 }); this.tone({ f: 880, f2: 460, type: 'sine', dur: 0.34, vol, attack: 0.02, delay: 0.26 }); this.tone({ f: 1560, f2: 1000, type: 'triangle', dur: 0.5, vol: vol * 0.18, attack: 0.03, delay: 0.05 }); }
+
   // ---------- Тоглоомын дуунууд ----------
   ui() { this.tone({ f: 880, f2: 1200, type: 'triangle', dur: 0.08, vol: 0.12 }); }
   pickup(i = 0) {
