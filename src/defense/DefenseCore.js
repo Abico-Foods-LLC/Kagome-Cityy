@@ -15,7 +15,7 @@ export const SHOP = {
   POWER: { price: 80, label: 'Шүүсний хүч', emoji: '⚡', desc: 'Таны буудалт хүчтэй/хурдан (2 түвшин)' },
   REPAIR: { price: 40, label: 'Base засах', emoji: '🔧', desc: 'Base +30 HP' },
 };
-export const SLOT_N = 8, FENCE_R = 7, SPRAYER_R = 4.5, BASE_R = 2.2, SPAWN_R = 26, PREP_T = 15, MAP_R = 30;
+export const SLOT_N = 8, FENCE_R = 7, SPRAYER_R = 4.5, BASE_R = 2.2, SPAWN_R = 26, PREP_T = 10, PREP_FIRST = 6, MAP_R = 30;
 export const STARS_DIV = 25;
 
 /** Давалгаа N-ийн хортоны жагсаалт (төрлөөр) */
@@ -36,7 +36,7 @@ export class DefenseCore {
   constructor({ rand = Math.random } = {}) {
     this.rand = rand;
     this.base = { hp: 100, max: 100 };
-    this.wave = 0; this.phase = 'prep'; this.prepT = PREP_T;
+    this.wave = 0; this.phase = 'prep'; this.prepT = PREP_FIRST;
     this.coins = 60; this.score = 0; this.power = 0;
     this.pests = []; this.structures = []; this.guards = []; this.queue = []; this.spawnT = 0;
     this.slots = Array.from({ length: SLOT_N }, (_, i) => ({ i, angle: i / SLOT_N * Math.PI * 2 }));

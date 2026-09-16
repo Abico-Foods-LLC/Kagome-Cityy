@@ -69,6 +69,7 @@
       <div id="stick"><div id="knob"></div></div>
       <button id="ballBtn" class="act hidden" title="Бөмбөг шидэх (F)">🎾<small>Бөмбөг</small></button>
       <button id="throwBtn" class="act big hidden" title="Шидэх (Q)">🙌<small>Шидэх</small></button>
+      <button id="adsBtn" class="act hidden" title="Зум">🔍<small>Зум</small></button>
       <div class="actions">
         <button id="rollBtn" class="act">🔄<small>Өнхрөх</small></button>
         <button id="runBtn" class="act">🏃<small>Гүйх</small></button>
@@ -92,7 +93,10 @@
         <button id="defExit" class="icon" title="Хот руу">🏠</button>
       </div>
     </header>
-    <div id="crosshair" aria-hidden="true"><i></i></div>
+    <div id="crosshair" aria-hidden="true"><i></i><span class="l"></span><span class="r"></span><span class="u"></span><span class="d"></span></div>
+    <div id="hitmark" aria-hidden="true"></div>
+    <div id="defCountdown" class="hidden"></div>
+    <div id="killFeed"></div>
     <button id="defStart" class="primary hidden">▶ Давалгаа эхлэх</button>
     <footer class="keys"><span><kbd>W A S D</kbd> Алхах</span><span><kbd>Shift</kbd> Гүйх</span><span><kbd>E</kbd>/<kbd>Товшилт</kbd> Буудах</span><span><kbd>Хулгана</kbd> Камер</span></footer>
   </div>
