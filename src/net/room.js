@@ -2,6 +2,7 @@
 import { joinRoom, selfId } from 'trystero';
 import { PROTO_VER, pickHost, roomCode } from './proto.js';
 import { $, modal, closeModal, toast } from '../core/ui.js';
+import { getTurnServers, STUN_ONLY } from './ice.js';
 
 const APP_ID = 'kagome-city-v1';
 export const MAX_PEERS = 8;
@@ -14,7 +15,7 @@ export class Net {
   }
   get active() { return !!this.room; }
   get isHost() { return !this.room || this.hostId === this.selfId; }
-  get count() { return this.peers.size + (this.room ? 1 : 0); }
+  get count() { return this.peers.size + (this.room || this.joining ? 1 : 0); }
   on(evt, fn) { (this.handlers[evt] = this.handlers[evt] || []).push(fn); return this; }
   emit(evt, ...a) { for (const f of this.handlers[evt] || []) f(...a); }
 
@@ -25,13 +26,24 @@ export class Net {
   joinPublic(n = 1) { this.join('lobby' + n); this.publicN = n; this.publicT = 0; }
 
   join(code = roomCode()) {
-    if (this.room) return;
+    if (this.room || this.joining) return;
     this.code = code; this.joinedAt = Date.now(); this.peers.clear(); this.hostId = this.selfId;
     const url = new URL(location.href);
     if (/^lobby\d+$/.test(code)) url.searchParams.delete('room'); else url.searchParams.set('room', code);
     history.replaceState(null, '', url);
+    // TURN credential (Cloudflare Worker) — утас мобайл дата ↔ Wi-Fi хооронд STUN-аар шууд P2P тогтдоггүй
+    const token = this.joining = {};
+    getTurnServers().then(({ turn, source }) => {
+      if (this.joining !== token) return;   // энэ хооронд leave() дуудсан
+      this.joining = null; this.turnSource = source;
+      if (source === STUN_ONLY) console.warn('[net] TURN relay авч чадсангүй — зөвхөн STUN (өөр сүлжээний тоглогчтой холбогдохгүй байж болно)');
+      this.open(code, turn);
+    });
+  }
+
+  open(code, turn) {
     try {
-      this.room = joinRoom({ appId: APP_ID }, 'kc-' + code, { onJoinError: (d) => this.fail('Холбогдож чадсангүй: ' + (d?.error?.message || d?.error || 'сүлжээ')) });
+      this.room = joinRoom({ appId: APP_ID, turnConfig: turn }, 'kc-' + code, { onJoinError: (d) => this.onJoinError(d) });
     } catch (e) { this.fail('Холбогдож чадсангүй: ' + e.message); return; }
     // Trystero 0.25: makeAction → { send, onMessage }; onMessage(data, { peerId })
     const mk = (name) => { const a = this.room.makeAction(name); return { send: (d, t) => a.send(d, t), recv: (fn) => { a.onMessage = (d, meta) => fn(d, typeof meta === 'string' ? meta : meta?.peerId); } }; };
@@ -50,9 +62,21 @@ export class Net {
     else toast(`Өрөө: ${code} — бусдыг линкээр урь`, 3500, '👥');
   }
 
+  /** Trystero-ийн алдаа: peerId-тэй бол зөвхөн тэр тоглогчтой холбогдоогүй (өрөөнөөс гарахгүй); үгүй бол өрөөний түвшний алдаа */
+  onJoinError(d) {
+    const msg = d?.error?.message || d?.error || 'сүлжээ';
+    if (d?.peerId) {
+      console.warn('[net] peer холболт бүтэлгүйтэв:', d.peerId, msg);
+      if (!this.peerErrT || Date.now() - this.peerErrT > 15000) { this.peerErrT = Date.now(); toast(this.turnSource === STUN_ONLY ? 'Нэг тоглогчтой холбогдож чадсангүй — relay сервер хүрэхгүй байна' : 'Нэг тоглогчтой холбогдож чадсангүй — тэр тоглогч дахин ороорой', 4500, '⚠️'); }
+      return;
+    }
+    this.fail('Холбогдож чадсангүй: ' + msg);
+  }
+
   fail(msg) { toast(msg + '. Өөр сүлжээ/утасны интернет туршаад дахин оролдоорой.', 6000, '⚠️'); this.leave(); }
 
   leave() {
+    this.joining = null;
     if (this.room) { try { this.room.leave(); } catch (e) { /* аль хэдийн хаагдсан */ } }
     const had = [...this.peers.keys()];
     this.room = null; this.code = null; this.peers.clear(); this.hostId = null;
@@ -115,12 +139,12 @@ export class Net {
   /** Өрөөний модал: линк, тоглогчид, гарах */
   roomModal() {
     const st = this.scene.state;
-    if (!this.room || this.isPublic) {
+    if (!(this.room || this.joining) || this.isPublic) {
       const pub = st.settings.publicRoom !== false;
       const list = this.room ? [...this.peers.values()].map((p) => p.name).join(', ') : '';
       modal(`<div class="eyebrow">ХАМТ ТОГЛОХ</div><h2>👥 ${this.room ? `Нийтийн хот · ${this.count} тоглогч` : 'Найзуудаа урь'}</h2>${this.room ? `<p>${list ? 'Энд: ' + list : 'Одоогоор ганцаараа — бусад тоглогч ормогц энд ирнэ.'}</p>` : ''}<p>Хувийн өрөө үүсгээд линкийг найздаа илгээвэл зөвхөн та нар хамт тоглоно (8 хүртэл). Сервергүй, шууд холбогдоно.</p><label class="chk"><input type="checkbox" id="netPublic" ${pub ? 'checked' : ''}> Тоглоом нээхэд нийтийн хотод автоматаар нэгдэх</label><div class="row"><button id="netCreate" class="primary">Хувийн өрөө үүсгэх</button>${this.room ? '<button id="netLeave" class="ghost">Нийтийн хотоос гарах</button>' : ''}<button id="netClose" class="ghost">Хаах</button></div>`);
       $('netPublic').onchange = (e) => { st.settings.publicRoom = e.target.checked; st.save(); if (e.target.checked && !this.room) this.askName(() => this.joinPublic()); };
-      $('netCreate').onclick = () => { closeModal(); this.askName(() => { if (this.room) this.leave(); this.join(); this.roomModal(); }); };
+      $('netCreate').onclick = () => { closeModal(); this.askName(() => { this.leave(); this.join(); this.roomModal(); }); };
       const lv = $('netLeave'); if (lv) lv.onclick = () => { this.leave(); closeModal(); toast('Нийтийн хотоос гарлаа', 2000, '👋'); };
       $('netClose').onclick = closeModal; return;
     }
