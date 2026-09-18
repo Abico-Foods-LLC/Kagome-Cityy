@@ -1,0 +1,6 @@
+# Cloudflare Worker: Kagome City-д TURN credential өгнө (Cloudflare Realtime TURN).
+# Deploy: cd turn-worker && npx wrangler login && npx wrangler secret put TURN_KEY_ID && npx wrangler secret put TURN_KEY_TOKEN && npx wrangler deploy
+name = "kagome-turn"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true

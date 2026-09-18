@@ -4,3 +4,6 @@ dist
 *.log
 .playwright-mcp
 .azure-speech.json
+.cf-turn.json
+turn-worker/.wrangler
+turn-worker/node_modules
